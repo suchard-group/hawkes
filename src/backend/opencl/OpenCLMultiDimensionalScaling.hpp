@@ -946,29 +946,24 @@ public:
 
 	void createOpenCLLikelihoodKernel() {
 
-//		const char Test[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
-//			// approximation of the cumulative normal distribution function
-//			static float cnd(float d)
-//			{
-//				const float A1 =  0.319381530f;
-//				const float A2 = -0.356563782f;
-//				const float A3 =  1.781477937f;
-//				const float A4 = -1.821255978f;
-//				const float A5 =  1.330274429f;
-//				const float R_SQRT_2PI = 0.39894228040143267793994605993438f;
-//
-//				float K = 1.0f / (1.0f + 0.2316419f * fabs(d));
-//				float cnd =
-//                        R_SQRT_2PI * exp(-0.5f * d * d) *
-//					(K * (A1 + K * (A2 + K * (A3 + K * (A4 + K * A5)))));
-//
-//				if(d > 0){
-//					cnd = 1.0f - cnd;
-//				}
-//
-//				return cnd;
-//			}
-//		);
+        const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double pdf(double);
+
+                static double pdf(double value) {
+                    return 0.5 * M_SQRT1_2 * M_2_SQRTPI * exp( - pow(value,2.0) * 0.5);
+                }
+        );
+
+        const char pdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float pdf(float);
+
+                static float pdf(float value) {
+
+                    const float rSqrt2f = 0.70710678118655f;
+                    const float rSqrtPif = 0.56418958354775f;
+                    return rSqrt2f * rSqrtPif * exp( - pow(value,2.0f) * 0.5f);
+                }
+        );
 
 		const char cdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
 			static double cdf(double);
@@ -1038,37 +1033,28 @@ public:
 			code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
 			options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
                     << " -DZERO=0.0 -DHALF=0.5";
-
-			if (isLeftTruncated) {
-				code << cdfString1Double;
-			}
+			code << cdfString1Double;
 
 		} else { // 32-bit fp
 			options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
                     << " -DZERO=0.0f -DHALF=0.5f";
-
-			if (isLeftTruncated) {
-				code << cdfString1Float;
-			}
+			code << cdfString1Float;
 		}
 
 		code <<
-			" __kernel void computeSSR(__global const REAL_VECTOR *locations,  \n" <<
-			"  						   __global const REAL *observations,      \n" <<
-			"						   __global REAL *squaredResiduals,        \n";
+			" __kernel void computeLikelihood(__global const REAL_VECTOR *locations,  \n" <<
+			"  						          __global const REAL *times,             \n" <<
+			"						          __global REAL *likContribs,             \n" <<
+            "                                 const REAL sigmaXprec,                  \n" <<
+            "                                 const REAL tauXprec,                    \n" <<
+			"                                 const REAL tauTprec,                    \n" <<
+			"                                 const REAL omega,                       \n" <<
+			"                                 const REAL theta,                       \n" <<
+			"                                 const REAL mu0,                         \n" <<
+			"                                 const uint dimX,                        \n" <<
+			"						          const uint locationCount) {             \n";
 
 
-		if (isLeftTruncated) {
-			code <<
-            "                          const REAL precision,                   \n" <<
-			"                          const REAL oneOverSd,                   \n";
-		}
-
-		code <<
-			"						   const uint locationCount) {            \n";
-
-
-//        code << "}\n";
 
 		code << BOOST_COMPUTE_STRINGIZE_SOURCE(
 				const uint offsetJ = get_group_id(0) * TILE_DIM;
@@ -1090,47 +1076,37 @@ public:
 
 				if (i < locationCount && j < locationCount) {
 
-                    const REAL_VECTOR difference = tile[1][get_local_id(1)] - tile[0][get_local_id(0)];
-                    // 						locations[i] - locations[j]
+                    const REAL_VECTOR locDiff  = tile[1][get_local_id(1)] - tile[0][get_local_id(0)];
+                    const REAL        timeDiff = times[i] - times[j];
         );
 
         if (OpenCLRealType::dim == 8) {
             code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                    const REAL distance = sqrt(
-                            dot(difference.lo, difference.lo) +
-                            dot(difference.hi, difference.hi)
-                    );
+                    const REAL distance = sqrt(dot(locDiff.lo, locDiff.lo) + dot(locDiff.hi, locDiff.hi));
             );
         } else {
             code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-					const REAL distance = length(difference);
+					const REAL distance = length(locDiff);
             );
         }
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                    const REAL observation = observations[i * locationCount + j];
-
-                    const REAL residual = select(distance - observation, ZERO, (CAST)isnan(observation));
-                    //const REAL residual = distance - observation;
-                    REAL squaredResidual = residual * residual;
-
-//                    if (!isnan(observation)) {
-//                        const REAL residual = (distance - observation);
-//                        squaredResidual = residual * residual;
-//                    }
+                    // TODO unsure whether I need to pown(tauXprec,dimX) pown(sigmaXprec,dimX) outside of pdf
+                    const REAL likContrib = mu0 * tauXprec * tauTprec * pdf(distance * tauXprec) * pdf(timeDiff*tauTprec) +
+                            select(theta, ZERO, times[j] < times[i]) * pdf(distance * sigmaXprec) * exp(-omega*timeDiff);
         );
 
-		if (isLeftTruncated) {
-			code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-					squaredResidual *= HALF * precision;
-					const REAL truncation = (i == j) ? ZERO :
-					        select(log(cdf(fabs(distance) * oneOverSd)), ZERO, (CAST)isnan(observation));
-					squaredResidual += truncation;
-			);
-		}
+//		if (isLeftTruncated) {
+//			code << BOOST_COMPUTE_STRINGIZE_SOURCE(
+//					squaredResidual *= HALF * precision;
+//					const REAL truncation = (i == j) ? ZERO :
+//					        select(log(cdf(fabs(distance) * oneOverSd)), ZERO, (CAST)isnan(observation));
+//					squaredResidual += truncation;
+//			);
+//		}
 
 		code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-			 		squaredResiduals[i * locationCount + j] = squaredResidual;
+			 		likContribs[i * locationCount + j] = likContrib;
 				}
             }
 		);
@@ -1165,15 +1141,16 @@ public:
 
 		size_t index = 0;
 		kernelSumOfSquaredResidualsVector.set_arg(index++, dLocations0); // Must update
-		kernelSumOfSquaredResidualsVector.set_arg(index++, dObservations);
-		kernelSumOfSquaredResidualsVector.set_arg(index++, dSquaredResiduals);
-
-		if (isLeftTruncated) {
-// 			kernelSumOfSquaredResidualsVector.set_arg(index++, dTruncations);
-			kernelSumOfSquaredResidualsVector.set_arg(index++, static_cast<RealType>(precision)); // Must update
-			kernelSumOfSquaredResidualsVector.set_arg(index++, static_cast<RealType>(oneOverSd)); // Must update
-		}
-		kernelSumOfSquaredResidualsVector.set_arg(index++, boost::compute::uint_(locationCount));
+		kernelSumOfSquaredResidualsVector.set_arg(index++, dTimes);
+		kernelSumOfSquaredResidualsVector.set_arg(index++, dLikContribs);
+        kernelSumOfSquaredResidualsVector.set_arg(index++, sigmaXprec);
+        kernelSumOfSquaredResidualsVector.set_arg(index++, tauXprec);
+        kernelSumOfSquaredResidualsVector.set_arg(index++, tauTprec);
+        kernelSumOfSquaredResidualsVector.set_arg(index++, omega);
+        kernelSumOfSquaredResidualsVector.set_arg(index++, theta);
+        kernelSumOfSquaredResidualsVector.set_arg(index++, mu0);
+        kernelSumOfSquaredResidualsVector.set_arg(index++, boost::compute::uint_(embeddingDimension));
+        kernelSumOfSquaredResidualsVector.set_arg(index++, boost::compute::uint_(locationCount));
 
 	}
 
