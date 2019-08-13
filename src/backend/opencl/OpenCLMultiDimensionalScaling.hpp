@@ -1054,31 +1054,22 @@ public:
 			"                                 const uint dimX,                        \n" <<
 			"						          const uint locationCount) {             \n";
 
-
-
-		code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-				const uint offsetJ = get_group_id(0) * TILE_DIM;
-				const uint offsetI = get_group_id(1) * TILE_DIM;
-
-				const uint j = offsetJ + get_local_id(0);
-				const uint i = offsetI + get_local_id(1);
-
-				__local REAL_VECTOR tile[2][TILE_DIM + 1]; // tile[0] == locations_j, tile[1] == locations_i
-
-				if (get_local_id(1) < 2) { // load just 2 rows
-					tile[get_local_id(1)][get_local_id(0)] = locations[
-						(get_local_id(1) - 0) * (offsetI + get_local_id(0)) + // tile[1] = locations_i
-						(1 - get_local_id(1)) * (offsetJ + get_local_id(0))   // tile[0] = locations_j
-					];
-				}
-
-				barrier(CLK_LOCAL_MEM_FENCE);
-
-				if (i < locationCount && j < locationCount) {
-
-                    const REAL_VECTOR locDiff  = tile[1][get_local_id(1)] - tile[0][get_local_id(0)];
-                    const REAL        timeDiff = times[i] - times[j];
-        );
+		code <<
+		    "   const uint i = get_group_id(0);                                     \n" <<
+		    "                                                                       \n" <<
+		    "   const uint lid = get_local_id(0);                                   \n" <<
+		    "   uint j = get_local_id(0);                                           \n" <<
+		    "                                                                       \n" <<
+		    "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
+		    "                                                                       \n" <<
+		    "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
+		    "   REAL_VECTOR sum = ZERO;                                             \n" <<
+		    "                                                                       \n" <<
+		    "   while (j < locationCount) {                                         \n" <<
+		    "                                                                       \n" <<
+		    "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
+		    "     const REAL_VECTOR locDiff = vectorI - vectorJ;                    \n" <<
+		    "     const REAL        timeDiff = times[i] - times[j];                 \n";
 
         if (OpenCLRealType::dim == 8) {
             code << BOOST_COMPUTE_STRINGIZE_SOURCE(
@@ -1092,24 +1083,49 @@ public:
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                     // TODO unsure whether I need to pown(tauXprec,dimX) pown(sigmaXprec,dimX) outside of pdf
-                    const REAL likContrib = mu0 * tauXprec * tauTprec * pdf(distance * tauXprec) * pdf(timeDiff*tauTprec) +
-                            select(theta, ZERO, times[j] < times[i]) * pdf(distance * sigmaXprec) * exp(-omega*timeDiff);
+                    REAL innerContrib = mu0 * tauXprec * tauTprec * pdf(distance * tauXprec) * pdf(timeDiff*tauTprec) +
+                            select(theta, ZERO, times[j]<times[i]) * pdf(distance * sigmaXprec) * exp(-omega*timeDiff);
         );
 
-//		if (isLeftTruncated) {
-//			code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-//					squaredResidual *= HALF * precision;
-//					const REAL truncation = (i == j) ? ZERO :
-//					        select(log(cdf(fabs(distance) * oneOverSd)), ZERO, (CAST)isnan(observation));
-//					squaredResidual += truncation;
-//			);
-//		}
+        code <<
+             "     sum += innerContrib;                                              \n" <<
+             "     j += TPB;                                                         \n" <<
+             "     scratch[lid] = sum;                                               \n";
+#ifdef USE_VECTOR
+        code << reduce::ReduceBody1<RealType,false>::body();
+#else
+        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
+#endif
+        code <<
+             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+             "   if (lid == 0) {                                                     \n";
 
-		code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-			 		likContribs[i * locationCount + j] = likContrib;
-				}
+        code <<
+             "     REAL_VECTOR mask = (REAL_VECTOR) ("; // TODO unsure of role played by mask
+
+        for (int i = 0; i < embeddingDimension; ++i) {
+            code << " ONE";
+            if (i < (OpenCLRealType::dim - 1)) {
+                code << ",";
             }
-		);
+        }
+        for (int i = embeddingDimension; i < OpenCLRealType::dim; ++i) {
+            code << " ZERO";
+            if (i < (OpenCLRealType::dim - 1)) {
+                code << ",";
+            }
+        }
+        code << " ); \n";
+
+        code <<
+             "     likContribs[i] =  log(scratch[0]) + theta / omega *               \n" <<
+             "       ( exp(-omega*(times[locationCounts]-times[i]))-1 ) -            \n" <<
+             "       mu0 * ( cdf((times[locationCounts]-times[i])/tauT)-             \n" <<
+             "               cdf(-times[i]/tauT) )   ;                               \n" <<
+             "   }                                                                   \n" <<
+             " }                                                                     \n ";
+        // TODO currently produces vector of individual lik contributions.  need to sum over for likelihood
+
 
 #ifdef DEBUG_KERNELS
 #ifdef RBUILD
