@@ -944,7 +944,94 @@ public:
 		return sum;
 	}
 
-	void createOpenCLLikelihoodKernel() {
+	void createOpenCLSummationKernel() {
+
+        std::stringstream code;
+        std::stringstream options;
+
+        options << "-DTILE_DIM=" << TILE_DIM;
+
+        if (sizeof(RealType) == 8) { // 64-bit fp
+            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
+                    << " -DZERO=0.0 -DHALF=0.5";
+
+        } else { // 32-bit fp
+            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
+                    << " -DZERO=0.0f -DHALF=0.5f";
+        }
+
+        code <<
+             " __kernel void computeSum(__global const REAL_VECTOR *summand,           \n" <<
+             "                                 __global REAL *partialSum,              \n" <<
+             "						           const uint locationCount) {             \n";
+
+        code <<
+             "   const uint lid = get_local_id(0);                                   \n" <<
+             "   uint j = get_local_id(0);                                           \n" <<
+             "                                                                       \n" <<
+             "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
+             "                                                                       \n" <<
+             "   REAL sum = ZERO;                                                    \n" <<
+             "                                                                       \n" <<
+             "   while (j < locationCount) {                                         \n";
+
+
+        code <<
+             "     sum += summand[j];                                                \n" <<
+             "     j += TPB;                                                         \n" <<
+             "     scratch[lid] = sum;                                               \n";
+#ifdef USE_VECTOR
+        code << reduce::ReduceBody1<RealType,false>::body();
+#else
+        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
+#endif
+        code <<
+             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+             "   if (lid == 0) {                                                     \n";
+
+        code <<
+             "     partialSum[i] =  scratch[0];                                      \n" <<
+             "   }                                                                   \n" <<
+             " }                                                                     \n ";
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+		    Rcpp::Rcout << "Summation kernel\n" << code.str() << std::endl;
+#else
+        std::cerr << "Summation kernel\n" << code.str() << std::endl;
+#endif
+#endif
+
+        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+        kernelSummation = boost::compute::kernel(program, "computeSummation");
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+        Rcpp:Rcout << "Successful build." << std::endl;
+#else
+        std::cerr << "Successful build." << std::endl;
+#endif
+#endif
+
+#ifdef DOUBLE_CHECK
+        #ifdef RBUILD
+        Rcpp::Rcout << kernelSumOfSquaredResidualsVector.get_program().source() << std::endl;
+#else
+        std::cerr << kernelSumOfSquaredResidualsVector.get_program().source() << std::endl;
+#endif
+//        exit(-1);
+#endif // DOUBLE_CHECK
+
+        size_t index = 0;
+        kernelSummation.set_arg(index++, dLikContribs);
+        kernelSummation.set_arg(index++, dLikelihood);
+        kernelSummation.set_arg(index++, boost::compute::uint_(locationCount));
+        // TODO how to create kernels that sum over different summands without duplicating code?
+
+	}
+
+	void createOpenCLLikContribsKernel() {
 
         const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
                 static double pdf(double);
@@ -983,51 +1070,10 @@ public:
 	    	}
 		);
 
-//		const char SumOfSquaredResidualsKernelVectorBody[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
-//				const uint offsetJ = get_group_id(0) * TILE_DIM;
-//				const uint offsetI = get_group_id(1) * TILE_DIM;
-//
-//				const uint j = offsetJ + get_local_id(0);
-//				const uint i = offsetI + get_local_id(1);
-//
-//				__local REAL_VECTOR tile[2][TILE_DIM + 1]; // tile[0] == locations_j, tile[1] == locations_i
-//
-//				if (get_local_id(1) < 2) { // load just 2 rows
-//					tile[get_local_id(1)][get_local_id(0)] = locations[
-//						(get_local_id(1) - 0) * (offsetI + get_local_id(0)) + // tile[1] = locations_i
-//						(1 - get_local_id(1)) * (offsetJ + get_local_id(0))   // tile[0] = locations_j
-//					];
-//				}
-//
-//				barrier(CLK_LOCAL_MEM_FENCE);
-//
-//				if (i < locationCount && j < locationCount) {
-//
-//					const REAL distance = length(
-//						tile[1][get_local_id(1)] - tile[0][get_local_id(0)]
-//// 						locations[i] - locations[j]
-//					);
-//
-//					const REAL residual =  !isnan(observations[i * locationCount + j]) *
-//					        (distance - observations[i * locationCount + j]); //Andrew's not sure
-//					const REAL squaredResidual = residual * residual;
-//
-//					squaredResiduals[i * locationCount + j] = squaredResidual;
-//				}
-//			}
-//		);
-
-//		bool useLocalMemory = false;
-
-// 		std::cerr << "A" << std::endl;
-
 		std::stringstream code;
 		std::stringstream options;
 
 		options << "-DTILE_DIM=" << TILE_DIM;
-//		if (useLocalMemory) {
-//	    	options << " -DLOCAL_MEM";
-//	    }
 
 		if (sizeof(RealType) == 8) { // 64-bit fp
 			code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
@@ -1042,7 +1088,7 @@ public:
 		}
 
 		code <<
-			" __kernel void computeLikelihood(__global const REAL_VECTOR *locations,  \n" <<
+			" __kernel void computeLikContribs(__global const REAL_VECTOR *locations, \n" <<
 			"  						          __global const REAL *times,             \n" <<
 			"						          __global REAL *likContribs,             \n" <<
             "                                 const REAL sigmaXprec,                  \n" <<
@@ -1063,7 +1109,7 @@ public:
 		    "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
 		    "                                                                       \n" <<
 		    "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
-		    "   REAL_VECTOR sum = ZERO;                                             \n" <<
+		    "   REAL        sum = ZERO;                                             \n" <<
 		    "                                                                       \n" <<
 		    "   while (j < i) {                                                     \n" << // originally j < locationCount
 		    "                                                                       \n" <<
@@ -1101,42 +1147,23 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code <<
-             "     REAL_VECTOR mask = (REAL_VECTOR) ("; // TODO unsure of role played by mask
-
-        for (int i = 0; i < embeddingDimension; ++i) {
-            code << " ONE";
-            if (i < (OpenCLRealType::dim - 1)) {
-                code << ",";
-            }
-        }
-        for (int i = embeddingDimension; i < OpenCLRealType::dim; ++i) {
-            code << " ZERO";
-            if (i < (OpenCLRealType::dim - 1)) {
-                code << ",";
-            }
-        }
-        code << " ); \n";
-
-        code <<
              "     likContribs[i] =  log(scratch[0]) + theta / omega *               \n" <<
              "       ( exp(-omega*(times[locationCounts]-times[i]))-1 ) -            \n" <<
              "       mu0 * ( cdf((times[locationCounts]-times[i])/tauT)-             \n" <<
              "               cdf(-times[i]/tauT) )   ;                               \n" <<
              "   }                                                                   \n" <<
              " }                                                                     \n ";
-        // TODO currently produces vector of individual lik contributions.  need to sum over for likelihood
-
 
 #ifdef DEBUG_KERNELS
 #ifdef RBUILD
-		    Rcpp::Rcout << "Likelihood kernel\n" << code.str() << std::endl;
+		    Rcpp::Rcout << "Inner Likelihood kernel\n" << code.str() << std::endl;
 #else
-        std::cerr << "Likelihood kernel\n" << code.str() << std::endl;
+        std::cerr << "Inner Likelihood kernel\n" << code.str() << std::endl;
 #endif
 #endif
 
 		program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
-	    	kernelSumOfSquaredResidualsVector = boost::compute::kernel(program, "computeSSR");
+		kernelLikContribs = boost::compute::kernel(program, "computeLikContribs");
 
 #ifdef DEBUG_KERNELS
 #ifdef RBUILD
@@ -1156,17 +1183,17 @@ public:
 #endif // DOUBLE_CHECK
 
 		size_t index = 0;
-		kernelSumOfSquaredResidualsVector.set_arg(index++, dLocations0); // Must update
-		kernelSumOfSquaredResidualsVector.set_arg(index++, dTimes);
-		kernelSumOfSquaredResidualsVector.set_arg(index++, dLikContribs);
-        kernelSumOfSquaredResidualsVector.set_arg(index++, sigmaXprec);
-        kernelSumOfSquaredResidualsVector.set_arg(index++, tauXprec);
-        kernelSumOfSquaredResidualsVector.set_arg(index++, tauTprec);
-        kernelSumOfSquaredResidualsVector.set_arg(index++, omega);
-        kernelSumOfSquaredResidualsVector.set_arg(index++, theta);
-        kernelSumOfSquaredResidualsVector.set_arg(index++, mu0);
-        kernelSumOfSquaredResidualsVector.set_arg(index++, boost::compute::uint_(embeddingDimension));
-        kernelSumOfSquaredResidualsVector.set_arg(index++, boost::compute::uint_(locationCount));
+        kernelLikContribs.set_arg(index++, dLocations0); // Must update
+		kernelLikContribs.set_arg(index++, dTimes);
+		kernelLikContribs.set_arg(index++, dLikContribs);
+        kernelLikContribs.set_arg(index++, sigmaXprec);
+        kernelLikContribs.set_arg(index++, tauXprec);
+        kernelLikContribs.set_arg(index++, tauTprec);
+        kernelLikContribs.set_arg(index++, omega);
+        kernelLikContribs.set_arg(index++, theta);
+        kernelLikContribs.set_arg(index++, mu0);
+        kernelLikContribs.set_arg(index++, boost::compute::uint_(embeddingDimension));
+        kernelLikContribs.set_arg(index++, boost::compute::uint_(locationCount));
 
 	}
 
