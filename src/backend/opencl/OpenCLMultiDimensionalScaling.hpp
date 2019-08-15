@@ -1065,7 +1065,7 @@ public:
 		    "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
 		    "   REAL_VECTOR sum = ZERO;                                             \n" <<
 		    "                                                                       \n" <<
-		    "   while (j < locationCount) {                                         \n" <<
+		    "   while (j < i) {                                                     \n" << // originally j < locationCount
 		    "                                                                       \n" <<
 		    "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
 		    "     const REAL_VECTOR locDiff = vectorI - vectorJ;                    \n" <<
