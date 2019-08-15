@@ -991,7 +991,7 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code <<
-             "     partialSum[i] =  scratch[0];                                      \n" <<
+             "     partialSum    =  scratch[0];                                      \n" <<
              "   }                                                                   \n" <<
              " }                                                                     \n ";
 
