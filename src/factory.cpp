@@ -1,63 +1,63 @@
-#include "AbstractMultiDimensionalScaling.hpp"
+#include "AbstractHawkes.hpp"
 
 // forward reference
-namespace mds {
+namespace hph {
 #ifdef HAVE_OPENCL
-    SharedPtr constructOpenCLMultiDimensionalScalingDouble(int, int, long, int);
-    SharedPtr constructOpenCLMultiDimensionalScalingFloat(int, int, long, int);
+    SharedPtr constructOpenCLHawkesDouble(int, int, long, int);
+    SharedPtr constructOpenCLHawkesFloat(int, int, long, int);
 #endif
-    SharedPtr constructNewMultiDimensionalScalingDoubleNoParallelNoSimd(int, int, long, int);
-    SharedPtr constructNewMultiDimensionalScalingDoubleTbbNoSimd(int, int, long, int);
+    SharedPtr constructNewHawkesDoubleNoParallelNoSimd(int, int, long, int);
+    SharedPtr constructNewHawkesDoubleTbbNoSimd(int, int, long, int);
 
-    SharedPtr constructNewMultiDimensionalScalingFloatNoParallelNoSimd(int, int, long, int);
-    SharedPtr constructNewMultiDimensionalScalingFloatTbbNoSimd(int, int, long, int);
+    SharedPtr constructNewHawkesFloatNoParallelNoSimd(int, int, long, int);
+    SharedPtr constructNewHawkesFloatTbbNoSimd(int, int, long, int);
 
 #ifdef USE_SSE
-    SharedPtr constructNewMultiDimensionalScalingDoubleTbbSse(int, int, long, int);
-    SharedPtr constructNewMultiDimensionalScalingDoubleNoParallelSse(int, int, long, int);
-    SharedPtr constructNewMultiDimensionalScalingFloatNoParallelSse(int, int, long, int);
-    SharedPtr constructNewMultiDimensionalScalingFloatTbbSse(int, int, long, int);
+    SharedPtr constructNewHawkesDoubleTbbSse(int, int, long, int);
+    SharedPtr constructNewHawkesDoubleNoParallelSse(int, int, long, int);
+    SharedPtr constructNewHawkesFloatNoParallelSse(int, int, long, int);
+    SharedPtr constructNewHawkesFloatTbbSse(int, int, long, int);
 #endif
 
 #ifdef USE_AVX
-    SharedPtr constructNewMultiDimensionalScalingDoubleTbbAvx(int, int, long, int);
-    SharedPtr constructNewMultiDimensionalScalingDoubleNoParallelAvx(int, int, long, int);
+    SharedPtr constructNewHawkesDoubleTbbAvx(int, int, long, int);
+    SharedPtr constructNewHawkesDoubleNoParallelAvx(int, int, long, int);
 #endif
 
 #ifdef USE_AVX512
-    SharedPtr constructNewMultiDimensionalScalingDoubleTbbAvx512(int, int, long, int);
-    SharedPtr constructNewMultiDimensionalScalingDoubleNoParallelAvx512(int, int, long, int);
+    SharedPtr constructNewHawkesDoubleTbbAvx512(int, int, long, int);
+    SharedPtr constructNewHawkesDoubleNoParallelAvx512(int, int, long, int);
 #endif
 
 SharedPtr factory(int dim1, int dim2, long flags, int device, int threads) {
-	bool useFloat = flags & mds::Flags::FLOAT;
-	bool useOpenCL = flags & mds::Flags::OPENCL;
-	bool useTbb = flags & mds::Flags::TBB;
-    bool useAvx512 = flags & mds::Flags::AVX512;
-	bool useAvx = flags & mds::Flags::AVX;
-	bool useSse = flags & mds::Flags::SSE;
+	bool useFloat = flags & hph::Flags::FLOAT;
+	bool useOpenCL = flags & hph::Flags::OPENCL;
+	bool useTbb = flags & hph::Flags::TBB;
+    bool useAvx512 = flags & hph::Flags::AVX512;
+	bool useAvx = flags & hph::Flags::AVX;
+	bool useSse = flags & hph::Flags::SSE;
 
 	if (useFloat) {
 		if (useOpenCL) {
 #ifdef HAVE_OPENCL
-			return constructOpenCLMultiDimensionalScalingFloat(dim1, dim2, flags, device);
+			return constructOpenCLHawkesFloat(dim1, dim2, flags, device);
 #else
-		  return constructNewMultiDimensionalScalingFloatNoParallelNoSimd(dim1, dim2, flags, threads);
+		  return constructNewHawkesFloatNoParallelNoSimd(dim1, dim2, flags, threads);
 #endif
 		} else {
 #ifdef USE_SSE
 		    if (useSse) {
                 if (useTbb) {
-                    return constructNewMultiDimensionalScalingFloatTbbSse(dim1, dim2, flags, threads);
+                    return constructNewHawkesFloatTbbSse(dim1, dim2, flags, threads);
                 } else {
-                    return constructNewMultiDimensionalScalingFloatNoParallelSse(dim1, dim2, flags, threads);
+                    return constructNewHawkesFloatNoParallelSse(dim1, dim2, flags, threads);
                 }
 		    } else {
 #endif
                 if (useTbb) {
-                    return constructNewMultiDimensionalScalingFloatTbbNoSimd(dim1, dim2, flags, threads);
+                    return constructNewHawkesFloatTbbNoSimd(dim1, dim2, flags, threads);
                 } else {
-                    return constructNewMultiDimensionalScalingFloatNoParallelNoSimd(dim1, dim2, flags, threads);
+                    return constructNewHawkesFloatNoParallelNoSimd(dim1, dim2, flags, threads);
                 }
 #ifdef USE_SSE
             }
@@ -66,18 +66,18 @@ SharedPtr factory(int dim1, int dim2, long flags, int device, int threads) {
 	} else {
 		if (useOpenCL) {
 #ifdef HAVE_OPENCL
-			return constructOpenCLMultiDimensionalScalingDouble(dim1, dim2, flags, device);
+			return constructOpenCLHawkesDouble(dim1, dim2, flags, device);
 #else
-		  return constructNewMultiDimensionalScalingDoubleNoParallelNoSimd(dim1, dim2, flags, threads);
+		  return constructNewHawkesDoubleNoParallelNoSimd(dim1, dim2, flags, threads);
 #endif
 		} else {
 
 #ifdef USE_AVX512
             if (useAvx512) {
                 if (useTbb) {
-                    return constructNewMultiDimensionalScalingDoubleTbbAvx512(dim1, dim2, flags, threads);
+                    return constructNewHawkesDoubleTbbAvx512(dim1, dim2, flags, threads);
                 } else {
-                    return constructNewMultiDimensionalScalingDoubleNoParallelAvx512(dim1, dim2, flags, threads);
+                    return constructNewHawkesDoubleNoParallelAvx512(dim1, dim2, flags, threads);
                 }
             } else
 #else
@@ -87,9 +87,9 @@ SharedPtr factory(int dim1, int dim2, long flags, int device, int threads) {
 #ifdef USE_AVX
 		    if (useAvx) {
                 if (useTbb) {
-                    return constructNewMultiDimensionalScalingDoubleTbbAvx(dim1, dim2, flags, threads);
+                    return constructNewHawkesDoubleTbbAvx(dim1, dim2, flags, threads);
                 } else {
-                    return constructNewMultiDimensionalScalingDoubleNoParallelAvx(dim1, dim2, flags, threads);
+                    return constructNewHawkesDoubleNoParallelAvx(dim1, dim2, flags, threads);
                 }
             } else
 #else
@@ -99,22 +99,22 @@ SharedPtr factory(int dim1, int dim2, long flags, int device, int threads) {
 #ifdef USE_SSE
 		    if (useSse) {
                 if (useTbb) {
-                    return constructNewMultiDimensionalScalingDoubleTbbSse(dim1, dim2, flags, threads);
+                    return constructNewHawkesDoubleTbbSse(dim1, dim2, flags, threads);
                 } else {
-                    return constructNewMultiDimensionalScalingDoubleNoParallelSse(dim1, dim2, flags, threads);
+                    return constructNewHawkesDoubleNoParallelSse(dim1, dim2, flags, threads);
                 }
 		    } else
 #endif // USE_SSE
             {
 
                 if (useTbb) {
-                    return constructNewMultiDimensionalScalingDoubleTbbNoSimd(dim1, dim2, flags, threads);
+                    return constructNewHawkesDoubleTbbNoSimd(dim1, dim2, flags, threads);
                 } else {
-                    return constructNewMultiDimensionalScalingDoubleNoParallelNoSimd(dim1, dim2, flags, threads);
+                    return constructNewHawkesDoubleNoParallelNoSimd(dim1, dim2, flags, threads);
                 }
             }
 		}
 	}
 }
 
-} // namespace mds
+} // namespace hph

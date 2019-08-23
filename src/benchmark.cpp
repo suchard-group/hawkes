@@ -7,7 +7,7 @@
 #include <boost/program_options.hpp>
 #include <tbb/task_scheduler_init.h>
 
-#include "AbstractMultiDimensionalScaling.hpp"
+#include "AbstractHawkes.hpp"
 
 
 int cnt = 0;
@@ -33,7 +33,6 @@ int main(int argc, char* argv[]) {
             ("gpu", po::value<int>()->default_value(0), "number of GPU on which to run")
             ("tbb", po::value<int>()->default_value(0), "use TBB with specified number of threads")
             ("float", "run in single-precision")
-            ("truncation", "enable truncation")
             ("iterations", po::value<int>()->default_value(1), "number of iterations")
             ("locations", po::value<int>()->default_value(3), "number of locations")
             ("dimension", po::value<int>()->default_value(2), "number of dimensions")
@@ -84,7 +83,7 @@ int main(int argc, char* argv[]) {
     int threads = 0;
 	if (vm["gpu"].as<int>() > 0) {
 		std::cout << "Running on GPU" << std::endl;
-		flags |= mds::Flags::OPENCL;
+		flags |= hph::Flags::OPENCL;
         deviceNumber = vm["gpu"].as<int>() - 1;
 	} else {
 		std::cout << "Running on CPU" << std::endl;
@@ -94,14 +93,14 @@ int main(int argc, char* argv[]) {
 			std::cout << "Using TBB with " << threads << " out of " 
 			          << tbb::task_scheduler_init::default_num_threads()
 			          << " threads" << std::endl;
-			flags |= mds::Flags::TBB;
+			flags |= hph::Flags::TBB;
 			task = std::make_shared<tbb::task_scheduler_init>(threads);
 		}
 	}
 	
 	if (vm.count("float")) {
 		std::cout << "Running in single-precision" << std::endl;
-		flags |= mds::Flags::FLOAT;
+		flags |= hph::Flags::FLOAT;
 	} else {
 		std::cout << "Running in double-precision" << std::endl;
 	}
@@ -135,7 +134,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "AVX-512 is not implemented" << std::endl;
             exit(-1);
 #else
-            flags |= mds::Flags::AVX512;
+            flags |= hph::Flags::AVX512;
 #endif // USE_AVX512
 
 		} else if (vm.count("avx")) {
@@ -143,24 +142,24 @@ int main(int argc, char* argv[]) {
 			std::cerr << "AVX is not implemented" << std::endl;
 			exit(-1);
 #else
-            flags |= mds::Flags::AVX;
+            flags |= hph::Flags::AVX;
 #endif // USE_AVX
         } else {
-            flags |= mds::Flags::SSE;
+            flags |= hph::Flags::SSE;
         }
 #endif // not defined(USE_SSE) && not defined(USE_AVX) && not defined(USE_AVX512)
 	}
 	
-	bool truncation = false;
-	if (vm.count("truncation")) {
-		std::cout << "Enabling truncation" << std::endl;
-		flags |= mds::Flags::LEFT_TRUNCATION;		
-		truncation = true;
-	}
+//	bool truncation = false;
+//	if (vm.count("truncation")) {
+//		std::cout << "Enabling truncation" << std::endl;
+//		flags |= hph::Flags::LEFT_TRUNCATION;
+//		truncation = true;
+//	}
 
 	bool internalDimension = vm.count("internal");
 
-	mds::SharedPtr instance = mds::factory(embeddingDimension, locationCount, flags, deviceNumber, threads);
+	hph::SharedPtr instance = hph::factory(embeddingDimension, locationCount, flags, deviceNumber, threads);
 
 	bool missing = vm.count("missing");
 	if (missing) {
@@ -235,7 +234,7 @@ int main(int argc, char* argv[]) {
 // 		logTrunc = instance->getSumOfLogTruncations();
 // 	}
 
-	std::cout << "Starting MDS benchmark" << std::endl;
+	std::cout << "Starting HPH benchmark" << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
 	int iterations = vm["iterations"].as<int>();
@@ -310,7 +309,7 @@ int main(int argc, char* argv[]) {
 	auto endTime = std::chrono::steady_clock::now();
 	auto duration = endTime - startTime;
 
-	std::cout << "End MDS benchmark" << std::endl;
+	std::cout << "End HPH benchmark" << std::endl;
 	std::cout << "AvgLogLik = " << logLik << std::endl;
     std::cout << "AvgSumGradient = " << sumGradient << std::endl;
 // 	std::cout << "AveLogTru = " << logTrunc << std::endl;

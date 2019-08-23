@@ -1,7 +1,7 @@
 #ifndef _REDUCER_HPP
 #define _REDUCER_HPP
 
-namespace mds {
+namespace hph {
     namespace reduce {
 
         template<typename T, bool isNvidiaDevice>
@@ -105,6 +105,6 @@ namespace mds {
         };
 
     } // namespace reduce
-} // namespace mds
+} // namespace hph
 
 #endif // _REDUCER_HPP

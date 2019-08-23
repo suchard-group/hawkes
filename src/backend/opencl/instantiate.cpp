@@ -2,25 +2,25 @@
 #ifndef _OPENCL_INSTANTIATE_CPP
 #define _OPENCL_INSTANTIATE_CPP
 
-#include "OpenCLMultiDimensionalScaling.hpp"
+#include "OpenCLHawkes.hpp"
 
-namespace mds {
+namespace hph {
 //
-// template class OpenCLMultiDimensionalScaling<float>;
-// template class OpenCLMultiDimensionalScaling<double>;
+// template class OpenCLHawkes<float>;
+// template class OpenCLHawkes<double>;
 //
 
 // factory
-    std::shared_ptr<AbstractMultiDimensionalScaling>
-    constructOpenCLMultiDimensionalScalingDouble(int embeddingDimension, int locationCount, long flags, int device) {
+    std::shared_ptr<AbstractHawkes>
+    constructOpenCLHawkesDouble(int embeddingDimension, int locationCount, long flags, int device) {
         if (embeddingDimension <= 2) {
-            return std::make_shared<OpenCLMultiDimensionalScaling<OpenCLDouble<2>>>(embeddingDimension, locationCount,
+            return std::make_shared<OpenCLHawkes<OpenCLDouble<2>>>(embeddingDimension, locationCount,
                                                                                     flags, device);
         } else if (embeddingDimension <= 4) {
-            return std::make_shared<OpenCLMultiDimensionalScaling<OpenCLDouble<4>>>(embeddingDimension, locationCount,
+            return std::make_shared<OpenCLHawkes<OpenCLDouble<4>>>(embeddingDimension, locationCount,
                                                                                     flags, device);
         } else if (embeddingDimension <= 8) {
-            return std::make_shared<OpenCLMultiDimensionalScaling<OpenCLDouble<8>>>(embeddingDimension, locationCount,
+            return std::make_shared<OpenCLHawkes<OpenCLDouble<8>>>(embeddingDimension, locationCount,
                                                                                     flags, device);
         } else {
 #ifdef RBUILD
@@ -31,16 +31,16 @@ namespace mds {
         }
     }
 
-    std::shared_ptr<AbstractMultiDimensionalScaling>
-    constructOpenCLMultiDimensionalScalingFloat(int embeddingDimension, int locationCount, long flags, int device) {
+    std::shared_ptr<AbstractHawkes>
+    constructOpenCLHawkesFloat(int embeddingDimension, int locationCount, long flags, int device) {
         if (embeddingDimension <= 2) {
-            return std::make_shared<OpenCLMultiDimensionalScaling<OpenCLFloat<2>>>(embeddingDimension, locationCount,
+            return std::make_shared<OpenCLHawkes<OpenCLFloat<2>>>(embeddingDimension, locationCount,
                                                                                    flags, device);
         } else if (embeddingDimension <= 4) {
-            return std::make_shared<OpenCLMultiDimensionalScaling<OpenCLFloat<4>>>(embeddingDimension, locationCount,
+            return std::make_shared<OpenCLHawkes<OpenCLFloat<4>>>(embeddingDimension, locationCount,
                                                                                    flags, device);
         } else if (embeddingDimension <= 8) {
-            return std::make_shared<OpenCLMultiDimensionalScaling<OpenCLFloat<8>>>(embeddingDimension, locationCount,
+            return std::make_shared<OpenCLHawkes<OpenCLFloat<8>>>(embeddingDimension, locationCount,
                                                                                    flags, device);
         } else {
 #ifdef RBUILD
@@ -51,7 +51,7 @@ namespace mds {
         }
     }
 
-} // namespace mds
+} // namespace hph
 
 #endif // _OPENCL_INSTANTIATE_CPP
 #endif

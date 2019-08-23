@@ -1,5 +1,5 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-PROJECT(mds)
+PROJECT(hph)
 
 MESSAGE(STATUS "Configuring OpenCL")
 ADD_DEFINITIONS(-DHAVE_OPENCL)
@@ -40,13 +40,13 @@ include_directories(${xsimd_INCLUDE_DIRS})
 
 SET(OPENCL_SOURCE_FILES
 	instantiate.cpp
-	OpenCLMultiDimensionalScaling.hpp
+	OpenCLHawkes.hpp
 	OpenCLMemoryManagement.hpp
 	Reducer.hpp
 	)
-ADD_LIBRARY(mds_opencl ${OPENCL_SOURCE_FILES})
-set_target_properties(mds_opencl PROPERTIES COMPILE_FLAGS "${SIMD_FLAGS}")
-TARGET_LINK_LIBRARIES(mds_opencl ${OpenCL_LIBRARIES})
+ADD_LIBRARY(hph_opencl ${OPENCL_SOURCE_FILES})
+set_target_properties(hph_opencl PROPERTIES COMPILE_FLAGS "${SIMD_FLAGS}")
+TARGET_LINK_LIBRARIES(hph_opencl ${OpenCL_LIBRARIES})
 
 #ADD_EXECUTABLE(test test.cpp)
 #MESSAGE(STATUS "OCL lib: ${OpenCL_LIBRARIES}")

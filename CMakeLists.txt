@@ -1,11 +1,11 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-PROJECT(mds)
+PROJECT(hph)
 
-OPTION(BUILD_NOSIMD "Build MDS without SIMD" OFF)
-OPTION(BUILD_AVX512 "Build MDS with AVX-512" OFF)
-OPTION(BUILD_AVX "Build MDS with AVX" ON)
-OPTION(BUILD_CUDA "Build MDS with a CUDA backend" OFF)
-OPTION(BUILD_OPENCL "Build MDS with a OpenCL backend" ON)
+OPTION(BUILD_NOSIMD "Build HPH without SIMD" OFF)
+OPTION(BUILD_AVX512 "Build HPH with AVX-512" OFF)
+OPTION(BUILD_AVX "Build HPH with AVX" ON)
+OPTION(BUILD_CUDA "Build HPH with a CUDA backend" OFF)
+OPTION(BUILD_OPENCL "Build HPH with a OpenCL backend" ON)
 
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 
@@ -128,16 +128,16 @@ if (JNI_FOUND)
        ADD_SUBDIRECTORY(src/backend/nosimd)
    ENDIF()
 
-       ## Build MDS with SIMD
+       ## Build HPH with SIMD
 include_directories(. ${CMAKE_SOURCE_DIR}/src ${JNI_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/src/jni
 	TBB_INCLUDE_DIRS
 	)
 
 set(JNI_SOURCE_FILES
-	src/jni/dr_inference_multidimensionalscaling_NativeMDSSingleton.cpp
+	src/jni/dr_inference_hawkes_NativeHPHSingleton.cpp
 	src/factory.cpp
         src/MemoryManagement.hpp
-        src/AbstractMultiDimensionalScaling.hpp
+        src/AbstractHawkes.hpp
         src/NewMultiDimensionalScaling.hpp
         src/CDF.h
         src/Distance.hpp
@@ -158,17 +158,17 @@ set(JNI_SOURCE_FILES
        endif(${BUILD_AVX})
    endif(${BUILD_AVX512})
 
-add_library(mds_jni SHARED ${JNI_SOURCE_FILES})
-set_target_properties(mds_jni PROPERTIES COMPILE_FLAGS "${SIMD_FLAGS}")
-target_link_libraries(mds_jni mds_opencl)
-target_link_libraries(mds_jni ${TBB_LIBRARIES})
+add_library(hph_jni SHARED ${JNI_SOURCE_FILES})
+set_target_properties(hph_jni PROPERTIES COMPILE_FLAGS "${SIMD_FLAGS}")
+target_link_libraries(hph_jni hph_opencl)
+target_link_libraries(hph_jni ${TBB_LIBRARIES})
 
 ##
 # Build benchmark
 ##
 
 add_executable(benchmark src/benchmark.cpp)
-target_link_libraries(benchmark mds_jni)
+target_link_libraries(benchmark hph_jni)
    set_target_properties(benchmark PROPERTIES COMPILE_FLAGS "${SIMD_FLAGS}")
    target_link_libraries(benchmark ${TBB_LIBRARIES})
    target_link_libraries(benchmark boost_program_options)
@@ -177,7 +177,7 @@ target_link_libraries(benchmark mds_jni)
    set_target_properties(benchmark-san PROPERTIES COMPILE_FLAGS "-fsanitize=address")
    set_target_properties(benchmark-san PROPERTIES LINK_FLAGS "-fsanitize=address")
    set_target_properties(benchmark-san PROPERTIES COMPILE_FLAGS "${SSE_FLAGS}")
-   target_link_libraries(benchmark-san mds_jni)
+   target_link_libraries(benchmark-san hph_jni)
    target_link_libraries(benchmark-san ${TBB_LIBRARIES})
    target_link_libraries(benchmark-san boost_program_options)
 

@@ -12,7 +12,7 @@
 
 #include "MemoryManagement.hpp"
 
-namespace mds {
+namespace hph {
 
 struct Generic {};
 struct NonGeneric {};
@@ -555,6 +555,6 @@ public:
     inline void SimdHelper<float, float>::put(float x, float* iterator) {
         *iterator = x;
     }
-} // namespace mds
+} // namespace hph
 
 #endif // _DISTANCE_HPP

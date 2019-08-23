@@ -6,7 +6,7 @@
 
 #include "aligned_allocator.hpp"
 
-namespace mds {
+namespace hph {
 namespace mm {
 
 // enum class Alignment : size_t
@@ -87,6 +87,6 @@ void bufferedCopy(mm::MemoryManager<float>::iterator begin,
         }
 
     } // namespace mm
-} // namespace mds
+} // namespace hph
 
 #endif // _MEMORY_MANAGEMENT_HPP
