@@ -3,7 +3,7 @@
 
 #include <boost/compute/types.hpp>
 
-namespace mds {
+namespace hph {
 
     template <int VectorDimension>
     struct OpenCLFloat;
@@ -396,6 +396,6 @@ using GPUMemoryManager = boost::compute::vector<T>;
 //    }
 
 } // namespace mm
-} // namespace mds
+} // namespace hph
 
 #endif // _OPENCL_MEMORY_MANAGEMENT_HPP

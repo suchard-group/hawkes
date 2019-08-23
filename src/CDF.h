@@ -7,7 +7,7 @@
 #include "xsimd/xsimd.hpp"
 #endif
 
-namespace mds {
+namespace hph {
 namespace math {
 
 /*
@@ -615,6 +615,6 @@ double pdf(double value) { // standard normal density
 		    return M_1_SQRT_2PI * exp(-0.5 * value * value);
 		}
 } // namespace math
-} // namespace mds
+} // namespace hph
 
 #endif // _CDF_H

@@ -66,7 +66,7 @@ protected:
     bool isLeftTruncated = false;
 };
 
-typedef std::shared_ptr<mds::AbstractHawkes> SharedPtr;
+typedef std::shared_ptr<hph::AbstractHawkes> SharedPtr;
 
 SharedPtr factory(int dim1, int dim2, long flags, int device, int threads);
 

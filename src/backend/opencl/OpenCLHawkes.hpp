@@ -71,7 +71,7 @@ public:
 //           , nThreads(4) //, pool(nThreads)
     {
 #ifdef RBUILD
-      Rcpp::Rcout << "ctor OpenCLMultiDimensionalScaling" << std::endl;
+      Rcpp::Rcout << "ctor OpenCLHawkes" << std::endl;
 
       Rcpp::Rcout << "All devices:" << std::endl;
 
@@ -232,164 +232,164 @@ public:
 
     int getInternalDimension() override { return OpenCLRealType::dim; }
 
-	void getLogLikelihoodGradient(double* result, size_t length) override {
-
-        // TODO Buffer gradients
-
-#ifdef DOUBLE_CHECK_GRADIENT
-		assert(length == locationCount * embeddingDimension ||
-                       length == locationCount * OpenCLRealType::dim);
-
-		if (gradient.size() != locationCount * OpenCLRealType::dim) {
-			gradient.resize(locationCount * OpenCLRealType::dim);
-		}
-
-		std::fill(std::begin(gradient), std::end(gradient), static_cast<RealType>(0.0));
-
-		const RealType scale = precision;
-
-		for (int i = 0; i < locationCount; ++i) {
-			for (int j = 0; j < locationCount; ++j) {
-				if (i != j) {
-					const auto distance = calculateDistance<mm::MemoryManager<RealType>>(
-							begin(*locationsPtr) + i * OpenCLRealType::dim,
-							begin(*locationsPtr) + j * OpenCLRealType::dim
-					);
-
-					const RealType dataContribution =
-							(observations[i * locationCount + j] - distance) * scale / distance;
-
-                    for (int d = 0; d < embeddingDimension; ++d) {
-                        const RealType update = dataContribution *
-                                                 ((*locationsPtr)[i * OpenCLRealType::dim + d] - (*locationsPtr)[j * OpenCLRealType::dim + d]);
-                        gradient[i * OpenCLRealType::dim + d] += update;
-                    }
-				}
-			}
-		}
-
-		if (doubleBuffer.size() != locationCount * OpenCLRealType::dim) {
-			doubleBuffer.resize(locationCount * OpenCLRealType::dim);
-		}
-
-		mm::bufferedCopy(std::begin(gradient), std::end(gradient), doubleBuffer.data(), buffer);
-
-        std::vector<double> testGradient0;
-        for (int d = 0; d < embeddingDimension; ++d) {
-            testGradient0.push_back(doubleBuffer[d]);
-        }
-        for (int d = 0; d < embeddingDimension; ++d) {
-            testGradient0.push_back(doubleBuffer[OpenCLRealType::dim * (locationCount - 1) + d]);
-        }
-
-        std::vector<double> testGradient00;
-        for (int d = 0; d < OpenCLRealType::dim; ++d) {
-            testGradient00.push_back(doubleBuffer[d]);
-        }
-        for (int d = 0; d < OpenCLRealType::dim; ++d) {
-            testGradient00.push_back(doubleBuffer[OpenCLRealType::dim * (locationCount - 1) + d]);
-        }
-
-#endif // DOUBLE_CHECK_GRADIENT
-
-		kernelGradientVector.set_arg(0, *dLocationsPtr);
-		kernelGradientVector.set_arg(3, static_cast<RealType>(precision));
-
-		queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
-                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
-		queue.finish();
-
-        if (length == locationCount * OpenCLRealType::dim) {
-
-            mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
-                                       result, buffer, queue);
-            queue.finish();
-
-        } else {
-
-            if (doubleBuffer.size() != locationCount * OpenCLRealType::dim) {
-                doubleBuffer.resize(locationCount * OpenCLRealType::dim);
-            }
-
-            mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
-                                       doubleBuffer.data(), buffer, queue);
-            queue.finish();
-
-            mm::paddedBufferedCopy(begin(doubleBuffer), OpenCLRealType::dim, embeddingDimension,
-                                   result, embeddingDimension,
-                                   locationCount, buffer);
-        }
-
-#ifdef DOUBLE_CHECK_GRADIENT
-        std::vector<double> testGradient1;
-        for (int i = 0; i < embeddingDimension; ++i) {
-            testGradient1.push_back(result[i]);
-        }
-
-		int stride = (length == locationCount * OpenCLRealType::dim) ?
-					 OpenCLRealType::dim : embeddingDimension;
-
-        for (int i = 0; i < embeddingDimension; ++i) {
-            testGradient1.push_back(result[stride * (locationCount - 1) + i]);
-        }
-
-        std::vector<double> testGradient11;
-        for (int i = 0; i < OpenCLRealType::dim; ++i) {
-            testGradient11.push_back(doubleBuffer[i]);
-        }
-
-#ifdef RBUILD
-        Rcpp::Rcout << "cpu0: ";
-        for (auto x : testGradient0) {
-          Rcpp::Rcout << " " << x;
-        }
-        Rcpp::Rcout << std::endl;
-
-        Rcpp::Rcout << "cpu1: ";
-        for (auto x : testGradient00) {
-          Rcpp::Rcout << " " << x;
-        }
-        Rcpp::Rcout << std::endl;
-
-        Rcpp::Rcout << "gpu0: ";
-        for (auto x : testGradient1) {
-          Rcpp::Rcout << " " << x;
-        }
-        Rcpp::Rcout << std::endl;
-
-        Rcpp::Rcout << "gpu1: ";
-        for (auto x : testGradient11) {
-          Rcpp::Rcout << " " << x;
-        }
-        Rcpp::Rcout << std::endl;
-#else //RBUILD
-        std::cerr << "cpu0: ";
-        for (auto x : testGradient0) {
-            std::cerr << " " << x;
-        }
-        std::cerr << std::endl;
-
-        std::cerr << "cpu1: ";
-        for (auto x : testGradient00) {
-            std::cerr << " " << x;
-        }
-        std::cerr << std::endl;
-
-        std::cerr << "gpu0: ";
-        for (auto x : testGradient1) {
-            std::cerr << " " << x;
-        }
-        std::cerr << std::endl;
-
-        std::cerr << "gpu1: ";
-        for (auto x : testGradient11) {
-            std::cerr << " " << x;
-        }
-        std::cerr << std::endl;
-#endif //RBUILD
-#endif
-
- 	}
+//	void getLogLikelihoodGradient(double* result, size_t length) override {
+//
+//        // TODO Buffer gradients
+//
+//#ifdef DOUBLE_CHECK_GRADIENT
+//		assert(length == locationCount * embeddingDimension ||
+//                       length == locationCount * OpenCLRealType::dim);
+//
+//		if (gradient.size() != locationCount * OpenCLRealType::dim) {
+//			gradient.resize(locationCount * OpenCLRealType::dim);
+//		}
+//
+//		std::fill(std::begin(gradient), std::end(gradient), static_cast<RealType>(0.0));
+//
+//		const RealType scale = precision;
+//
+//		for (int i = 0; i < locationCount; ++i) {
+//			for (int j = 0; j < locationCount; ++j) {
+//				if (i != j) {
+//					const auto distance = calculateDistance<mm::MemoryManager<RealType>>(
+//							begin(*locationsPtr) + i * OpenCLRealType::dim,
+//							begin(*locationsPtr) + j * OpenCLRealType::dim
+//					);
+//
+//					const RealType dataContribution =
+//							(observations[i * locationCount + j] - distance) * scale / distance;
+//
+//                    for (int d = 0; d < embeddingDimension; ++d) {
+//                        const RealType update = dataContribution *
+//                                                 ((*locationsPtr)[i * OpenCLRealType::dim + d] - (*locationsPtr)[j * OpenCLRealType::dim + d]);
+//                        gradient[i * OpenCLRealType::dim + d] += update;
+//                    }
+//				}
+//			}
+//		}
+//
+//		if (doubleBuffer.size() != locationCount * OpenCLRealType::dim) {
+//			doubleBuffer.resize(locationCount * OpenCLRealType::dim);
+//		}
+//
+//		mm::bufferedCopy(std::begin(gradient), std::end(gradient), doubleBuffer.data(), buffer);
+//
+//        std::vector<double> testGradient0;
+//        for (int d = 0; d < embeddingDimension; ++d) {
+//            testGradient0.push_back(doubleBuffer[d]);
+//        }
+//        for (int d = 0; d < embeddingDimension; ++d) {
+//            testGradient0.push_back(doubleBuffer[OpenCLRealType::dim * (locationCount - 1) + d]);
+//        }
+//
+//        std::vector<double> testGradient00;
+//        for (int d = 0; d < OpenCLRealType::dim; ++d) {
+//            testGradient00.push_back(doubleBuffer[d]);
+//        }
+//        for (int d = 0; d < OpenCLRealType::dim; ++d) {
+//            testGradient00.push_back(doubleBuffer[OpenCLRealType::dim * (locationCount - 1) + d]);
+//        }
+//
+//#endif // DOUBLE_CHECK_GRADIENT
+//
+//		kernelGradientVector.set_arg(0, *dLocationsPtr);
+//		kernelGradientVector.set_arg(3, static_cast<RealType>(precision));
+//
+//		queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
+//                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+//		queue.finish();
+//
+//        if (length == locationCount * OpenCLRealType::dim) {
+//
+//            mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
+//                                       result, buffer, queue);
+//            queue.finish();
+//
+//        } else {
+//
+//            if (doubleBuffer.size() != locationCount * OpenCLRealType::dim) {
+//                doubleBuffer.resize(locationCount * OpenCLRealType::dim);
+//            }
+//
+//            mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
+//                                       doubleBuffer.data(), buffer, queue);
+//            queue.finish();
+//
+//            mm::paddedBufferedCopy(begin(doubleBuffer), OpenCLRealType::dim, embeddingDimension,
+//                                   result, embeddingDimension,
+//                                   locationCount, buffer);
+//        }
+//
+//#ifdef DOUBLE_CHECK_GRADIENT
+//        std::vector<double> testGradient1;
+//        for (int i = 0; i < embeddingDimension; ++i) {
+//            testGradient1.push_back(result[i]);
+//        }
+//
+//		int stride = (length == locationCount * OpenCLRealType::dim) ?
+//					 OpenCLRealType::dim : embeddingDimension;
+//
+//        for (int i = 0; i < embeddingDimension; ++i) {
+//            testGradient1.push_back(result[stride * (locationCount - 1) + i]);
+//        }
+//
+//        std::vector<double> testGradient11;
+//        for (int i = 0; i < OpenCLRealType::dim; ++i) {
+//            testGradient11.push_back(doubleBuffer[i]);
+//        }
+//
+//#ifdef RBUILD
+//        Rcpp::Rcout << "cpu0: ";
+//        for (auto x : testGradient0) {
+//          Rcpp::Rcout << " " << x;
+//        }
+//        Rcpp::Rcout << std::endl;
+//
+//        Rcpp::Rcout << "cpu1: ";
+//        for (auto x : testGradient00) {
+//          Rcpp::Rcout << " " << x;
+//        }
+//        Rcpp::Rcout << std::endl;
+//
+//        Rcpp::Rcout << "gpu0: ";
+//        for (auto x : testGradient1) {
+//          Rcpp::Rcout << " " << x;
+//        }
+//        Rcpp::Rcout << std::endl;
+//
+//        Rcpp::Rcout << "gpu1: ";
+//        for (auto x : testGradient11) {
+//          Rcpp::Rcout << " " << x;
+//        }
+//        Rcpp::Rcout << std::endl;
+//#else //RBUILD
+//        std::cerr << "cpu0: ";
+//        for (auto x : testGradient0) {
+//            std::cerr << " " << x;
+//        }
+//        std::cerr << std::endl;
+//
+//        std::cerr << "cpu1: ";
+//        for (auto x : testGradient00) {
+//            std::cerr << " " << x;
+//        }
+//        std::cerr << std::endl;
+//
+//        std::cerr << "gpu0: ";
+//        for (auto x : testGradient1) {
+//            std::cerr << " " << x;
+//        }
+//        std::cerr << std::endl;
+//
+//        std::cerr << "gpu1: ";
+//        for (auto x : testGradient11) {
+//            std::cerr << " " << x;
+//        }
+//        std::cerr << std::endl;
+//#endif //RBUILD
+//#endif
+//
+// 	}
 
     void computeResidualsAndTruncations() {
 
@@ -608,7 +608,7 @@ public:
 
 				if (withTruncation) { // compile-time check
 					const auto truncation = (i == j) ? RealType(0) :
-						math::logCdf<OpenCLMultiDimensionalScaling>(std::fabs(residual) * oneOverSd);
+						math::logCdf<OpenCLHawkes>(std::fabs(residual) * oneOverSd);
 					truncations[i * locationCount + j] = truncation;
 					lSumOfTruncations += truncation;
 				}
@@ -795,7 +795,7 @@ public:
                 squaredResiduals[i * locationCount + j] = squaredResidual;
 
                 const auto truncation = (i == j) ? RealType(0) :
-                	math::logCdf<OpenCLMultiDimensionalScaling>(std::fabs(residual) * oneOverSd);
+                	math::logCdf<OpenCLHawkes>(std::fabs(residual) * oneOverSd);
 
                 const auto oldTruncation = truncations[i * locationCount + j];
                 storedTruncations[j] = oldTruncation;
@@ -916,7 +916,7 @@ public:
 #endif
 
         program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
-        kernelSummation = boost::compute::kernel(program, "computeSum");
+        kernelLikSum = boost::compute::kernel(program, "computeSum");
 
 #ifdef DEBUG_KERNELS
         #ifdef RBUILD
@@ -936,9 +936,9 @@ public:
 #endif // DOUBLE_CHECK
 
         size_t index = 0;
-        kernelSummation.set_arg(index++, dLikContribs);
-        kernelSummation.set_arg(index++, dLikelihood);
-        kernelSummation.set_arg(index++, boost::compute::uint_(locationCount));
+        kernelLikSum.set_arg(index++, dLikContribs);
+        kernelLikSum.set_arg(index++, dLikelihood);
+        kernelLikSum.set_arg(index++, boost::compute::uint_(locationCount));
 	}
 
 	void createOpenCLLikContribsKernel() {
@@ -1073,7 +1073,7 @@ public:
 #endif
 
 		program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
-		kernelLikContribs = boost::compute::kernel(program, "computeLikContribs");
+		kernelLikContribsVector = boost::compute::kernel(program, "computeLikContribs");
 
 #ifdef DEBUG_KERNELS
 #ifdef RBUILD
@@ -1093,211 +1093,212 @@ public:
 #endif // DOUBLE_CHECK
 
 		size_t index = 0;
-        kernelLikContribs.set_arg(index++, dLocations0); // Must update
-		kernelLikContribs.set_arg(index++, dTimes);
-		kernelLikContribs.set_arg(index++, dLikContribs);
-        kernelLikContribs.set_arg(index++, sigmaXprec);
-        kernelLikContribs.set_arg(index++, tauXprec);
-        kernelLikContribs.set_arg(index++, tauTprec);
-        kernelLikContribs.set_arg(index++, omega);
-        kernelLikContribs.set_arg(index++, theta);
-        kernelLikContribs.set_arg(index++, mu0);
-        kernelLikContribs.set_arg(index++, boost::compute::uint_(embeddingDimension));
-        kernelLikContribs.set_arg(index++, boost::compute::uint_(locationCount));
+        kernelLikContribsVector.set_arg(index++, dLocations0); // Must update
+		kernelLikContribsVector.set_arg(index++, dTimes);
+		kernelLikContribsVector.set_arg(index++, dLikContribs);
+        kernelLikContribsVector.set_arg(index++, sigmaXprec);
+        kernelLikContribsVector.set_arg(index++, tauXprec);
+        kernelLikContribsVector.set_arg(index++, tauTprec);
+        kernelLikContribsVector.set_arg(index++, omega);
+        kernelLikContribsVector.set_arg(index++, theta);
+        kernelLikContribsVector.set_arg(index++, mu0);
+        kernelLikContribsVector.set_arg(index++, boost::compute::uint_(embeddingDimension));
+        kernelLikContribsVector.set_arg(index++, boost::compute::uint_(locationCount));
 
 	}
 
-	void createOpenCLGradientKernel() {
-
-        const char cdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
-                static double cdf(double);
-
-                static double cdf(double value) {
-                    return 0.5 * erfc(-value * M_SQRT1_2);
-                }
-        );
-
-        const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
-                static double pdf(double);
-
-                static double pdf(double value) {
-                    return 0.5 * M_SQRT1_2 * M_2_SQRTPI * exp( - pow(value,2.0) * 0.5);
-                }
-        );
-
-        const char cdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
-                static float cdf(float);
-
-                static float cdf(float value) {
-
-                    const float rSqrt2f = 0.70710678118655f;
-                    return 0.5f * erfc(-value * rSqrt2f);
-                }
-        );
-
-        const char pdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
-                static float pdf(float);
-
-                static float pdf(float value) {
-
-                    const float rSqrt2f = 0.70710678118655f;
-                    const float rSqrtPif = 0.56418958354775f;
-                    return rSqrt2f * rSqrtPif * exp( - pow(value,2.0f) * 0.5f);
-                }
-        );
-
-		std::stringstream code;
-		std::stringstream options;
-
-		options << "-DTILE_DIM_I=" << TILE_DIM_I << " -DTPB=" << TPB << " -DDELTA=" << DELTA;
-
-		if (sizeof(RealType) == 8) { // 64-bit fp
-			code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
-			options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim  << " -DCAST=long"
-                    << " -DZERO=0.0 -DONE=1.0 -DHALF=0.5";
-
-			if (isLeftTruncated) {
-				code << cdfString1Double;
-                code << pdfString1Double;
-			}
-
-		} else { // 32-bit fp
-			options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
-                    << " -DZERO=0.0f -DONE=1.0f -DHALF=0.5f";
-
-			if (isLeftTruncated) {
-				code << cdfString1Float;
-				code << pdfString1Float;
-			}
-		}
-
-#ifndef USE_VECTOR
-		bool isNvidia = false; // TODO Check device name
-#endif
-
-		code <<
-			 " __kernel void computeGradient(__global const REAL_VECTOR *locations,  \n" <<
-			 "                               __global const REAL *observations,      \n" <<
-			 "                               __global REAL_VECTOR *output,           \n" <<
-		     "                               const REAL precision,                   \n" <<
-			 "                               const uint locationCount) {             \n" <<
-			 "                                                                       \n" <<
-//			 "   const uint i = get_local_id(1) + get_group_id(0) * TILE_DIM_I;      \n" <<
-			 "   const uint i = get_group_id(0);                                     \n" <<
-//			 "   const int inBounds = (i < locationCount);                           \n" <<
-			 "                                                                       \n" <<
-			 "   const uint lid = get_local_id(0);                                   \n" <<
-			 "   uint j = get_local_id(0);                                           \n" <<
-			 "                                                                       \n" <<
-			 "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
-			 "                                                                       \n" <<
-			 "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
-			 "   REAL_VECTOR sum = ZERO;                                             \n" <<
-			 "                                                                       \n" <<
-			 "   while (j < locationCount) {                                         \n" <<
-			 "                                                                       \n" <<
-			 "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
-             "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
-
-        if (OpenCLRealType::dim == 8) {
-            code << "     const REAL distance = sqrt(                                \n" <<
-                    "              dot(difference.lo, difference.lo) +               \n" <<
-                    "              dot(difference.hi, difference.hi)                 \n" <<
-                    "      );                                                        \n";
-
-        } else {
-            code << "     const REAL distance = length(difference);                  \n";
-        }
-
-        // TODO Handle missing values by  `!isnan(observation) * `
-
-        code <<
-             "     const REAL observation = observations[i * locationCount + j];     \n" <<
-             "     REAL residual = select(observation - distance, ZERO,              \n" <<
-             "                                  (CAST)isnan(observation));           \n";
-
-        if (isLeftTruncated) {
-            code << "     const REAL trncDrv = select(-ONE / sqrt(precision) *        \n" << // TODO speed up this part
-                    "                              pdf(distance * sqrt(precision)) / \n" <<
-                    "                              cdf(distance * sqrt(precision)),  \n" <<
-                    "                                 ZERO,                          \n" <<
-                    "                                 (CAST)isnan(observation));     \n" <<
-                    "     residual += trncDrv;                                       \n";
-        }
-
-        code <<
-             "     REAL contrib = residual * precision / distance;                   \n" <<
-			 "                                                                       \n" <<
-             "     if (i != j) { sum += (vectorI - vectorJ) * contrib * DELTA;  }    \n" <<
-			 "                                                                       \n" <<
-			 "     j += TPB;                                                         \n" <<
-			 "   }                                                                   \n" <<
-			 "                                                                       \n" <<
-			 "   scratch[lid] = sum;                                                 \n";
-#ifdef USE_VECTOR
-			 code << reduce::ReduceBody1<RealType,false>::body(); // TODO Try NVIDIA version at some point
-#else
-		code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
-#endif
-		code <<
-			 "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
-			 "   if (lid == 0) {                                                     \n";
-
-        code <<
-             "     REAL_VECTOR mask = (REAL_VECTOR) (";
-
-        for (int i = 0; i < embeddingDimension; ++i) {
-            code << " ONE";
-            if (i < (OpenCLRealType::dim - 1)) {
-                code << ",";
-            }
-        }
-        for (int i = embeddingDimension; i < OpenCLRealType::dim; ++i) {
-            code << " ZERO";
-            if (i < (OpenCLRealType::dim - 1)) {
-                code << ",";
-            }
-        }
-        code << " ); \n";
-
-        code <<
-			 "     output[i] = mask * scratch[0];                                    \n" <<
-			 "   }                                                                   \n" <<
-			 " }                                                                     \n ";
-
-#ifdef DOUBLE_CHECK_GRADIENT
-#ifndef RBUILD
-		std::cerr << code.str() << std::endl;
-#endif
-//        exit(-1);
-#endif
-
-#ifdef DEBUG_KERNELS
-#ifndef RBUILD
-        std::cerr << "Build gradient\n" << code.str() << std::endl;
-#endif
-#endif
-
-		program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
-		kernelGradientVector = boost::compute::kernel(program, "computeGradient");
-
-#ifdef DEBUG_KERNELS
-#ifndef RBUILD
-        std::cerr << "Success" << std::endl;
-#endif
-#endif
-
-		kernelGradientVector.set_arg(0, dLocations0); // Must update
-		kernelGradientVector.set_arg(1, dObservations);
-		kernelGradientVector.set_arg(2, dGradient);
-		kernelGradientVector.set_arg(3, static_cast<RealType>(precision)); // Must update
-		kernelGradientVector.set_arg(4, boost::compute::uint_(locationCount));
-	}
+//	void createOpenCLGradientKernel() {
+//
+//        const char cdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+//                static double cdf(double);
+//
+//                static double cdf(double value) {
+//                    return 0.5 * erfc(-value * M_SQRT1_2);
+//                }
+//        );
+//
+//        const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+//                static double pdf(double);
+//
+//                static double pdf(double value) {
+//                    return 0.5 * M_SQRT1_2 * M_2_SQRTPI * exp( - pow(value,2.0) * 0.5);
+//                }
+//        );
+//
+//        const char cdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+//                static float cdf(float);
+//
+//                static float cdf(float value) {
+//
+//                    const float rSqrt2f = 0.70710678118655f;
+//                    return 0.5f * erfc(-value * rSqrt2f);
+//                }
+//        );
+//
+//        const char pdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+//                static float pdf(float);
+//
+//                static float pdf(float value) {
+//
+//                    const float rSqrt2f = 0.70710678118655f;
+//                    const float rSqrtPif = 0.56418958354775f;
+//                    return rSqrt2f * rSqrtPif * exp( - pow(value,2.0f) * 0.5f);
+//                }
+//        );
+//
+//		std::stringstream code;
+//		std::stringstream options;
+//
+//		options << "-DTILE_DIM_I=" << TILE_DIM_I << " -DTPB=" << TPB << " -DDELTA=" << DELTA;
+//
+//		if (sizeof(RealType) == 8) { // 64-bit fp
+//			code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+//			options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim  << " -DCAST=long"
+//                    << " -DZERO=0.0 -DONE=1.0 -DHALF=0.5";
+//
+//			if (isLeftTruncated) {
+//				code << cdfString1Double;
+//                code << pdfString1Double;
+//			}
+//
+//		} else { // 32-bit fp
+//			options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
+//                    << " -DZERO=0.0f -DONE=1.0f -DHALF=0.5f";
+//
+//			if (isLeftTruncated) {
+//				code << cdfString1Float;
+//				code << pdfString1Float;
+//			}
+//		}
+//
+//#ifndef USE_VECTOR
+//		bool isNvidia = false; // TODO Check device name
+//#endif
+//
+//		code <<
+//			 " __kernel void computeGradient(__global const REAL_VECTOR *locations,  \n" <<
+//			 "                               __global const REAL *observations,      \n" <<
+//			 "                               __global REAL_VECTOR *output,           \n" <<
+//		     "                               const REAL precision,                   \n" <<
+//			 "                               const uint locationCount) {             \n" <<
+//			 "                                                                       \n" <<
+////			 "   const uint i = get_local_id(1) + get_group_id(0) * TILE_DIM_I;      \n" <<
+//			 "   const uint i = get_group_id(0);                                     \n" <<
+////			 "   const int inBounds = (i < locationCount);                           \n" <<
+//			 "                                                                       \n" <<
+//			 "   const uint lid = get_local_id(0);                                   \n" <<
+//			 "   uint j = get_local_id(0);                                           \n" <<
+//			 "                                                                       \n" <<
+//			 "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
+//			 "                                                                       \n" <<
+//			 "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
+//			 "   REAL_VECTOR sum = ZERO;                                             \n" <<
+//			 "                                                                       \n" <<
+//			 "   while (j < locationCount) {                                         \n" <<
+//			 "                                                                       \n" <<
+//			 "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
+//             "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
+//
+//        if (OpenCLRealType::dim == 8) {
+//            code << "     const REAL distance = sqrt(                                \n" <<
+//                    "              dot(difference.lo, difference.lo) +               \n" <<
+//                    "              dot(difference.hi, difference.hi)                 \n" <<
+//                    "      );                                                        \n";
+//
+//        } else {
+//            code << "     const REAL distance = length(difference);                  \n";
+//        }
+//
+//        // TODO Handle missing values by  `!isnan(observation) * `
+//
+//        code <<
+//             "     const REAL observation = observations[i * locationCount + j];     \n" <<
+//             "     REAL residual = select(observation - distance, ZERO,              \n" <<
+//             "                                  (CAST)isnan(observation));           \n";
+//
+//        if (isLeftTruncated) {
+//            code << "     const REAL trncDrv = select(-ONE / sqrt(precision) *        \n" << // TODO speed up this part
+//                    "                              pdf(distance * sqrt(precision)) / \n" <<
+//                    "                              cdf(distance * sqrt(precision)),  \n" <<
+//                    "                                 ZERO,                          \n" <<
+//                    "                                 (CAST)isnan(observation));     \n" <<
+//                    "     residual += trncDrv;                                       \n";
+//        }
+//
+//        code <<
+//             "     REAL contrib = residual * precision / distance;                   \n" <<
+//			 "                                                                       \n" <<
+//             "     if (i != j) { sum += (vectorI - vectorJ) * contrib * DELTA;  }    \n" <<
+//			 "                                                                       \n" <<
+//			 "     j += TPB;                                                         \n" <<
+//			 "   }                                                                   \n" <<
+//			 "                                                                       \n" <<
+//			 "   scratch[lid] = sum;                                                 \n";
+//#ifdef USE_VECTOR
+//			 code << reduce::ReduceBody1<RealType,false>::body(); // TODO Try NVIDIA version at some point
+//#else
+//		code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
+//#endif
+//		code <<
+//			 "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+//			 "   if (lid == 0) {                                                     \n";
+//
+//        code <<
+//             "     REAL_VECTOR mask = (REAL_VECTOR) (";
+//
+//        for (int i = 0; i < embeddingDimension; ++i) {
+//            code << " ONE";
+//            if (i < (OpenCLRealType::dim - 1)) {
+//                code << ",";
+//            }
+//        }
+//        for (int i = embeddingDimension; i < OpenCLRealType::dim; ++i) {
+//            code << " ZERO";
+//            if (i < (OpenCLRealType::dim - 1)) {
+//                code << ",";
+//            }
+//        }
+//        code << " ); \n";
+//
+//        code <<
+//			 "     output[i] = mask * scratch[0];                                    \n" <<
+//			 "   }                                                                   \n" <<
+//			 " }                                                                     \n ";
+//
+//#ifdef DOUBLE_CHECK_GRADIENT
+//#ifndef RBUILD
+//		std::cerr << code.str() << std::endl;
+//#endif
+////        exit(-1);
+//#endif
+//
+//#ifdef DEBUG_KERNELS
+//#ifndef RBUILD
+//        std::cerr << "Build gradient\n" << code.str() << std::endl;
+//#endif
+//#endif
+//
+//		program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+//		kernelGradientVector = boost::compute::kernel(program, "computeGradient");
+//
+//#ifdef DEBUG_KERNELS
+//#ifndef RBUILD
+//        std::cerr << "Success" << std::endl;
+//#endif
+//#endif
+//
+//		kernelGradientVector.set_arg(0, dLocations0); // Must update
+//		kernelGradientVector.set_arg(1, dObservations);
+//		kernelGradientVector.set_arg(2, dGradient);
+//		kernelGradientVector.set_arg(3, static_cast<RealType>(precision)); // Must update
+//		kernelGradientVector.set_arg(4, boost::compute::uint_(locationCount));
+//	}
 
 	void createOpenCLKernels() {
 
-		createOpenCLLikelihoodKernel();
-		createOpenCLGradientKernel();
+        createOpenCLSummationKernel();
+        createOpenCLLikContribsKernel();
+//		createOpenCLGradientKernel();
 
 #ifdef DOUBLE_CHECK
  		using namespace boost::compute;
@@ -1392,27 +1393,21 @@ private:
     mm::MemoryManager<double> doubleBuffer;
 
     boost::compute::program program;
+    boost::compute::kernel kernelLikSum;  // TODO guessing this goes here
 
 #ifdef USE_VECTORS
-	boost::compute::kernel kernelSumOfSquaredResidualsVector;
-	boost::compute::kernel kernelGradientVector;
+	boost::compute::kernel kernelLikContribsVector;
+//	boost::compute::kernel kernelGradientVector;
 #else
-    boost::compute::kernel kernelSumOfSquaredResiduals;
+    boost::compute::kernel kernelLikContribs;
 #endif // USE_VECTORS
 
 	double timer1 = 0;
 	double timer2 = 0;
 	double timer3 = 0;
 
-
-//     bool isStoredAllTruncationsEmpty;
-
-//     int nThreads;
-//     ThreadPool pool;
-
-
 };
 
-} // namespace mds
+} // namespace hph
 
 #endif // _OPENCL_MULTIDIMENSIONAL_SCALING_HPP

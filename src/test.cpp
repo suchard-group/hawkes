@@ -10,7 +10,7 @@
 #ifdef USE_SIMD
 #include "xsimd/xsimd.hpp"
 #endif
-#include "AbstractMultiDimensionalScaling.hpp"
+#include "AbstractHawkes.hpp"
 
 int main(int argc, char* argv[]) {
 
