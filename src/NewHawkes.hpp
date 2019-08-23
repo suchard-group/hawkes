@@ -15,11 +15,11 @@
 //#define XSIMD_ENABLE_FALLBACK
 
 #include "xsimd/xsimd.hpp"
-#include "AbstractMultiDimensionalScaling.hpp"
+#include "AbstractHawkes.hpp"
 #include "Distance.hpp"
 
 
-namespace mds {
+namespace hph {
 
 	struct DoubleNoSimdTypeInfo {
 		using BaseType = double;
@@ -68,13 +68,13 @@ namespace mds {
 #endif
 
 template <typename TypeInfo, typename ParallelType>
-class NewMultiDimensionalScaling : public AbstractMultiDimensionalScaling {
+class NewHawkes : public AbstractHawkes {
 public:
 
 	using RealType = typename TypeInfo::BaseType;
 
-    NewMultiDimensionalScaling(int embeddingDimension, int locationCount, long flags, int threads)
-        : AbstractMultiDimensionalScaling(embeddingDimension, locationCount, flags),
+    NewHawkes(int embeddingDimension, int locationCount, long flags, int threads)
+        : AbstractHawkes(embeddingDimension, locationCount, flags),
           precision(0.0), storedPrecision(0.0),
           oneOverSd(0.0), storedOneOverSd(0.0),
           sumOfIncrements(0.0), storedSumOfIncrements(0.0),
@@ -107,7 +107,7 @@ public:
     	}
 
 #ifdef USE_TBB
-        if (flags & mds::Flags::TBB) {
+        if (flags & hph::Flags::TBB) {
     		if (nThreads <= 0) {
                 nThreads = tbb::task_scheduler_init::default_num_threads();
     		}
@@ -124,7 +124,7 @@ public:
 
 
 
-    virtual ~NewMultiDimensionalScaling() { }
+    virtual ~NewHawkes() { }
 
 	int getInternalDimension() { return embeddingDimension; }
 
@@ -591,7 +591,7 @@ public:
                     if (withTruncation) { // Compile-time
                         squaredResidual = scale * squaredResidual;
                         if (i != j) {
-                            squaredResidual += math::phi2<NewMultiDimensionalScaling>(distance * oneOverSd);
+                            squaredResidual += math::phi2<NewHawkes>(distance * oneOverSd);
                         }
                     }
                 }
@@ -780,136 +780,136 @@ private:
 };
 
 // factory
-std::shared_ptr<AbstractMultiDimensionalScaling>
-constructNewMultiDimensionalScalingDoubleNoParallelNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
+std::shared_ptr<AbstractHawkes>
+constructNewHawkesDoubleNoParallelNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
 	Rcpp::Rcout << "DOUBLE, NO PARALLEL, NO SIMD" << std::endl;
 #else
   std::cerr << "DOUBLE, NO PARALLEL, NO SIMD" << std::endl;
 #endif
-	return std::make_shared<NewMultiDimensionalScaling<DoubleNoSimdTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+	return std::make_shared<NewHawkes<DoubleNoSimdTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
 }
 
-std::shared_ptr<AbstractMultiDimensionalScaling>
-constructNewMultiDimensionalScalingDoubleTbbNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
+std::shared_ptr<AbstractHawkes>
+constructNewHawkesDoubleTbbNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
   Rcpp::Rcout << "DOUBLE, TBB PARALLEL, NO SIMD" << std::endl;
 #else
   std::cerr << "DOUBLE, TBB PARALLEL, NO SIMD" << std::endl;
 #endif
-  return std::make_shared<NewMultiDimensionalScaling<DoubleNoSimdTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+  return std::make_shared<NewHawkes<DoubleNoSimdTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
 }
 
-std::shared_ptr<AbstractMultiDimensionalScaling>
-constructNewMultiDimensionalScalingFloatNoParallelNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
+std::shared_ptr<AbstractHawkes>
+constructNewHawkesFloatNoParallelNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
   Rcpp::Rcout << "SINGLE, NO PARALLEL, NO SIMD" << std::endl;
 #else
   std::cerr << "SINGLE, NO PARALLEL, NO SIMD" << std::endl;
 #endif
-  return std::make_shared<NewMultiDimensionalScaling<FloatNoSimdTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+  return std::make_shared<NewHawkes<FloatNoSimdTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
 }
 
-std::shared_ptr<AbstractMultiDimensionalScaling>
-constructNewMultiDimensionalScalingFloatTbbNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
+std::shared_ptr<AbstractHawkes>
+constructNewHawkesFloatTbbNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
   Rcpp::Rcout << "SINGLE, TBB PARALLEL, NO SIMD" << std::endl;
 #else
   std::cerr << "SINGLE, TBB PARALLEL, NO SIMD" << std::endl;
 #endif
-  return std::make_shared<NewMultiDimensionalScaling<FloatNoSimdTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+  return std::make_shared<NewHawkes<FloatNoSimdTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
 }
 
 #ifdef USE_SIMD
 
 #ifdef USE_AVX
-    std::shared_ptr<AbstractMultiDimensionalScaling>
-    constructNewMultiDimensionalScalingDoubleNoParallelAvx(int embeddingDimension, int locationCount, long flags, int threads) {
+    std::shared_ptr<AbstractHawkes>
+    constructNewHawkesDoubleNoParallelAvx(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
         Rcpp::Rcout << "DOUBLE, NO PARALLEL, AVX" << std::endl;
 #else
         std::cerr << "DOUBLE, NO PARALLEL, AVX" << std::endl;
 #endif
-        return std::make_shared<NewMultiDimensionalScaling<DoubleAvxTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+        return std::make_shared<NewHawkes<DoubleAvxTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 
-    std::shared_ptr<AbstractMultiDimensionalScaling>
-    constructNewMultiDimensionalScalingDoubleTbbAvx(int embeddingDimension, int locationCount, long flags, int threads) {
+    std::shared_ptr<AbstractHawkes>
+    constructNewHawkesDoubleTbbAvx(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
       Rcpp::Rcout << "DOUBLE, TBB PARALLEL, AVX" << std::endl;
 #else
       std::cerr << "DOUBLE, TBB PARALLEL, AVX" << std::endl;
 #endif
-        return std::make_shared<NewMultiDimensionalScaling<DoubleAvxTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+        return std::make_shared<NewHawkes<DoubleAvxTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 #endif
 
 #ifdef USE_AVX512
-    std::shared_ptr<AbstractMultiDimensionalScaling>
-    constructNewMultiDimensionalScalingDoubleNoParallelAvx512(int embeddingDimension, int locationCount, long flags, int threads) {
+    std::shared_ptr<AbstractHawkes>
+    constructNewHawkesDoubleNoParallelAvx512(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
       Rcpp::Rcout << "DOUBLE, NO PARALLEL, AVX512" << std::endl;
 #else
       std::cerr << "DOUBLE, NO PARALLEL, AVX512" << std::endl;
 #endif
-        return std::make_shared<NewMultiDimensionalScaling<DoubleAvx512TypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+        return std::make_shared<NewHawkes<DoubleAvx512TypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 
-    std::shared_ptr<AbstractMultiDimensionalScaling>
-    constructNewMultiDimensionalScalingDoubleTbbAvx512(int embeddingDimension, int locationCount, long flags, int threads) {
+    std::shared_ptr<AbstractHawkes>
+    constructNewHawkesDoubleTbbAvx512(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
       Rcpp::Rcout << "DOUBLE, TBB PARALLEL, AVX512" << std::endl;
 #else
       std::cerr << "DOUBLE, TBB PARALLEL, AVX512" << std::endl;
 #endif
-        return std::make_shared<NewMultiDimensionalScaling<DoubleAvx512TypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+        return std::make_shared<NewHawkes<DoubleAvx512TypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 #endif
 
 #ifdef USE_SSE
-    std::shared_ptr<AbstractMultiDimensionalScaling>
-    constructNewMultiDimensionalScalingDoubleNoParallelSse(int embeddingDimension, int locationCount, long flags, int threads) {
+    std::shared_ptr<AbstractHawkes>
+    constructNewHawkesDoubleNoParallelSse(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
       Rcpp::Rcout << "DOUBLE, NO PARALLEL, SSE" << std::endl;
 #else
       std::cerr << "DOUBLE, NO PARALLEL, SSE" << std::endl;
 #endif
-      return std::make_shared<NewMultiDimensionalScaling<DoubleSseTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+      return std::make_shared<NewHawkes<DoubleSseTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 
-    std::shared_ptr<AbstractMultiDimensionalScaling>
-    constructNewMultiDimensionalScalingDoubleTbbSse(int embeddingDimension, int locationCount, long flags, int threads) {
+    std::shared_ptr<AbstractHawkes>
+    constructNewHawkesDoubleTbbSse(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
       Rcpp::Rcout << "DOUBLE, TBB PARALLEL, SSE" << std::endl;
 #else
       std::cerr << "DOUBLE, TBB PARALLEL, SSE" << std::endl;
 #endif
-      return std::make_shared<NewMultiDimensionalScaling<DoubleSseTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+      return std::make_shared<NewHawkes<DoubleSseTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 
-	std::shared_ptr<AbstractMultiDimensionalScaling>
-	constructNewMultiDimensionalScalingFloatNoParallelSse(int embeddingDimension, int locationCount, long flags, int threads) {
+	std::shared_ptr<AbstractHawkes>
+	constructNewHawkesFloatNoParallelSse(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
 	  Rcpp::Rcout << "SINGLE, NO PARALLEL, SSE" << std::endl;
 #else
 	  std::cerr << "SINGLE, NO PARALLEL, SSE" << std::endl;
 #endif
-	  return std::make_shared<NewMultiDimensionalScaling<FloatSseTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+	  return std::make_shared<NewHawkes<FloatSseTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
 	}
 
-	std::shared_ptr<AbstractMultiDimensionalScaling>
-	constructNewMultiDimensionalScalingFloatTbbSse(int embeddingDimension, int locationCount, long flags, int threads) {
+	std::shared_ptr<AbstractHawkes>
+	constructNewHawkesFloatTbbSse(int embeddingDimension, int locationCount, long flags, int threads) {
 #ifdef RBUILD
 	  Rcpp::Rcout << "SINGLE, TBB PARALLEL, SSE" << std::endl;
 #else
 	  std::cerr << "SINGLE, TBB PARALLEL, SSE" << std::endl;
 #endif
-	  return std::make_shared<NewMultiDimensionalScaling<FloatSseTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+	  return std::make_shared<NewHawkes<FloatSseTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
 	}
 #endif
 
 #endif
 
-} // namespace mds
+} // namespace hph
 
 #endif // _NEWMULTIDIMENSIONALSCALING_HPP
