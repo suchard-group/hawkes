@@ -452,7 +452,7 @@ public:
 
         size_t index = 0;
         kernelLikSum.set_arg(index++, dLikContribs);
-        kernelLikSum.set_arg(index++, dLikelihood);
+        kernelLikSum.set_arg(index++, dSumOfLikContribs);
         kernelLikSum.set_arg(index++, boost::compute::uint_(locationCount));
 	}
 
@@ -583,7 +583,7 @@ public:
 		kernelLikContribsVector = boost::compute::kernel(program, "computeLikContribs");
 
 		size_t index = 0;
-        kernelLikContribsVector.set_arg(index++, dLocations0);
+        kernelLikContribsVector.set_arg(index++, dLocations);
 		kernelLikContribsVector.set_arg(index++, dTimes);
 		kernelLikContribsVector.set_arg(index++, dLikContribs);
         kernelLikContribsVector.set_arg(index++, sigmaXprec);
@@ -776,62 +776,54 @@ public:
 	}
 
 private:
-	double precision;
-	double storedPrecision;
-
-	double oneOverSd;
-	double storedOneOverSd;
+    double sigmaXprec;
+    double storedSigmaXprec;
+    double tauXprec;
+    double storedTauXprec;
+    double tauTprec;
+    double storedTauTprec;
+    double omega;
+    double storedOmega;
+    double theta;
+    double storedTheta;
+    double mu0;
+    double storedMu0;
 
     double sumOfLikContribs;
     double storedSumOfLikContribs;
+    mm::MemoryManager<RealType> dSumOfLikContribs;
+    mm::MemoryManager<RealType> dStoredSumOfLikContribs;
+
 
     boost::compute::device device;
     boost::compute::context ctx;
     boost::compute::command_queue queue;
 
-    mm::MemoryManager<RealType> observations;
-
-    mm::MemoryManager<RealType> locations0;
-    mm::MemoryManager<RealType> locations1;
-
+    mm::MemoryManager<RealType> times;
+    mm::MemoryManager<RealType> locations;
     mm::MemoryManager<RealType>* locationsPtr;
-    mm::MemoryManager<RealType>* storedLocationsPtr;
 
-    mm::MemoryManager<RealType> squaredResiduals;
-    mm::MemoryManager<RealType> storedSquaredResiduals;
+    mm::MemoryManager<RealType> likContribs;
+    mm::MemoryManager<RealType> storedLikContribs;
 
-    mm::MemoryManager<RealType> truncations;
-    mm::MemoryManager<RealType> storedTruncations;
-
-	mm::MemoryManager<RealType> gradient;
-
-    mm::GPUMemoryManager<RealType> dObservations;
+//	mm::MemoryManager<RealType> gradient;
 
 #ifdef USE_VECTORS
-    mm::GPUMemoryManager<VectorType> dLocations0;
-    mm::GPUMemoryManager<VectorType> dLocations1;
-
+    mm::GPUMemoryManager<VectorType> dLocations;
+    mm::GPUMemoryManager<VectorType> dTimes;
     mm::GPUMemoryManager<VectorType>* dLocationsPtr;
-    mm::GPUMemoryManager<VectorType>* dStoredLocationsPtr;
-
-	mm::GPUMemoryManager<VectorType> dGradient;
+//	mm::GPUMemoryManager<VectorType> dGradient;
 #else
-    mm::GPUMemoryManager<RealType> dLocations0;
-    mm::GPUMemoryManager<RealType> dLocations1;
-
+    mm::GPUMemoryManager<RealType> dTimes;
+    mm::GPUMemoryManager<RealType> dLocations;
     mm::GPUMemoryManager<RealType>* dLocationsPtr;
-    mm::GPUMemoryManager<RealType>* dStoredLocationsPtr;
 #endif // USE_VECTORS
 
 
-    mm::GPUMemoryManager<RealType> dSquaredResiduals;
-    mm::GPUMemoryManager<RealType> dStoredSquaredResiduals;
+    mm::GPUMemoryManager<RealType> dLikContribs;
+    mm::GPUMemoryManager<RealType> dStoredLikContribs;
 
-    mm::GPUMemoryManager<RealType> dTruncations;
-    mm::GPUMemoryManager<RealType> dStoredTruncations;
-
-    bool isStoredSquaredResidualsEmpty;
-    bool isStoredTruncationsEmpty;
+    bool isStoredLikContribsEmpty;
 
     mm::MemoryManager<RealType> buffer;
     mm::MemoryManager<double> doubleBuffer;
