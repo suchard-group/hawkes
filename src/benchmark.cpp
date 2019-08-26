@@ -10,7 +10,7 @@
 #include "AbstractHawkes.hpp"
 
 
-int cnt = 0;
+//int cnt = 0;
 
 template <typename T, typename PRNG, typename D>
 void generateLocation(T& locations, D& d, PRNG& prng) {
@@ -37,7 +37,6 @@ int main(int argc, char* argv[]) {
             ("locations", po::value<int>()->default_value(3), "number of locations")
             ("dimension", po::value<int>()->default_value(2), "number of dimensions")
 			("internal", "use internal dimension")
-			("missing", "allow for missing entries")
             ("sse", "use hand-rolled SSE")
             ("avx", "use hand-rolled AVX")
             ("avx512", "use hand-rolled AVX-512")
@@ -66,8 +65,6 @@ int main(int argc, char* argv[]) {
 
 	int embeddingDimension = vm["dimension"].as<int>();
 	int locationCount = vm["locations"].as<int>();
-	
-	bool updateAllLocations = true;
 
 	long flags = 0L;
 
@@ -149,22 +146,10 @@ int main(int argc, char* argv[]) {
         }
 #endif // not defined(USE_SSE) && not defined(USE_AVX) && not defined(USE_AVX512)
 	}
-	
-//	bool truncation = false;
-//	if (vm.count("truncation")) {
-//		std::cout << "Enabling truncation" << std::endl;
-//		flags |= hph::Flags::LEFT_TRUNCATION;
-//		truncation = true;
-//	}
 
 	bool internalDimension = vm.count("internal");
 
 	hph::SharedPtr instance = hph::factory(embeddingDimension, locationCount, flags, deviceNumber, threads);
-
-	bool missing = vm.count("missing");
-	if (missing) {
-        std::cout << "Allowing for missingness" << std::endl;
-	}
 
 	auto elementCount = locationCount * locationCount;
 	std::vector<double> data(elementCount);
@@ -175,25 +160,10 @@ int main(int argc, char* argv[]) {
 	        const double draw = normalData(prng);
 	        double distance = draw * draw;
 
-	        if (missing && toss(prng2)) {
-	            distance = NAN;
-	        }
 	        data[i * locationCount + j] = distance;
 	        data[j * locationCount + i] = distance;
 	    }
 	}
-
-//	if (vm.count("missing")) {
-//
-//        data[2*locationCount + 3] = NAN;
-//		data[3*locationCount + 2] = NAN;
-//
-//		for (int m = 3; m < 100; ++m) {
-//		    for (int n = 5; n < 8; ++n) {
-//		        data[m * locationCount + n] = data[n * locationCount + m] = NAN;
-//		    }
-//		}
-//	}
 
 	instance->setPairwiseData(&data[0], elementCount);
 
@@ -201,21 +171,14 @@ int main(int argc, char* argv[]) {
 
 	std::vector<double> location(dataDimension);
 	std::vector<double> allLocations;
-	if (updateAllLocations) {
-		allLocations.resize(dataDimension * locationCount);
-	}
+	allLocations.resize(dataDimension * locationCount);
 
-	double total = 0.0;
 	for (int i = 0; i < locationCount; ++i) {
 		generateLocation(location, normal, prng);
 		instance->updateLocations(i, &location[0], dataDimension);
-// 		for (int j = 0; j < embeddingDimension; ++j) {
-// 			total += location[j];
-// 		}
 	}
-// 	std::cerr << "FIND: " << total << std::endl;
 
-    int gradientIndex = 1;
+//    int gradientIndex = 1;
 
 	double precision = 1.0;
 	instance->setParameters(&precision, 1);
@@ -223,16 +186,10 @@ int main(int argc, char* argv[]) {
 	instance->makeDirty();
 	auto logLik = instance->getSumOfIncrements();
 
-    std::vector<double> gradient(locationCount * dataDimension);
+//    std::vector<double> gradient(locationCount * dataDimension);
 
-    instance->getLogLikelihoodGradient(gradient.data(), locationCount * dataDimension);
-//    double sumGradient = std::accumulate(std::begin(gradient), std::end(gradient), 0.0);
-    double sumGradient = gradient[gradientIndex];
-
-// 	double logTrunc = 0.0;
-// 	if (truncation) {
-// 		logTrunc = instance->getSumOfLogTruncations();
-// 	}
+//    instance->getLogLikelihoodGradient(gradient.data(), locationCount * dataDimension);
+//    double sumGradient = gradient[gradientIndex];
 
 	std::cout << "Starting HPH benchmark" << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
@@ -244,28 +201,15 @@ int main(int argc, char* argv[]) {
 
 	for (auto itr = 0; itr < iterations; ++itr) {
 
-// 	    double startDiagnostic = instance->getDiagnostic();
-
 		instance->storeState();
 
-		if (updateAllLocations) {
-			generateLocation(allLocations, normal, prng);
-			instance->updateLocations(-1, &allLocations[0], dataDimension * locationCount);
-		} else {
-			int dimension = uniform(prng);
-			generateLocation(location, normal, prng);
-			instance->updateLocations(dimension, &location[0], dataDimension);
-		}
+		generateLocation(allLocations, normal, prng);
+		instance->updateLocations(-1, &allLocations[0], dataDimension * locationCount);
 		
 		auto startTime1 = std::chrono::steady_clock::now();
 
 		double inc = instance->getSumOfIncrements();
 		logLik += inc;
-		
-// 		if (truncation) {
-// 			double trunc = instance->getSumOfLogTruncations();
-// 			logTrunc += trunc;
-// 		}
 		
 		auto duration1 = std::chrono::steady_clock::now() - startTime1;
 		timer += std::chrono::duration<double, std::milli>(duration1).count();
@@ -277,42 +221,25 @@ int main(int argc, char* argv[]) {
 		    instance->acceptState();
 		}
 
-// 		double endDiagnostic = instance->getDiagnostic();
-// 		if (restore && (startDiagnostic != endDiagnostic)) {
-// 		    std::cerr << "Failed restore" << std::endl;
-// 		    std::cerr << (endDiagnostic - startDiagnostic) << std::endl;
-// 		    exit(-1);
-// 		}
-// 		if (!restore && (startDiagnostic == endDiagnostic)) {
-// 		    std::cerr << "Failed accept" << std::endl;
-// 		    exit(-1);
-// 		}
-//
-// 		std::cerr << endDiagnostic << std::endl;
-// 		if (itr > 100) exit(-1);
+//        auto startTime2 = std::chrono::steady_clock::now();
 
-        auto startTime2 = std::chrono::steady_clock::now();
+//        instance->getLogLikelihoodGradient(gradient.data(), locationCount * dataDimension);
 
-        instance->getLogLikelihoodGradient(gradient.data(), locationCount * dataDimension);
+//        auto duration2 = std::chrono::steady_clock::now() - startTime2;
+//        timer2 += std::chrono::duration<double, std::milli>(duration2).count();
 
-        auto duration2 = std::chrono::steady_clock::now() - startTime2;
-        timer2 += std::chrono::duration<double, std::milli>(duration2).count();
-
-//        sumGradient += std::accumulate(std::begin(gradient), std::end(gradient), 0.0) + 1;
-        sumGradient += gradient[gradientIndex];
+//        sumGradient += gradient[gradientIndex];
 
 	}
 	logLik /= iterations + 1;
-    sumGradient /= iterations + 1;
-// 	logTrunc /= iterations + 1;
+//    sumGradient /= iterations + 1;
 
 	auto endTime = std::chrono::steady_clock::now();
 	auto duration = endTime - startTime;
 
 	std::cout << "End HPH benchmark" << std::endl;
 	std::cout << "AvgLogLik = " << logLik << std::endl;
-    std::cout << "AvgSumGradient = " << sumGradient << std::endl;
-// 	std::cout << "AveLogTru = " << logTrunc << std::endl;
+//    std::cout << "AvgSumGradient = " << sumGradient << std::endl;
 	std::cout << timer  << " ms" << std::endl;
     std::cout << timer2 << " ms" << std::endl;
 

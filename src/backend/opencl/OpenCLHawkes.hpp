@@ -18,10 +18,6 @@
 
 #define USE_VECTORS
 
-//#define DOUBLE_CHECK
-
-//#define DOUBLE_CHECK_GRADIENT
-
 #define TILE_DIM 16
 
 #define TILE_DIM_I  128
@@ -30,8 +26,6 @@
 #define DELTA 1;
 
 #define USE_VECTOR
-
-//#define DEBUG_KERNELS
 
 #include "OpenCLMemoryManagement.hpp"
 #include "Reducer.hpp"
@@ -52,7 +46,6 @@ public:
           precision(0.0), storedPrecision(0.0),
           oneOverSd(0.0), storedOneOverSd(0.0),
           sumOfSquaredResiduals(0.0), storedSumOfSquaredResiduals(0.0),
-          sumOfTruncations(0.0), storedSumOfTruncations(0.0),
 
           observations(locationCount * locationCount),
 
@@ -64,11 +57,8 @@ public:
           squaredResiduals(locationCount * locationCount),
           storedSquaredResiduals(locationCount),
 
-          isStoredSquaredResidualsEmpty(false),
-          isStoredTruncationsEmpty(false)//,
-//          isStoredAllTruncationsEmpty(false)
+          isStoredSquaredResidualsEmpty(false)
 
-//           , nThreads(4) //, pool(nThreads)
     {
 #ifdef RBUILD
       Rcpp::Rcout << "ctor OpenCLHawkes" << std::endl;
@@ -143,7 +133,7 @@ public:
 #ifdef USE_VECTORS
 		dLocations0 = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 		dLocations1 = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
-		dGradient   = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+		//dGradient   = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 #else
 		dLocations0 = mm::GPUMemoryManager<RealType>(locations0.size(), ctx);
 		dLocations1 = mm::GPUMemoryManager<RealType>(locations1.size(), ctx);
@@ -234,64 +224,6 @@ public:
 
 //	void getLogLikelihoodGradient(double* result, size_t length) override {
 //
-//        // TODO Buffer gradients
-//
-//#ifdef DOUBLE_CHECK_GRADIENT
-//		assert(length == locationCount * embeddingDimension ||
-//                       length == locationCount * OpenCLRealType::dim);
-//
-//		if (gradient.size() != locationCount * OpenCLRealType::dim) {
-//			gradient.resize(locationCount * OpenCLRealType::dim);
-//		}
-//
-//		std::fill(std::begin(gradient), std::end(gradient), static_cast<RealType>(0.0));
-//
-//		const RealType scale = precision;
-//
-//		for (int i = 0; i < locationCount; ++i) {
-//			for (int j = 0; j < locationCount; ++j) {
-//				if (i != j) {
-//					const auto distance = calculateDistance<mm::MemoryManager<RealType>>(
-//							begin(*locationsPtr) + i * OpenCLRealType::dim,
-//							begin(*locationsPtr) + j * OpenCLRealType::dim
-//					);
-//
-//					const RealType dataContribution =
-//							(observations[i * locationCount + j] - distance) * scale / distance;
-//
-//                    for (int d = 0; d < embeddingDimension; ++d) {
-//                        const RealType update = dataContribution *
-//                                                 ((*locationsPtr)[i * OpenCLRealType::dim + d] - (*locationsPtr)[j * OpenCLRealType::dim + d]);
-//                        gradient[i * OpenCLRealType::dim + d] += update;
-//                    }
-//				}
-//			}
-//		}
-//
-//		if (doubleBuffer.size() != locationCount * OpenCLRealType::dim) {
-//			doubleBuffer.resize(locationCount * OpenCLRealType::dim);
-//		}
-//
-//		mm::bufferedCopy(std::begin(gradient), std::end(gradient), doubleBuffer.data(), buffer);
-//
-//        std::vector<double> testGradient0;
-//        for (int d = 0; d < embeddingDimension; ++d) {
-//            testGradient0.push_back(doubleBuffer[d]);
-//        }
-//        for (int d = 0; d < embeddingDimension; ++d) {
-//            testGradient0.push_back(doubleBuffer[OpenCLRealType::dim * (locationCount - 1) + d]);
-//        }
-//
-//        std::vector<double> testGradient00;
-//        for (int d = 0; d < OpenCLRealType::dim; ++d) {
-//            testGradient00.push_back(doubleBuffer[d]);
-//        }
-//        for (int d = 0; d < OpenCLRealType::dim; ++d) {
-//            testGradient00.push_back(doubleBuffer[OpenCLRealType::dim * (locationCount - 1) + d]);
-//        }
-//
-//#endif // DOUBLE_CHECK_GRADIENT
-//
 //		kernelGradientVector.set_arg(0, *dLocationsPtr);
 //		kernelGradientVector.set_arg(3, static_cast<RealType>(precision));
 //
@@ -319,86 +251,12 @@ public:
 //                                   result, embeddingDimension,
 //                                   locationCount, buffer);
 //        }
-//
-//#ifdef DOUBLE_CHECK_GRADIENT
-//        std::vector<double> testGradient1;
-//        for (int i = 0; i < embeddingDimension; ++i) {
-//            testGradient1.push_back(result[i]);
-//        }
-//
-//		int stride = (length == locationCount * OpenCLRealType::dim) ?
-//					 OpenCLRealType::dim : embeddingDimension;
-//
-//        for (int i = 0; i < embeddingDimension; ++i) {
-//            testGradient1.push_back(result[stride * (locationCount - 1) + i]);
-//        }
-//
-//        std::vector<double> testGradient11;
-//        for (int i = 0; i < OpenCLRealType::dim; ++i) {
-//            testGradient11.push_back(doubleBuffer[i]);
-//        }
-//
-//#ifdef RBUILD
-//        Rcpp::Rcout << "cpu0: ";
-//        for (auto x : testGradient0) {
-//          Rcpp::Rcout << " " << x;
-//        }
-//        Rcpp::Rcout << std::endl;
-//
-//        Rcpp::Rcout << "cpu1: ";
-//        for (auto x : testGradient00) {
-//          Rcpp::Rcout << " " << x;
-//        }
-//        Rcpp::Rcout << std::endl;
-//
-//        Rcpp::Rcout << "gpu0: ";
-//        for (auto x : testGradient1) {
-//          Rcpp::Rcout << " " << x;
-//        }
-//        Rcpp::Rcout << std::endl;
-//
-//        Rcpp::Rcout << "gpu1: ";
-//        for (auto x : testGradient11) {
-//          Rcpp::Rcout << " " << x;
-//        }
-//        Rcpp::Rcout << std::endl;
-//#else //RBUILD
-//        std::cerr << "cpu0: ";
-//        for (auto x : testGradient0) {
-//            std::cerr << " " << x;
-//        }
-//        std::cerr << std::endl;
-//
-//        std::cerr << "cpu1: ";
-//        for (auto x : testGradient00) {
-//            std::cerr << " " << x;
-//        }
-//        std::cerr << std::endl;
-//
-//        std::cerr << "gpu0: ";
-//        for (auto x : testGradient1) {
-//            std::cerr << " " << x;
-//        }
-//        std::cerr << std::endl;
-//
-//        std::cerr << "gpu1: ";
-//        for (auto x : testGradient11) {
-//            std::cerr << " " << x;
-//        }
-//        std::cerr << std::endl;
-//#endif //RBUILD
-//#endif
-//
 // 	}
 
-    void computeResidualsAndTruncations() {
+    void computeLikelihood() {
 
 		if (!incrementsKnown) {
-			if (isLeftTruncated) { // run-time dispatch to compile-time optimization
-				computeSumOfSquaredResiduals<true>();
-			} else {
-				computeSumOfSquaredResiduals<false>();
-			}
+		    computeSumOfSquaredResiduals();
 			incrementsKnown = true;
 		} else {
 #ifdef RBUILD
@@ -406,32 +264,17 @@ public:
 #else
 			std::cerr << "SHOULD NOT BE HERE" << std::endl;
 #endif
-			if (isLeftTruncated) {
-				updateSumOfSquaredResidualsAndTruncations();
-			} else {
-				updateSumOfSquaredResiduals();
-			}
+			updateSumOfSquaredResiduals();
 		}
     }
 
     double getSumOfIncrements() override {
     	if (!sumOfIncrementsKnown) {
-			computeResidualsAndTruncations();
+			computeLikContribs();
 			sumOfIncrementsKnown = true;
 		}
-		if (isLeftTruncated) {
-			return sumOfSquaredResiduals;
-		} else {
-			return 0.5 * precision * sumOfSquaredResiduals;
-		}
- 	}    // TODO Duplicated code with CPU version; there is a problem here?
 
- 	double getSumOfLogTruncations() {
-    	if (!sumOfIncrementsKnown) {
-			computeResidualsAndTruncations();
-			sumOfIncrementsKnown = true;
-		}
- 		return sumOfTruncations;
+    	return sumOfLikContribs;
  	}
 
     void storeState() override {
@@ -451,35 +294,14 @@ public:
     	storedPrecision = precision;
     	storedOneOverSd = oneOverSd;
 
-    	// Handle truncation
-    	if (isLeftTruncated) {
-    		storedSumOfTruncations = sumOfTruncations;
-			isStoredTruncationsEmpty = true;
-    	}
     }
-
-//     double getDiagnostic() {
-//         return std::accumulate(
-//             begin(squaredResiduals),
-//             end(squaredResiduals),
-//             RealType(0));
-//     }
 
     void acceptState() override {
         if (!isStoredSquaredResidualsEmpty) {
     		for (int j = 0; j < locationCount; ++j) {
-    			squaredResiduals[j * locationCount + updatedLocation] = squaredResiduals[updatedLocation * locationCount + j];
-    		}
-
-    		// COMPUTE TODO
-
-    		if (isLeftTruncated) {
-                for (int j = 0; j < locationCount; ++j) {
-	    			truncations[j * locationCount + updatedLocation] = truncations[updatedLocation * locationCount + j];
-	    		}
-
-	    		// COMPUTE TODO
-    		}
+                squaredResiduals[j * locationCount + updatedLocation] = squaredResiduals[
+                        updatedLocation * locationCount + j];
+            }
     	}
     }
 
@@ -506,26 +328,6 @@ public:
     		incrementsKnown = false; // Force recompute;
     	}
 
-    	// Handle truncation
-    	if (isLeftTruncated) {
-	    	sumOfTruncations = storedSumOfTruncations;
-
-	    	if (!isStoredTruncationsEmpty) {
-	    		std::copy(
-	    			begin(storedTruncations),
-	    			end(storedTruncations),
-	    			begin(truncations) + updatedLocation * locationCount
-	    		);
-
-	    		// COMPUTE
-	    		boost::compute::copy(
-	    			dStoredTruncations.begin(),
-	    			dStoredTruncations.end(),
-	    			dTruncations.begin() + updatedLocation * locationCount, queue
-	    		);
-	    	}
-	    }
-
     	precision = storedPrecision;
     	oneOverSd = storedOneOverSd;
 
@@ -547,34 +349,12 @@ public:
 		// COMPUTE
 		mm::bufferedCopyToDevice(data, data + length, dObservations.begin(),
 			buffer, queue);
-
-#ifdef DOUBLE_CHECK
-		RealType sum = 0.0;
-		boost::compute::reduce(dObservations.begin(), dObservations.end(), &sum, queue);
-		RealType sum2 = std::accumulate(begin(observations), end(observations), RealType(0.0));
-#ifdef RBUILD
-		Rcpp::Rcout << sum << " ?= " << sum2 << std::endl;
-#else
-		std::cerr << sum << " ?= " << sum2 << std::endl;
-#endif
-#endif
-
     }
 
     void setParameters(double* data, size_t length) override {
 		assert(length == 1); // Call only with precision
 		precision = data[0]; // TODO Remove
 		oneOverSd = std::sqrt(data[0]);
-
-		// Handle truncations
-		if (isLeftTruncated) {
-			incrementsKnown = false;
-			sumOfIncrementsKnown = false;
-
-    		isStoredSquaredResidualsEmpty = true;
-    		isStoredTruncationsEmpty = true;
-
-		}
     }
 
     void makeDirty() override {
@@ -589,43 +369,6 @@ public:
 
 		RealType lSumOfSquaredResiduals = 0.0;
 
-#ifdef DOUBLE_CHECK
-	  RealType lSumOfTruncations = 0.0;
-		auto startTime1 = std::chrono::steady_clock::now();
-
-		for (int i = 0; i < locationCount; ++i) { // TODO Parallelize
-			for (int j = 0; j < locationCount; ++j) {
-
-				const auto distance = calculateDistance<mm::MemoryManager<RealType>>(
-					begin(*locationsPtr) + i * OpenCLRealType::dim,
-					begin(*locationsPtr) + j * OpenCLRealType::dim
-				);
-				const auto residual = !std::isnan(observations[i * locationCount + j]) *
-				        (distance - observations[i * locationCount + j]);
-				const auto squaredResidual = residual * residual;
-				squaredResiduals[i * locationCount + j] = squaredResidual;
-				lSumOfSquaredResiduals += squaredResidual;
-
-				if (withTruncation) { // compile-time check
-					const auto truncation = (i == j) ? RealType(0) :
-						math::logCdf<OpenCLHawkes>(std::fabs(residual) * oneOverSd);
-					truncations[i * locationCount + j] = truncation;
-					lSumOfTruncations += truncation;
-				}
-			}
-		}
-
-		auto duration1 = std::chrono::steady_clock::now() - startTime1;
-		if (count > 1) timer1 += std::chrono::duration<double, std::milli>(duration1).count();
-#endif // DOUBLE_CHECK
-
-//		std::cerr << "HERE2" << std::endl;
-		//exit(-1);
-
-		// COMPUTE TODO
-		auto startTime2 = std::chrono::steady_clock::now();
-
-// 		std::cerr << "Prepare for launch..." << std::endl;
 #ifdef USE_VECTORS
 		kernelSumOfSquaredResidualsVector.set_arg(0, *dLocationsPtr);
 
@@ -641,72 +384,24 @@ public:
 		}
 		const size_t global_work_size[2] = {work_groups * TILE_DIM, work_groups * TILE_DIM};
 
-	//	std::cerr << "HERE3" << std::endl;
-		//exit(-1);
-
-		//queue.enqueue_1d_range_kernel(kernelSumOfSquaredResidualsVector, 0, locationCount * locationCount, 0);
 		queue.enqueue_nd_range_kernel(kernelSumOfSquaredResidualsVector, 2, 0, global_work_size, local_work_size);
-		//std::cerr << "HERE4" << std::endl;
-		//exit(-1);
 
 #else
 		kernelSumOfSquaredResiduals.set_arg(0, *dLocationsPtr);
 		queue.enqueue_1d_range_kernel(kernelSumOfSquaredResiduals, 0, locationCount * locationCount, 0);
 #endif // USE_VECTORS
 
-		//std::cerr << "HERE4" << std::endl;
 		queue.finish();
-		//std::cerr << "HERE5" << std::endl;
-		auto duration2 = std::chrono::steady_clock::now() - startTime2;
-		if (count > 1) timer2 += std::chrono::duration<double, std::milli>(duration2).count();
 
-
-        auto startTime3 = std::chrono::steady_clock::now();
-// 		std::cerr << "Done with transform." << std::endl;
 		RealType sum = RealType(0.0);
-		//boost::compute::reduce_fast(dSquaredResiduals.begin(), dSquaredResiduals.end(), &sum, queue);
 		boost::compute::reduce(dSquaredResiduals.begin(), dSquaredResiduals.end(), &sum, queue);
-//		std::cerr << "HERE6" << std::endl;
-
-// 		if (isLeftTruncated) {
-// 			RealType sum2 = RealType(0.0);
-// 			boost::compute::reduce(dTruncations.begin(), dTruncations.end(), &sum2, queue);
-// 			lSumOfTruncations = sum2;
-// 		}
 
 		queue.finish();
-		auto duration3 = std::chrono::steady_clock::now() - startTime3;
-		if (count > 1) timer3 += std::chrono::duration<double, std::milli>(duration3).count();
-
-
-//		RealType tmp = std::accumulate(begin(squaredResiduals), end(squaredResiduals), RealType(0.0));
-
-
-#ifdef DOUBLE_CHECK
-#ifdef RBUILD
-      Rcpp::Rcout << sum << " - " << lSumOfSquaredResiduals << " = " <<  (sum - lSumOfSquaredResiduals) << std::endl;
-#else
-  		std::cerr << sum << " - " << lSumOfSquaredResiduals << " = " <<  (sum - lSumOfSquaredResiduals) << std::endl;
-#endif
-#endif
-
-
 
 	    lSumOfSquaredResiduals = sum;
-	    // lSumOfTruncations =
 
-		//
-
-    	lSumOfSquaredResiduals /= 2.0;
+	    lSumOfSquaredResiduals /= 2.0;
     	sumOfSquaredResiduals = lSumOfSquaredResiduals;
-
-//     	if (withTruncation) {
-//     		lSumOfTruncations /= 2.0;
-//     		sumOfTruncations = lSumOfTruncations;
-//     	}
-
-// 		std::cerr << lSumOfSquaredResiduals << " " << lSumOfTruncations << std::endl;
-// 		exit(-1);
 
 	    incrementsKnown = true;
 	    sumOfIncrementsKnown = true;
@@ -715,7 +410,6 @@ public:
 	}
 
 	void updateSumOfSquaredResiduals() {
-		// double delta = 0.0;
 
 		const int i = updatedLocation;
 		isStoredSquaredResidualsEmpty = false;
@@ -723,12 +417,7 @@ public:
 		auto start  = begin(*locationsPtr) + i * OpenCLRealType::dim;
 		auto offset = begin(*locationsPtr);
 
-		RealType delta =
-
-// 		accumulate_thread(0, locationCount, double(0),
- 		accumulate(0, locationCount, RealType(0),
-// 		accumulate_tbb(0, locationCount, double(0),
-
+		RealType delta = accumulate(0, locationCount, RealType(0),
 			[this, i, &offset,
 			&start](const int j) {
                 const auto distance = calculateDistance<mm::MemoryManager<RealType>>(
@@ -753,13 +442,9 @@ public:
             }
 		);
 
-		// COMPUTE TODO
-
 		sumOfSquaredResiduals += delta;
 	}
 
-// 	int count = 0
-//	int count2 = 0;
 
 	void updateSumOfSquaredResidualsAndTruncations() {
 
@@ -807,8 +492,6 @@ public:
                 return std::complex<RealType>(inc, inc2);
             }
 		);
-
-		// COMPUTE TODO
 
 		sumOfSquaredResiduals += delta.real();
  		sumOfTruncations += delta.imag();
@@ -1093,7 +776,7 @@ public:
 #endif // DOUBLE_CHECK
 
 		size_t index = 0;
-        kernelLikContribsVector.set_arg(index++, dLocations0); // Must update
+        kernelLikContribsVector.set_arg(index++, dLocations0);
 		kernelLikContribsVector.set_arg(index++, dTimes);
 		kernelLikContribsVector.set_arg(index++, dLikContribs);
         kernelLikContribsVector.set_arg(index++, sigmaXprec);
@@ -1265,27 +948,10 @@ public:
 //			 "   }                                                                   \n" <<
 //			 " }                                                                     \n ";
 //
-//#ifdef DOUBLE_CHECK_GRADIENT
-//#ifndef RBUILD
-//		std::cerr << code.str() << std::endl;
-//#endif
-////        exit(-1);
-//#endif
 //
-//#ifdef DEBUG_KERNELS
-//#ifndef RBUILD
-//        std::cerr << "Build gradient\n" << code.str() << std::endl;
-//#endif
-//#endif
 //
 //		program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
 //		kernelGradientVector = boost::compute::kernel(program, "computeGradient");
-//
-//#ifdef DEBUG_KERNELS
-//#ifndef RBUILD
-//        std::cerr << "Success" << std::endl;
-//#endif
-//#endif
 //
 //		kernelGradientVector.set_arg(0, dLocations0); // Must update
 //		kernelGradientVector.set_arg(1, dObservations);
@@ -1299,32 +965,6 @@ public:
         createOpenCLSummationKernel();
         createOpenCLLikContribsKernel();
 //		createOpenCLGradientKernel();
-
-#ifdef DOUBLE_CHECK
- 		using namespace boost::compute;
-        boost::shared_ptr<program_cache> cache = program_cache::get_global_cache(ctx);
-
-		RealType sum = RealType(0.0);
-		boost::compute::reduce(dSquaredResiduals.begin(), dSquaredResiduals.end(), &sum, queue);
-
-		auto programInfo = *begin(cache->get_keys());
-#ifndef RBUILD
-		std::cerr << "Try " << programInfo.first << " : " << programInfo.second << std::endl;
-#endif
-        boost::compute::program programReduce = *cache->get(programInfo.first, programInfo.second);
-        auto kernelReduce = kernel(programReduce, "reduce");
-#ifndef RBUILD
-        std::cerr << programReduce.source() << std::endl;
-#endif
-
-        const auto &device2 = queue.get_device();
-#ifndef RBUILD
-        std::cerr << "nvidia? " << detail::is_nvidia_device(device) << " " << device.name() << " " << device.vendor() << std::endl;
-        std::cerr << "nvidia? " << detail::is_nvidia_device(device2) << " " << device2.name() << " " << device.vendor() << std::endl;
-
-		std::cerr << "Done compile VECTOR." << std::endl;
-#endif
-#endif
 
 	}
 
@@ -1401,11 +1041,6 @@ private:
 #else
     boost::compute::kernel kernelLikContribs;
 #endif // USE_VECTORS
-
-	double timer1 = 0;
-	double timer2 = 0;
-	double timer3 = 0;
-
 };
 
 } // namespace hph

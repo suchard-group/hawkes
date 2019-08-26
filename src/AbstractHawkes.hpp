@@ -40,8 +40,6 @@ public:
 
     // Interface
     virtual void updateLocations(int, double*, size_t) = 0;
-//     virtual double getSumOfSquaredResiduals() = 0;
-//     virtual double getSumOfLogTruncations() = 0;
     virtual double getSumOfIncrements() = 0;
     virtual void getLogLikelihoodGradient(double*, size_t) = 0;
     virtual void storeState() = 0;
@@ -52,8 +50,6 @@ public:
     virtual void makeDirty() = 0;
     virtual int getInternalDimension() = 0;
 
-//    virtual double getDiagnostic() { return 0.0; }
-
 protected:
     int embeddingDimension;
     int locationCount;
@@ -63,15 +59,11 @@ protected:
     int updatedLocation = -1;
     bool incrementsKnown = false;
     bool sumOfIncrementsKnown = false;
-    bool isLeftTruncated = false;
 };
 
 typedef std::shared_ptr<hph::AbstractHawkes> SharedPtr;
 
 SharedPtr factory(int dim1, int dim2, long flags, int device, int threads);
-
-//template <typename T>
-//struct DetermineType;
 
 struct CpuAccumulate { };
 
