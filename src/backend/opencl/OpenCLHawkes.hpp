@@ -43,21 +43,22 @@ public:
 
     OpenCLHawkes(int embeddingDimension, int locationCount, long flags, int deviceNumber)
         : AbstractHawkes(embeddingDimension, locationCount, flags),
-          precision(0.0), storedPrecision(0.0),
-          oneOverSd(0.0), storedOneOverSd(0.0),
-          sumOfSquaredResiduals(0.0), storedSumOfSquaredResiduals(0.0),
+          sigmaXprec(0.0), storedSigmaXprec(0.0),
+          tauXprec(0.0), storedTauXprec(0.0),
+          tauTprec(0.0), storedTauTprec(0.0),
+          omega(0.0), storedOmega(0.0),
+          theta(0.0), storedTheta(0.0),
+          mu0(0.0), storedMu0(0.0),
 
-          observations(locationCount * locationCount),
+          sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
+          times(locationCount),
+          locations(locationCount * OpenCLRealType::dim),
+		  locationsPtr(&locations),
 
-          locations0(locationCount * OpenCLRealType::dim),
-		  locations1(locationCount * OpenCLRealType::dim),
-		  locationsPtr(&locations0),
-		  storedLocationsPtr(&locations1),
+          likContribs(locationCount),
+          storedLikContribs(locationCount),
 
-          squaredResiduals(locationCount * locationCount),
-          storedSquaredResiduals(locationCount),
-
-          isStoredSquaredResidualsEmpty(false)
+          isStoredLikContribsEmpty(false)
 
     {
 #ifdef RBUILD
@@ -125,99 +126,27 @@ public:
         , boost::compute::command_queue::enable_profiling
       };
 
-      dObservations = mm::GPUMemoryManager<RealType>(observations.size(), ctx);
+      dLocations = mm::GPUMemoryManager<RealType>(locations.size(), ctx);
+      dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
 
-      std::cerr << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
+        std::cerr << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 #endif //RBUILD
 
 #ifdef USE_VECTORS
-		dLocations0 = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
-		dLocations1 = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+//		dLocations = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 		//dGradient   = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 #else
-		dLocations0 = mm::GPUMemoryManager<RealType>(locations0.size(), ctx);
-		dLocations1 = mm::GPUMemoryManager<RealType>(locations1.size(), ctx);
+//		dLocations0 = mm::GPUMemoryManager<RealType>(locations0.size(), ctx);
+//		dLocations1 = mm::GPUMemoryManager<RealType>(locations1.size(), ctx);
 #endif // USE_VECTORS
 
-		dLocationsPtr = &dLocations0;
-		dStoredLocationsPtr = &dLocations1;
+		dLocationsPtr = &dLocations;
+//		dStoredLocationsPtr = &dLocations1;
 
-		dSquaredResiduals = mm::GPUMemoryManager<RealType>(squaredResiduals.size(), ctx);
-		dStoredSquaredResiduals = mm::GPUMemoryManager<RealType>(storedSquaredResiduals.size(), ctx);
+		dLikContribs = mm::GPUMemoryManager<RealType>(likContribs.size(), ctx);
+		dStoredLikContribs = mm::GPUMemoryManager<RealType>(storedLikContribs.size(), ctx);
 
 		createOpenCLKernels();
-    }
-
-    void updateLocations(int locationIndex, double* location, size_t length) override {
-
-		size_t offset{0};
-		size_t deviceOffset{0};
-
-		if (locationIndex == -1) {
-			// Update all locations
-			assert(length == OpenCLRealType::dim * locationCount ||
-                    length == embeddingDimension * locationCount);
-
-			incrementsKnown = false;
-			isStoredSquaredResidualsEmpty = true;
-			isStoredTruncationsEmpty = true;
-
-		} else {
-			// Update a single location
-    		assert(length == OpenCLRealType::dim ||
-                    length == embeddingDimension);
-
-	    	if (updatedLocation != - 1) {
-    			// more than one location updated -- do a full recomputation
-	    		incrementsKnown = false;
-	    		isStoredSquaredResidualsEmpty = true;
-	    		isStoredTruncationsEmpty = true;
-    		}
-
-	    	updatedLocation = locationIndex;
-
-			offset = locationIndex * OpenCLRealType::dim;
-#ifdef USE_VECTORS
-	    	deviceOffset = static_cast<size_t>(locationIndex);
-#else
-	    	deviceOffset = locationIndex * embeddingDimension;
-#endif
-	    }
-
-        // If requires padding
-        if (embeddingDimension != OpenCLRealType::dim) {
-            if (locationIndex == -1) {
-
-                mm::paddedBufferedCopy(location, embeddingDimension, embeddingDimension,
-                                       begin(*locationsPtr) + offset, OpenCLRealType::dim,
-                                       locationCount, buffer);
-
-                length = OpenCLRealType::dim * locationCount; // New padded length
-
-            } else {
-
-                mm::bufferedCopy(location, location + length,
-                                 begin(*locationsPtr) + offset,
-                                 buffer);
-
-                length = OpenCLRealType::dim;
-            }
-        } else {
-            // Without padding
-            mm::bufferedCopy(location, location + length,
-                             begin(*locationsPtr) + offset,
-                             buffer
-            );
-        }
-
-    	// COMPUTE
-        mm::copyToDevice<OpenCLRealType>(begin(*locationsPtr) + offset,
-                                         begin(*locationsPtr) + offset + length,
-                                         dLocationsPtr->begin() + deviceOffset,
-                                         queue
-        );
-
-    	sumOfIncrementsKnown = false;
     }
 
     int getInternalDimension() override { return OpenCLRealType::dim; }
@@ -254,9 +183,8 @@ public:
 // 	}
 
     void computeLikelihood() {
-
 		if (!incrementsKnown) {
-		    computeSumOfSquaredResiduals();
+		    computeSumLikContribs();
 			incrementsKnown = true;
 		} else {
 #ifdef RBUILD
@@ -264,29 +192,21 @@ public:
 #else
 			std::cerr << "SHOULD NOT BE HERE" << std::endl;
 #endif
-			updateSumOfSquaredResiduals();
+//			updateSumOfLikContribs();
 		}
     }
 
-    double getSumOfIncrements() override {
-    	if (!sumOfIncrementsKnown) {
+    double getSumOfLikContribs() override {
+    	if (!sumOfLikContribsKnown) {
 			computeLikContribs();
-			sumOfIncrementsKnown = true;
+			sumOfLikContribsKnown = true;
 		}
 
     	return sumOfLikContribs;
  	}
 
     void storeState() override {
-    	storedSumOfSquaredResiduals = sumOfSquaredResiduals;
-
-    	std::copy(begin(*locationsPtr), end(*locationsPtr),
-    		begin(*storedLocationsPtr));
-
-    	// COMPUTE
-    	boost::compute::copy(dLocationsPtr->begin(), dLocationsPtr->end(),
-    		dStoredLocationsPtr->begin(), queue);
-
+    	storedSumOfLikContribs = sumOfLikContribs;
     	isStoredSquaredResidualsEmpty = true;
 
     	updatedLocation = -1;
@@ -306,8 +226,8 @@ public:
     }
 
     void restoreState() override {
-    	sumOfSquaredResiduals = storedSumOfSquaredResiduals;
-    	sumOfIncrementsKnown = true;
+    	sumOfLikContribs = storedSumOfLikContribs;
+    	sumOfLikContribsKnown = true;
 
 		if (!isStoredSquaredResidualsEmpty) {
     		std::copy(
@@ -358,23 +278,23 @@ public:
     }
 
     void makeDirty() override {
-    	sumOfIncrementsKnown = false;
+    	sumOfLikContribsKnown = false;
     	incrementsKnown = false;
     }
 
 	int count = 0;
 
 	template <bool withTruncation>
-	void computeSumOfSquaredResiduals() {
+	void computeSumOfLikContribs() {
 
-		RealType lSumOfSquaredResiduals = 0.0;
+		RealType lSumOfLikContribs = 0.0;
 
 #ifdef USE_VECTORS
-		kernelSumOfSquaredResidualsVector.set_arg(0, *dLocationsPtr);
+		kernelSumOfLikContribsVector.set_arg(0, *dLocationsPtr);
 
 		if (isLeftTruncated) {
-			kernelSumOfSquaredResidualsVector.set_arg(3, static_cast<RealType>(precision));
-			kernelSumOfSquaredResidualsVector.set_arg(4, static_cast<RealType>(oneOverSd));
+			kernelSumOfLikContribsVector.set_arg(3, static_cast<RealType>(precision));
+			kernelSumOfLikContribsVector.set_arg(4, static_cast<RealType>(oneOverSd));
 		}
 
 		const size_t local_work_size[2] = {TILE_DIM, TILE_DIM};
@@ -384,11 +304,11 @@ public:
 		}
 		const size_t global_work_size[2] = {work_groups * TILE_DIM, work_groups * TILE_DIM};
 
-		queue.enqueue_nd_range_kernel(kernelSumOfSquaredResidualsVector, 2, 0, global_work_size, local_work_size);
+		queue.enqueue_nd_range_kernel(kernelSumOfLikContribsVector, 2, 0, global_work_size, local_work_size);
 
 #else
-		kernelSumOfSquaredResiduals.set_arg(0, *dLocationsPtr);
-		queue.enqueue_1d_range_kernel(kernelSumOfSquaredResiduals, 0, locationCount * locationCount, 0);
+		kernelSumOfLikContribs.set_arg(0, *dLocationsPtr);
+		queue.enqueue_1d_range_kernel(kernelSumOfLikContribs, 0, locationCount * locationCount, 0);
 #endif // USE_VECTORS
 
 		queue.finish();
@@ -398,103 +318,15 @@ public:
 
 		queue.finish();
 
-	    lSumOfSquaredResiduals = sum;
+	    lSumOfLikContribs = sum;
 
-	    lSumOfSquaredResiduals /= 2.0;
-    	sumOfSquaredResiduals = lSumOfSquaredResiduals;
+	    lSumOfLikContribs /= 2.0;
+    	sumOfLikContribs = lSumOfLikContribs;
 
 	    incrementsKnown = true;
-	    sumOfIncrementsKnown = true;
+	    sumOfLikContribsKnown = true;
 
 	    count++;
-	}
-
-	void updateSumOfSquaredResiduals() {
-
-		const int i = updatedLocation;
-		isStoredSquaredResidualsEmpty = false;
-
-		auto start  = begin(*locationsPtr) + i * OpenCLRealType::dim;
-		auto offset = begin(*locationsPtr);
-
-		RealType delta = accumulate(0, locationCount, RealType(0),
-			[this, i, &offset,
-			&start](const int j) {
-                const auto distance = calculateDistance<mm::MemoryManager<RealType>>(
-                    start,
-                    offset + OpenCLRealType::dim * j
-                );
-
-                const auto residual = !std::isnan(observations[i * locationCount + j]) * // Andrew's not sure...
-                        (distance - observations[i * locationCount + j]);
-                const auto squaredResidual = residual * residual;
-
-            	// store old value
-            	const auto oldSquaredResidual = squaredResiduals[i * locationCount + j];
-            	storedSquaredResiduals[j] = oldSquaredResidual;
-
-                const auto inc = squaredResidual - oldSquaredResidual;
-
-            	// store new value
-                squaredResiduals[i * locationCount + j] = squaredResidual;
-
-                return inc;
-            }
-		);
-
-		sumOfSquaredResiduals += delta;
-	}
-
-
-	void updateSumOfSquaredResidualsAndTruncations() {
-
-		const int i = updatedLocation;
-		isStoredSquaredResidualsEmpty = false;
-		isStoredTruncationsEmpty = false;
-
-		auto start  = begin(*locationsPtr) + i * OpenCLRealType::dim;
-		auto offset = begin(*locationsPtr);
-
-		std::complex<RealType> delta =
-
- 		accumulate(0, locationCount, std::complex<RealType>(RealType(0), RealType(0)),
-
-			[this, i, &offset, //oneOverSd,
-			&start](const int j) {
-                const auto distance = calculateDistance<mm::MemoryManager<RealType>>(
-                    start,
-                    offset + OpenCLRealType::dim * j
-                );
-
-                const auto residual = !std::isnan(observations[i * locationCount + j]) * // Andrew's not sure...
-                                      (distance - observations[i * locationCount + j]);
-                const auto squaredResidual = residual * residual;
-
-            	// store old value
-            	const auto oldSquaredResidual = squaredResiduals[i * locationCount + j];
-            	storedSquaredResiduals[j] = oldSquaredResidual;
-
-                const auto inc = squaredResidual - oldSquaredResidual;
-
-            	// store new value
-                squaredResiduals[i * locationCount + j] = squaredResidual;
-
-                const auto truncation = (i == j) ? RealType(0) :
-                	math::logCdf<OpenCLHawkes>(std::fabs(residual) * oneOverSd);
-
-                const auto oldTruncation = truncations[i * locationCount + j];
-                storedTruncations[j] = oldTruncation;
-
-                const auto inc2 = truncation - oldTruncation;
-
-                truncations[i * locationCount + j] = truncation;
-
-                return std::complex<RealType>(inc, inc2);
-            }
-		);
-
-		sumOfSquaredResiduals += delta.real();
- 		sumOfTruncations += delta.imag();
 	}
 
 #ifdef SSE
@@ -611,9 +443,9 @@ public:
 
 #ifdef DOUBLE_CHECK
         #ifdef RBUILD
-        Rcpp::Rcout << kernelSumOfSquaredResidualsVector.get_program().source() << std::endl;
+        Rcpp::Rcout << kernelSumOfLikContribsVector.get_program().source() << std::endl;
 #else
-        std::cerr << kernelSumOfSquaredResidualsVector.get_program().source() << std::endl;
+        std::cerr << kernelSumOfLikContribsVector.get_program().source() << std::endl;
 #endif
 //        exit(-1);
 #endif // DOUBLE_CHECK
@@ -747,33 +579,8 @@ public:
              "   }                                                                   \n" <<
              " }                                                                     \n ";
 
-#ifdef DEBUG_KERNELS
-#ifdef RBUILD
-		    Rcpp::Rcout << "Inner Likelihood kernel\n" << code.str() << std::endl;
-#else
-        std::cerr << "Inner Likelihood kernel\n" << code.str() << std::endl;
-#endif
-#endif
-
 		program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
 		kernelLikContribsVector = boost::compute::kernel(program, "computeLikContribs");
-
-#ifdef DEBUG_KERNELS
-#ifdef RBUILD
-        Rcpp:Rcout << "Successful build." << std::endl;
-#else
-        std::cerr << "Successful build." << std::endl;
-#endif
-#endif
-
-#ifdef DOUBLE_CHECK
-#ifdef RBUILD
-        Rcpp::Rcout << kernelSumOfSquaredResidualsVector.get_program().source() << std::endl;
-#else
-        std::cerr << kernelSumOfSquaredResidualsVector.get_program().source() << std::endl;
-#endif
-//        exit(-1);
-#endif // DOUBLE_CHECK
 
 		size_t index = 0;
         kernelLikContribsVector.set_arg(index++, dLocations0);
@@ -975,11 +782,8 @@ private:
 	double oneOverSd;
 	double storedOneOverSd;
 
-    double sumOfSquaredResiduals;
-    double storedSumOfSquaredResiduals;
-
-    double sumOfTruncations;
-    double storedSumOfTruncations;
+    double sumOfLikContribs;
+    double storedSumOfLikContribs;
 
     boost::compute::device device;
     boost::compute::context ctx;
