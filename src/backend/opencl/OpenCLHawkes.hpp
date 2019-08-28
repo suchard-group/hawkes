@@ -126,17 +126,19 @@ public:
         , boost::compute::command_queue::enable_profiling
       };
 
-      dLocations = mm::GPUMemoryManager<RealType>(locations.size(), ctx);
-      dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
+//      dLocations = mm::GPUMemoryManager<RealType>(locations.size(), ctx);
+//      dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
 
         std::cerr << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 #endif //RBUILD
 
 #ifdef USE_VECTORS
-//		dLocations = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
-		//dGradient   = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+		dLocations = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+        dTimes = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+
+        //dGradient   = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 #else
-//		dLocations0 = mm::GPUMemoryManager<RealType>(locations0.size(), ctx);
+		dLocations = mm::GPUMemoryManager<RealType>(locations.size(), ctx);
 //		dLocations1 = mm::GPUMemoryManager<RealType>(locations1.size(), ctx);
 #endif // USE_VECTORS
 
@@ -147,6 +149,78 @@ public:
 		dStoredLikContribs = mm::GPUMemoryManager<RealType>(storedLikContribs.size(), ctx);
 
 		createOpenCLKernels();
+    }
+
+    void updateLocations(int locationIndex, double* location, size_t length) override {
+
+        size_t offset{0};
+        size_t deviceOffset{0};
+
+        if (locationIndex == -1) {
+            // Update all locations
+            assert(length == OpenCLRealType::dim * locationCount ||
+                   length == embeddingDimension * locationCount);
+
+//            incrementsKnown = false;
+//            isStoredSquaredResidualsEmpty = true;
+//            isStoredTruncationsEmpty = true;
+
+        } else {
+            // Update a single location
+            assert(length == OpenCLRealType::dim ||
+                   length == embeddingDimension);
+
+            if (updatedLocation != - 1) {
+                // more than one location updated -- do a full recomputation
+//                incrementsKnown = false;
+//                isStoredSquaredResidualsEmpty = true;
+//                isStoredTruncationsEmpty = true;
+            }
+
+            updatedLocation = locationIndex;
+
+            offset = locationIndex * OpenCLRealType::dim;
+#ifdef USE_VECTORS
+            deviceOffset = static_cast<size_t>(locationIndex);
+#else
+            deviceOffset = locationIndex * embeddingDimension;
+#endif
+        }
+
+        // If requires padding
+        if (embeddingDimension != OpenCLRealType::dim) {
+            if (locationIndex == -1) {
+
+                mm::paddedBufferedCopy(location, embeddingDimension, embeddingDimension,
+                                       begin(*locationsPtr) + offset, OpenCLRealType::dim,
+                                       locationCount, buffer);
+
+                length = OpenCLRealType::dim * locationCount; // New padded length
+
+            } else {
+
+                mm::bufferedCopy(location, location + length,
+                                 begin(*locationsPtr) + offset,
+                                 buffer);
+
+                length = OpenCLRealType::dim;
+            }
+        } else {
+            // Without padding
+            mm::bufferedCopy(location, location + length,
+                             begin(*locationsPtr) + offset,
+                             buffer
+            );
+        }
+
+        // COMPUTE
+        mm::copyToDevice<OpenCLRealType>(begin(*locationsPtr) + offset,
+                                         begin(*locationsPtr) + offset + length,
+                                         dLocationsPtr->begin() + deviceOffset,
+                                         queue
+        );
+
+        sumOfIncrementsKnown = false;
     }
 
     int getInternalDimension() override { return OpenCLRealType::dim; }
@@ -189,80 +263,87 @@ public:
 
     void storeState() override {
     	storedSumOfLikContribs = sumOfLikContribs;
-    	isStoredSquaredResidualsEmpty = true;
 
     	updatedLocation = -1;
 
-    	storedPrecision = precision;
-    	storedOneOverSd = oneOverSd;
+        storedSigmaXprec = sigmaXprec;
+        storedTauXprec = tauXprec;
+        storedTauTprec = tauTprec;
+        storedOmega = omega;
+        storedTheta = theta;
+        storedMu0 = mu0;
 
+        storedLikContribs = likContribs;
     }
 
     void acceptState() override {
-        if (!isStoredSquaredResidualsEmpty) {
-    		for (int j = 0; j < locationCount; ++j) {
-                squaredResiduals[j * locationCount + updatedLocation] = squaredResiduals[
-                        updatedLocation * locationCount + j];
-            }
-    	}
+
     }
 
     void restoreState() override {
     	sumOfLikContribs = storedSumOfLikContribs;
-    	sumOfLikContribsKnown = true;
 
-		if (!isStoredSquaredResidualsEmpty) {
+//		if (!isStoredSquaredResidualsEmpty) {
     		std::copy(
-    			begin(storedSquaredResiduals),
-    			end(storedSquaredResiduals),
-    			begin(squaredResiduals) + updatedLocation * locationCount
+    			begin(storedLikContribs),
+    			end(storedLikContribs),
+    			begin(likContribs) + updatedLocation * locationCount //TODO isn't updated location = -1 ?
     		);
 
     		// COMPUTE
     		boost::compute::copy(
-    			dStoredSquaredResiduals.begin(),
-    			dStoredSquaredResiduals.end(),
-    			dSquaredResiduals.begin() + updatedLocation * locationCount, queue
+    			dStoredLikContribs.begin(),
+    			dStoredLikContribs.end(),
+    			dLikContribs.begin() + updatedLocation * locationCount, queue
     		);
 
-    		incrementsKnown = true;
-    	} else {
-    		incrementsKnown = false; // Force recompute;
-    	}
+//    		incrementsKnown = true;
+//    	} else {
+//    		incrementsKnown = false; // Force recompute;
+//    	}
 
-    	precision = storedPrecision;
-    	oneOverSd = storedOneOverSd;
+        sigmaXprec = storedSigmaXprec;
+        tauXprec = storedTauXprec;
+        tauTprec = storedTauTprec;
+        omega = storedOmega;
+        theta = storedTheta;
+        mu0 = storedMu0;
 
-    	auto tmp1 = storedLocationsPtr;
-    	storedLocationsPtr = locationsPtr;
-    	locationsPtr = tmp1;
-
-    	// COMPUTE
-    	auto tmp2 = dStoredLocationsPtr;
-    	dStoredLocationsPtr = dLocationsPtr;
-    	dLocationsPtr = tmp2;
+//    	auto tmp1 = storedLocationsPtr;
+//    	storedLocationsPtr = locationsPtr;
+//    	locationsPtr = tmp1;
+//
+//    	// COMPUTE
+//    	auto tmp2 = dStoredLocationsPtr;
+//    	dStoredLocationsPtr = dLocationsPtr;
+//    	dLocationsPtr = tmp2;
 
     }
 
-    void setPairwiseData(double* data, size_t length) override {
-		assert(length == observations.size());
-		mm::bufferedCopy(data, data + length, begin(observations), buffer);
+//    void setPairwiseData(double* data, size_t length) override {
+//		assert(length == observations.size());
+//		mm::bufferedCopy(data, data + length, begin(observations), buffer);
+//
+//		// COMPUTE
+//		mm::bufferedCopyToDevice(data, data + length, dObservations.begin(),
+//			buffer, queue);
+//    }
 
-		// COMPUTE
-		mm::bufferedCopyToDevice(data, data + length, dObservations.begin(),
-			buffer, queue);
+    void setParameters(std::vector<double> data, size_t length) override {
+//		assert(length == 1);
+		sigmaXprec = data[0];
+		tauXprec = data[1];
+		tauTprec = data[2];
+		omega = data[3];
+		theta = data[4];
+		mu0 = data[5];
     }
 
-    void setParameters(double* data, size_t length) override {
-		assert(length == 1); // Call only with precision
-		precision = data[0]; // TODO Remove
-		oneOverSd = std::sqrt(data[0]);
-    }
 
-    void makeDirty() override {
-    	sumOfLikContribsKnown = false;
-    	incrementsKnown = false;
-    }
+//    void makeDirty() override { // not sure this is needed
+////    	sumOfLikContribsKnown = false;
+////    	incrementsKnown = false;
+//    }
 
 	int count = 0;
 

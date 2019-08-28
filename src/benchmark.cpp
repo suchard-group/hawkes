@@ -73,6 +73,7 @@ int main(int argc, char* argv[]) {
 	auto binomial = std::bernoulli_distribution(0.75);
 	auto normalData = std::normal_distribution<double>(0.0, 1.0);
 	auto toss = std::bernoulli_distribution(0.25);
+	auto expo = std::exponential_distribution<double>(1);
 	
 	std::shared_ptr<tbb::task_scheduler_init> task{nullptr};
 
@@ -151,21 +152,13 @@ int main(int argc, char* argv[]) {
 
 	hph::SharedPtr instance = hph::factory(embeddingDimension, locationCount, flags, deviceNumber, threads);
 
-	auto elementCount = locationCount * locationCount;
-	std::vector<double> data(elementCount);
-	for (int i = 0; i < locationCount; ++i) {
-	    data[i * locationCount + i] = 0.0;
-	    for (int j = i + 1; j < locationCount; ++j) {
-
-	        const double draw = normalData(prng);
-	        double distance = draw * draw;
-
-	        data[i * locationCount + j] = distance;
-	        data[j * locationCount + i] = distance;
-	    }
+	std::vector<double> times(locationCount);
+	times[0] = expo(prng);
+	for (int i = 1; i < locationCount; ++i) {
+	    times[i] = times[i-1] + expo(prng);
 	}
 
-	instance->setPairwiseData(&data[0], elementCount);
+//	instance->setPairwiseData(&data[0], elementCount);
 
 	int dataDimension = internalDimension ? instance->getInternalDimension() : embeddingDimension;
 
@@ -180,11 +173,14 @@ int main(int argc, char* argv[]) {
 
 //    int gradientIndex = 1;
 
-	double precision = 1.0;
-	instance->setParameters(&precision, 1);
+	std::vector<double> parameters(6);
+    for (int i = 0; i < 6; ++i) {
+        parameters[i] = 1;
+    }
+	instance->setParameters(parameters, 6);
 
-	instance->makeDirty();
-	auto logLik = instance->getSumOfIncrements();
+//	instance->makeDirty();
+	auto logLik = instance->getSumOfLikContribs();
 
 //    std::vector<double> gradient(locationCount * dataDimension);
 
@@ -208,7 +204,7 @@ int main(int argc, char* argv[]) {
 		
 		auto startTime1 = std::chrono::steady_clock::now();
 
-		double inc = instance->getSumOfIncrements();
+		double inc = instance->getSumOfLikContribs();
 		logLik += inc;
 		
 		auto duration1 = std::chrono::steady_clock::now() - startTime1;
