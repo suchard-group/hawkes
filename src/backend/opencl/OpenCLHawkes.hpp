@@ -182,26 +182,8 @@ public:
 //        }
 // 	}
 
-    void computeLikelihood() {
-		if (!incrementsKnown) {
-		    computeSumLikContribs();
-			incrementsKnown = true;
-		} else {
-#ifdef RBUILD
-		  Rcpp::Rcout << "SHOULD NOT BE HERE" << std::endl;
-#else
-			std::cerr << "SHOULD NOT BE HERE" << std::endl;
-#endif
-//			updateSumOfLikContribs();
-		}
-    }
-
     double getSumOfLikContribs() override {
-    	if (!sumOfLikContribsKnown) {
-			computeLikContribs();
-			sumOfLikContribsKnown = true;
-		}
-
+        computeSumOfLikContribs();
     	return sumOfLikContribs;
  	}
 
@@ -284,18 +266,20 @@ public:
 
 	int count = 0;
 
-	template <bool withTruncation>
 	void computeSumOfLikContribs() {
 
 		RealType lSumOfLikContribs = 0.0;
 
 #ifdef USE_VECTORS
-		kernelSumOfLikContribsVector.set_arg(0, *dLocationsPtr);
-
-		if (isLeftTruncated) {
-			kernelSumOfLikContribsVector.set_arg(3, static_cast<RealType>(precision));
-			kernelSumOfLikContribsVector.set_arg(4, static_cast<RealType>(oneOverSd));
-		}
+		kernelLikContribsVector.set_arg(0, *dLocationsPtr);
+//        kernelLikContribsVector.set_arg(index++, dTimes); //TODO which need to be entered here?
+//        kernelLikContribsVector.set_arg(index++, dLikContribs);
+//        kernelLikContribsVector.set_arg(index++, sigmaXprec);
+//        kernelLikContribsVector.set_arg(index++, tauXprec);
+//        kernelLikContribsVector.set_arg(index++, tauTprec);
+//        kernelLikContribsVector.set_arg(index++, omega);
+//        kernelLikContribsVector.set_arg(index++, theta);
+//        kernelLikContribsVector.set_arg(index++, mu0);
 
 		const size_t local_work_size[2] = {TILE_DIM, TILE_DIM};
 		size_t work_groups = locationCount / TILE_DIM;
@@ -304,27 +288,26 @@ public:
 		}
 		const size_t global_work_size[2] = {work_groups * TILE_DIM, work_groups * TILE_DIM};
 
-		queue.enqueue_nd_range_kernel(kernelSumOfLikContribsVector, 2, 0, global_work_size, local_work_size);
+		queue.enqueue_nd_range_kernel(kernelLikContribsVector, 2, 0, global_work_size, local_work_size);
 
 #else
-		kernelSumOfLikContribs.set_arg(0, *dLocationsPtr);
-		queue.enqueue_1d_range_kernel(kernelSumOfLikContribs, 0, locationCount * locationCount, 0);
+		kernelLikContribs.set_arg(0, *dLocationsPtr); //TODO which need to be entered here?
+		queue.enqueue_1d_range_kernel(kernelLikContribs, 0, locationCount * locationCount, 0);
 #endif // USE_VECTORS
 
 		queue.finish();
 
+		// now sum over likelihood contributions on GPU?
+        queue.enqueue_1d_range_kernel(kernelLikSum, 0, locationCount, 0);
+
 		RealType sum = RealType(0.0);
-		boost::compute::reduce(dSquaredResiduals.begin(), dSquaredResiduals.end(), &sum, queue);
+		boost::compute::reduce(dSumOfLikContribs.begin(), dSumOfLikContribs.end(), &sum, queue);
 
 		queue.finish();
 
 	    lSumOfLikContribs = sum;
 
-	    lSumOfLikContribs /= 2.0;
     	sumOfLikContribs = lSumOfLikContribs;
-
-	    incrementsKnown = true;
-	    sumOfLikContribsKnown = true;
 
 	    count++;
 	}
@@ -450,10 +433,9 @@ public:
 //        exit(-1);
 #endif // DOUBLE_CHECK
 
-        size_t index = 0;
-        kernelLikSum.set_arg(index++, dLikContribs);
-        kernelLikSum.set_arg(index++, dSumOfLikContribs);
-        kernelLikSum.set_arg(index++, boost::compute::uint_(locationCount));
+        kernelLikSum.set_arg(0, dLikContribs);
+        kernelLikSum.set_arg(1, dSumOfLikContribs);
+        kernelLikSum.set_arg(2, boost::compute::uint_(locationCount));
 	}
 
 	void createOpenCLLikContribsKernel() {
@@ -582,7 +564,7 @@ public:
 		program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
 		kernelLikContribsVector = boost::compute::kernel(program, "computeLikContribs");
 
-		size_t index = 0;
+		size_t index = -1;
         kernelLikContribsVector.set_arg(index++, dLocations);
 		kernelLikContribsVector.set_arg(index++, dTimes);
 		kernelLikContribsVector.set_arg(index++, dLikContribs);
