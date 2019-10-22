@@ -1,5 +1,5 @@
 # CODE TO DISASSEMBLE
 
-clang++ -I/System/Library/Frameworks/JavaVM.framework/Versions/Current/Headers -I../src -g -c -fverbose-asm  -std=c++0x -S -O3 -msse4.2 -fslp-vectorize-aggressive ../src/jni/dr_inference_multidimensionalscaling_NativeMDSSingleton.cpp
+clang++ -I/System/Library/Frameworks/JavaVM.framework/Versions/Current/Headers -I../src -g -c -fverbose-asm  -std=c++0x -S -O3 -msse4.2 -fslp-vectorize-aggressive ../src/jni/dr_inference_hawkes_NativeHPHSingleton.cpp
 
-Search for (e.g.):  src/NewMultiDimensionalScaling.hpp:427   (SSEs for calculateDistance)
+Search for (e.g.):  src/NewHawkes.hpp:427   (SSEs for calculateDistance)

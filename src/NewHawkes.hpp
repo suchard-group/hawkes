@@ -1,5 +1,5 @@
-#ifndef _NEWMULTIDIMENSIONALSCALING_HPP
-#define _NEWMULTIDIMENSIONALSCALING_HPP
+#ifndef _NEWHAWKES_HPP
+#define _NEWHAWKES_HPP
 
 #include <numeric>
 #include <vector>
@@ -912,4 +912,4 @@ constructNewHawkesFloatTbbNoSimd(int embeddingDimension, int locationCount, long
 
 } // namespace hph
 
-#endif // _NEWMULTIDIMENSIONALSCALING_HPP
+#endif // _NEWHAWKES_HPP

@@ -6,7 +6,7 @@ include_directories(. ${CMAKE_SOURCE_DIR}/src ${JNI_INCLUDE_DIRS} ${CMAKE_SOURCE
 	)
 
 set(NOSIMD_SOURCE_FILES
-	${CMAKE_SOURCE_DIR}/src/jni/dr_inference_hawkes_NativeMDSSingleton.cpp
+	${CMAKE_SOURCE_DIR}/src/jni/dr_inference_hawkes_NativeHPHSingleton.cpp
 	${CMAKE_SOURCE_DIR}/src/factory.cpp
     ${CMAKE_SOURCE_DIR}/src/MemoryManagement.hpp
     ${CMAKE_SOURCE_DIR}/src/AbstractHawkes.hpp

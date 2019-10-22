@@ -904,4 +904,4 @@ private:
 
 } // namespace hph
 
-#endif // _OPENCL_MULTIDIMENSIONAL_SCALING_HPP
+#endif // _OPENCL_HAWKES_HPP

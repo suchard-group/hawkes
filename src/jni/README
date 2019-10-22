@@ -1,4 +1,4 @@
 To auto-generate header file:
 
-    javah -classpath build/dist/beast.jar dr.inference.multidimensionalscaling.NativeMDSSingleton
+    javah -classpath build/dist/beast.jar dr.inference.hawkes.NativeHPHSingleton
     
