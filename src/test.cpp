@@ -16,15 +16,15 @@ int main(int argc, char* argv[]) {
 
 #ifdef USE_SIMD
         xsimd::batch<double, 2> x{1.0, 1.0};
-        x = mds::math::phi_new(x);
+        x = hph::math::phi_new(x);
         std::cout << x << " : " << decltype(x)::size << std::endl;
 
         xsimd::batch<double, 1> y{1.0};
-        y = mds::math::phi_new(y);
+        y = hph::math::phi_new(y);
         std::cout << y << " : " << decltype(y)::size << std::endl;
 
         double z{1.0};
-        z = mds::math::phi_new(z);
+        z = hph::math::phi_new(z);
         std::cout << z << std::endl;
 
         const int length = 11;

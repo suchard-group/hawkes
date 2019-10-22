@@ -1,11 +1,11 @@
 #
-# Make a version file that includes the MDS version and git revision
+# Make a version file that includes the HPH version and git revision
 #
-SET(MDS_PACKAGE_NAME "mds")
-SET(MDS_VERSION_MAJOR "0")
-SET(MDS_VERSION_MINOR "1")
-SET(MDS_VERSION_PATCH "beta")
-SET(MDS_VERSION "${MDS_VERSION_MAJOR}.${MDS_VERSION_MINOR}.${MDS_VERSION_PATCH}")
+SET(HPH_PACKAGE_NAME "hph")
+SET(HPH_VERSION_MAJOR "0")
+SET(HPH_VERSION_MINOR "1")
+SET(HPH_VERSION_PATCH "beta")
+SET(HPH_VERSION "${HPH_VERSION_MAJOR}.${HPH_VERSION_MINOR}.${HPH_VERSION_PATCH}")
 EXECUTE_PROCESS(
     COMMAND git log -1 --format=%h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -15,5 +15,5 @@ EXECUTE_PROCESS(
 
 CONFIGURE_FILE(
     ${CMAKE_MODULE_PATH}/version.h.in
-    ${CMAKE_SOURCE_DIR}/include/mds/version.h
+    ${CMAKE_SOURCE_DIR}/include/hph/version.h
 )

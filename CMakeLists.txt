@@ -3,7 +3,7 @@ PROJECT(hph)
 
 OPTION(BUILD_NOSIMD "Build HPH without SIMD" OFF)
 OPTION(BUILD_AVX512 "Build HPH with AVX-512" OFF)
-OPTION(BUILD_AVX "Build HPH with AVX" ON)
+OPTION(BUILD_AVX "Build HPH with AVX" OFF)
 OPTION(BUILD_CUDA "Build HPH with a CUDA backend" OFF)
 OPTION(BUILD_OPENCL "Build HPH with a OpenCL backend" ON)
 
@@ -138,7 +138,7 @@ set(JNI_SOURCE_FILES
 	src/factory.cpp
         src/MemoryManagement.hpp
         src/AbstractHawkes.hpp
-        src/NewMultiDimensionalScaling.hpp
+        src/NewHawkes.hpp
         src/CDF.h
         src/Distance.hpp
 	)
