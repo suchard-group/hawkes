@@ -39,13 +39,14 @@ public:
     virtual ~AbstractHawkes() = default;
 
     // Interface
-    virtual void updateLocations(int, double*, size_t) = 0;
+    virtual void updateLocations(int, double*, size_t) = 0; // TODO: updateParameters
     virtual double getSumOfLikContribs() = 0;
 //    virtual void getLogLikelihoodGradient(double*, size_t) = 0;
     virtual void storeState() = 0;
     virtual void restoreState() = 0;
     virtual void acceptState() = 0;
-//    virtual void setPairwiseData(double*, size_t)  = 0;
+    virtual void setLocDistsData(double*, size_t)  = 0;
+    virtual void setTimDiffsData(double*, size_t)  = 0;
     virtual void setParameters(std::vector<double>, size_t) = 0;
 //    virtual void makeDirty() = 0;
     virtual int getInternalDimension() = 0;

@@ -50,10 +50,12 @@ public:
           theta(0.0), storedTheta(0.0),
           mu0(0.0), storedMu0(0.0),
 
-          sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
+          locDists(locationCount * locationCount),
+          timDiffs(locationCount * locationCount),
+
           times(locationCount),
-          locations(locationCount * OpenCLRealType::dim),
-		  locationsPtr(&locations),
+
+          sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
 
           likContribs(locationCount),
           storedLikContribs(locationCount),
@@ -92,7 +94,8 @@ public:
         , boost::compute::command_queue::enable_profiling
       };
 
-      dObservations = mm::GPUMemoryManager<RealType>(observations.size(), ctx);
+      dLocDists = mm::GPUMemoryManager<RealType>(locDists.size(), ctx);
+      dtimDiffs = mm::GPUMemoryManager<RealType>(timDiffs.size(), ctx);
 
       Rcpp::Rcout << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 
@@ -126,24 +129,20 @@ public:
         , boost::compute::command_queue::enable_profiling
       };
 
-//      dLocations = mm::GPUMemoryManager<RealType>(locations.size(), ctx);
-//      dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
+      dLocDists = mm::GPUMemoryManager<RealType>(locDists.size(), ctx);
+      dTimDiffs = mm::GPUMemoryManager<RealType>(timDiffs.size(), ctx);
+
+      dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
 
         std::cerr << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 #endif //RBUILD
 
 #ifdef USE_VECTORS
-		dLocations = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
-        dTimes = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 
         //dGradient   = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 #else
-		dLocations = mm::GPUMemoryManager<RealType>(locations.size(), ctx);
-//		dLocations1 = mm::GPUMemoryManager<RealType>(locations1.size(), ctx);
-#endif // USE_VECTORS
 
-		dLocationsPtr = &dLocations;
-//		dStoredLocationsPtr = &dLocations1;
+#endif // USE_VECTORS
 
 		dLikContribs = mm::GPUMemoryManager<RealType>(likContribs.size(), ctx);
 		dStoredLikContribs = mm::GPUMemoryManager<RealType>(storedLikContribs.size(), ctx);
@@ -151,7 +150,8 @@ public:
 		createOpenCLKernels();
     }
 
-    void updateLocations(int locationIndex, double* location, size_t length) override {
+    void updateLocations(int locationIndex, double* location, size_t length) override { //TODO: updateParameters
+
 
         size_t offset{0};
         size_t deviceOffset{0};
@@ -263,9 +263,6 @@ public:
 
     void storeState() override {
     	storedSumOfLikContribs = sumOfLikContribs;
-
-    	updatedLocation = -1;
-
         storedSigmaXprec = sigmaXprec;
         storedTauXprec = tauXprec;
         storedTauTprec = tauTprec;
@@ -309,25 +306,25 @@ public:
         theta = storedTheta;
         mu0 = storedMu0;
 
-//    	auto tmp1 = storedLocationsPtr;
-//    	storedLocationsPtr = locationsPtr;
-//    	locationsPtr = tmp1;
-//
-//    	// COMPUTE
-//    	auto tmp2 = dStoredLocationsPtr;
-//    	dStoredLocationsPtr = dLocationsPtr;
-//    	dLocationsPtr = tmp2;
-
     }
 
-//    void setPairwiseData(double* data, size_t length) override {
-//		assert(length == observations.size());
-//		mm::bufferedCopy(data, data + length, begin(observations), buffer);
-//
-//		// COMPUTE
-//		mm::bufferedCopyToDevice(data, data + length, dObservations.begin(),
-//			buffer, queue);
-//    }
+    void setLocDistsData(double* data, size_t length) override {
+		assert(length == locDists.size());
+		mm::bufferedCopy(data, data + length, begin(locDists), buffer);
+
+		// COMPUTE
+		mm::bufferedCopyToDevice(data, data + length, dLocDists.begin(),
+			buffer, queue);
+    }
+
+    void setTimDiffsData(double* data, size_t length) override {
+        assert(length == timDiffs.size());
+        mm::bufferedCopy(data, data + length, begin(timDiffs), buffer);
+
+        // COMPUTE
+        mm::bufferedCopyToDevice(data, data + length, dTimDiffs.begin(),
+                                 buffer, queue);
+    }
 
     void setParameters(std::vector<double> data, size_t length) override {
 //		assert(length == 1);
@@ -352,15 +349,18 @@ public:
 		RealType lSumOfLikContribs = 0.0;
 
 #ifdef USE_VECTORS
-		kernelLikContribsVector.set_arg(0, *dLocationsPtr);
-//        kernelLikContribsVector.set_arg(index++, dTimes); //TODO which need to be entered here?
-//        kernelLikContribsVector.set_arg(index++, dLikContribs);
-//        kernelLikContribsVector.set_arg(index++, sigmaXprec);
-//        kernelLikContribsVector.set_arg(index++, tauXprec);
-//        kernelLikContribsVector.set_arg(index++, tauTprec);
-//        kernelLikContribsVector.set_arg(index++, omega);
-//        kernelLikContribsVector.set_arg(index++, theta);
-//        kernelLikContribsVector.set_arg(index++, mu0);
+        kernelLikContribsVector.set_arg(0, dLocDists);
+        kernelLikContribsVector.set_arg(1, dTimDiffs);
+        kernelLikContribsVector.set_arg(2, dTimes);
+        kernelLikContribsVector.set_arg(3, dLikContribs);
+        kernelLikContribsVector.set_arg(4, sigmaXprec);
+        kernelLikContribsVector.set_arg(5, tauXprec);
+        kernelLikContribsVector.set_arg(6, tauTprec);
+        kernelLikContribsVector.set_arg(7, omega);
+        kernelLikContribsVector.set_arg(8, theta);
+        kernelLikContribsVector.set_arg(9, mu0);
+        kernelLikContribsVector.set_arg(10, boost::compute::uint_(embeddingDimension));
+        kernelLikContribsVector.set_arg(11, boost::compute::uint_(locationCount));
 
 		const size_t local_work_size[2] = {TILE_DIM, TILE_DIM};
 		size_t work_groups = locationCount / TILE_DIM;
@@ -372,8 +372,19 @@ public:
 		queue.enqueue_nd_range_kernel(kernelLikContribsVector, 2, 0, global_work_size, local_work_size);
 
 #else
-		kernelLikContribs.set_arg(0, *dLocationsPtr); //TODO which need to be entered here?
-		queue.enqueue_1d_range_kernel(kernelLikContribs, 0, locationCount * locationCount, 0);
+        kernelLikContribs.set_arg(0, dLocDists);
+        kernelLikContribs.set_arg(1, dTimDiffs);
+        kernelLikContribs.set_arg(2, dTimes);
+        kernelLikContribs.set_arg(3, dLikContribs);
+        kernelLikContribs.set_arg(4, sigmaXprec);
+        kernelLikContribs.set_arg(5, tauXprec);
+        kernelLikContribs.set_arg(6, tauTprec);
+        kernelLikContribs.set_arg(7, omega);
+        kernelLikContribs.set_arg(8, theta);
+        kernelLikContribs.set_arg(9, mu0);
+        kernelLikContribs.set_arg(10, boost::compute::uint_(embeddingDimension));
+        kernelLikContribs.set_arg(11, boost::compute::uint_(locationCount));
+        queue.enqueue_1d_range_kernel(kernelLikContribs, 0, locationCount * locationCount, 0);
 #endif // USE_VECTORS
 
 		queue.finish();
@@ -382,13 +393,13 @@ public:
         queue.enqueue_1d_range_kernel(kernelLikSum, 0, locationCount, 0);
 
 		RealType sum = RealType(0.0);
-		boost::compute::reduce(dSumOfLikContribs.begin(), dSumOfLikContribs.end(), &sum, queue);
+		boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
 
 		queue.finish();
 
 	    lSumOfLikContribs = sum;
 
-    	sumOfLikContribs = lSumOfLikContribs;
+    	sumOfLikContribs = lSumOfLikContribs;  
 
 	    count++;
 	}
@@ -515,7 +526,7 @@ public:
 #endif // DOUBLE_CHECK
 
         kernelLikSum.set_arg(0, dLikContribs);
-        kernelLikSum.set_arg(1, dSumOfLikContribs);
+        kernelLikSum.set_arg(1, sumOfLikContribs);
         kernelLikSum.set_arg(2, boost::compute::uint_(locationCount));
 	}
 
@@ -576,8 +587,9 @@ public:
 		}
 
 		code <<
-			" __kernel void computeLikContribs(__global const REAL_VECTOR *locations, \n" <<
-			"  						          __global const REAL *times,             \n" <<
+			" __kernel void computeLikContribs(__global const REAL *locDists,         \n" <<
+			"  						          __global const REAL *timDiffs,          \n" <<
+			"                                 __global const REAL *times,             \n" <<
 			"						          __global REAL *likContribs,             \n" <<
             "                                 const REAL sigmaXprec,                  \n" <<
             "                                 const REAL tauXprec,                    \n" <<
@@ -596,29 +608,17 @@ public:
 		    "                                                                       \n" <<
 		    "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
 		    "                                                                       \n" <<
-		    "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
 		    "   REAL        sum = ZERO;                                             \n" <<
 		    "                                                                       \n" <<
 		    "   while (j < i) {                                                     \n" << // originally j < locationCount
 		    "                                                                       \n" <<
-		    "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
-		    "     const REAL_VECTOR locDiff = vectorI - vectorJ;                    \n" <<
-		    "     const REAL        timeDiff = times[i] - times[j];                 \n";
-
-        if (OpenCLRealType::dim == 8) {
-            code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                    const REAL distance = sqrt(dot(locDiff.lo, locDiff.lo) + dot(locDiff.hi, locDiff.hi));
-            );
-        } else {
-            code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-					const REAL distance = length(locDiff);
-            );
-        }
+		    "     const REAL timDiff = timDiffs[i * locationCount + j];            \n" <<
+            "     const REAL distance = locDists[i * locationCount + j];            \n";
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                     // TODO unsure whether I need to pown(tauXprec,dimX) pown(sigmaXprec,dimX) outside of pdf
-                    REAL innerContrib = mu0 * tauXprec * tauTprec * pdf(distance * tauXprec) * pdf(timeDiff*tauTprec) +
-                            select(theta, ZERO, times[j]<times[i]) * pdf(distance * sigmaXprec) * exp(-omega*timeDiff);
+                    REAL innerContrib = mu0 * tauXprec * tauTprec * pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
+                            select(theta, ZERO, timDiff>0) * pdf(distance * sigmaXprec) * exp(-omega*timeDiff);
         );
 
         code <<
@@ -636,7 +636,7 @@ public:
 
         code <<
              "     likContribs[i] =  log(scratch[0]) + theta / omega *               \n" <<
-             "       ( exp(-omega*(times[locationCounts]-times[i]))-1 ) -            \n" <<
+             "       ( exp(-omega*(times[locationCounts]-times[i]))-1 ) -            \n" << //TODO: use precomputed timeDiffs
              "       mu0 * ( cdf((times[locationCounts]-times[i])/tauT)-             \n" <<
              "               cdf(-times[i]/tauT) )   ;                               \n" <<
              "   }                                                                   \n" <<
@@ -646,9 +646,10 @@ public:
 		kernelLikContribsVector = boost::compute::kernel(program, "computeLikContribs");
 
 		size_t index = -1;
-        kernelLikContribsVector.set_arg(index++, dLocations);
-		kernelLikContribsVector.set_arg(index++, dTimes);
-		kernelLikContribsVector.set_arg(index++, dLikContribs);
+        kernelLikContribsVector.set_arg(index++, dLocDists);
+		kernelLikContribsVector.set_arg(index++, dTimDiffs);
+        kernelLikContribsVector.set_arg(index++, dTimes);
+        kernelLikContribsVector.set_arg(index++, dLikContribs);
         kernelLikContribsVector.set_arg(index++, sigmaXprec);
         kernelLikContribsVector.set_arg(index++, tauXprec);
         kernelLikContribsVector.set_arg(index++, tauTprec);
@@ -854,32 +855,28 @@ private:
 
     double sumOfLikContribs;
     double storedSumOfLikContribs;
-    mm::MemoryManager<RealType> dSumOfLikContribs;
-    mm::MemoryManager<RealType> dStoredSumOfLikContribs;
-
 
     boost::compute::device device;
     boost::compute::context ctx;
     boost::compute::command_queue queue;
 
+    mm::MemoryManager<RealType> locDists;
+    mm::MemoryManager<RealType> timDiffs;
+
     mm::MemoryManager<RealType> times;
-    mm::MemoryManager<RealType> locations;
-    mm::MemoryManager<RealType>* locationsPtr;
+
 
     mm::MemoryManager<RealType> likContribs;
     mm::MemoryManager<RealType> storedLikContribs;
 
 //	mm::MemoryManager<RealType> gradient;
+    mm::GPUMemoryManager<RealType> dLocDists;
+    mm::GPUMemoryManager<RealType> dTimDiffs;
+
+    mm::GPUMemoryManager<RealType> dTimes;
 
 #ifdef USE_VECTORS
-    mm::GPUMemoryManager<VectorType> dLocations;
-    mm::GPUMemoryManager<VectorType> dTimes;
-    mm::GPUMemoryManager<VectorType>* dLocationsPtr;
 //	mm::GPUMemoryManager<VectorType> dGradient;
-#else
-    mm::GPUMemoryManager<RealType> dTimes;
-    mm::GPUMemoryManager<RealType> dLocations;
-    mm::GPUMemoryManager<RealType>* dLocationsPtr;
 #endif // USE_VECTORS
 
 
