@@ -152,24 +152,36 @@ int main(int argc, char* argv[]) {
 
 	hph::SharedPtr instance = hph::factory(embeddingDimension, locationCount, flags, deviceNumber, threads);
 
-	std::vector<double> times(locationCount);
+    auto elementCount = locationCount * locationCount; // size of pairwise data
+
+    std::vector<double> times(locationCount);
 	times[0] = expo(prng);
 	for (int i = 1; i < locationCount; ++i) {
 	    times[i] = times[i-1] + expo(prng);
 	}
+    instance->setTimesData(&times[0], locationCount);
 
-//	instance->setPairwiseData(&data[0], elementCount);
+    std::vector<double> data(elementCount); // pairwise distance data
+    for (int i = 0; i < locationCount; ++i) {
+        data[i * locationCount + i] = 0.0;
+        for (int j = i + 1; j < locationCount; ++j) {
 
-	int dataDimension = internalDimension ? instance->getInternalDimension() : embeddingDimension;
+            const double draw = normalData(prng);
+            double distance = draw * draw;
 
-	std::vector<double> location(dataDimension);
-	std::vector<double> allLocations;
-	allLocations.resize(dataDimension * locationCount);
+            data[i * locationCount + j] = distance;
+            data[j * locationCount + i] = distance;
+        }
+    }
+	instance->setLocDistsData(&data[0], elementCount);
 
-	for (int i = 0; i < locationCount; ++i) {
-		generateLocation(location, normal, prng);
-		instance->updateLocations(i, &location[0], dataDimension);
-	}
+    for (int i = 0; i < locationCount; ++i) { // pairwise times data
+        for (int j =0 ; j < locationCount; ++j) {
+            data[i * locationCount + j] = times[j]-times[i];
+        }
+    }
+    instance->setTimDiffsData(&data[0], elementCount);
+
 
 //    int gradientIndex = 1;
 

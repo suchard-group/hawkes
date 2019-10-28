@@ -326,6 +326,15 @@ public:
                                  buffer, queue);
     }
 
+    void setTimesData(double* data, size_t length) override {
+        assert(length == locationCount);
+        mm::bufferedCopy(data, data + length, begin(times), buffer);
+
+        // COMPUTE
+        mm::bufferedCopyToDevice(data, data + length, dTimes.begin(),
+                                 buffer, queue);
+    }
+
     void setParameters(std::vector<double> data, size_t length) override {
 //		assert(length == 1);
 		sigmaXprec = data[0];
@@ -399,7 +408,7 @@ public:
 
 	    lSumOfLikContribs = sum;
 
-    	sumOfLikContribs = lSumOfLikContribs;  
+    	sumOfLikContribs = lSumOfLikContribs;
 
 	    count++;
 	}

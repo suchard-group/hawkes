@@ -47,6 +47,7 @@ public:
     virtual void acceptState() = 0;
     virtual void setLocDistsData(double*, size_t)  = 0;
     virtual void setTimDiffsData(double*, size_t)  = 0;
+    virtual void setTimesData(double*, size_t)  = 0;
     virtual void setParameters(std::vector<double>, size_t) = 0;
 //    virtual void makeDirty() = 0;
     virtual int getInternalDimension() = 0;
