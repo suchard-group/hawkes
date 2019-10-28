@@ -150,79 +150,6 @@ public:
 		createOpenCLKernels();
     }
 
-    void updateLocations(int locationIndex, double* location, size_t length) override { //TODO: updateParameters
-
-
-        size_t offset{0};
-        size_t deviceOffset{0};
-
-        if (locationIndex == -1) {
-            // Update all locations
-            assert(length == OpenCLRealType::dim * locationCount ||
-                   length == embeddingDimension * locationCount);
-
-//            incrementsKnown = false;
-//            isStoredSquaredResidualsEmpty = true;
-//            isStoredTruncationsEmpty = true;
-
-        } else {
-            // Update a single location
-            assert(length == OpenCLRealType::dim ||
-                   length == embeddingDimension);
-
-            if (updatedLocation != - 1) {
-                // more than one location updated -- do a full recomputation
-//                incrementsKnown = false;
-//                isStoredSquaredResidualsEmpty = true;
-//                isStoredTruncationsEmpty = true;
-            }
-
-            updatedLocation = locationIndex;
-
-            offset = locationIndex * OpenCLRealType::dim;
-#ifdef USE_VECTORS
-            deviceOffset = static_cast<size_t>(locationIndex);
-#else
-            deviceOffset = locationIndex * embeddingDimension;
-#endif
-        }
-
-        // If requires padding
-        if (embeddingDimension != OpenCLRealType::dim) {
-            if (locationIndex == -1) {
-
-                mm::paddedBufferedCopy(location, embeddingDimension, embeddingDimension,
-                                       begin(*locationsPtr) + offset, OpenCLRealType::dim,
-                                       locationCount, buffer);
-
-                length = OpenCLRealType::dim * locationCount; // New padded length
-
-            } else {
-
-                mm::bufferedCopy(location, location + length,
-                                 begin(*locationsPtr) + offset,
-                                 buffer);
-
-                length = OpenCLRealType::dim;
-            }
-        } else {
-            // Without padding
-            mm::bufferedCopy(location, location + length,
-                             begin(*locationsPtr) + offset,
-                             buffer
-            );
-        }
-
-        // COMPUTE
-        mm::copyToDevice<OpenCLRealType>(begin(*locationsPtr) + offset,
-                                         begin(*locationsPtr) + offset + length,
-                                         dLocationsPtr->begin() + deviceOffset,
-                                         queue
-        );
-
-        sumOfIncrementsKnown = false;
-    }
-
     int getInternalDimension() override { return OpenCLRealType::dim; }
 
 //	void getLogLikelihoodGradient(double* result, size_t length) override {
@@ -284,7 +211,7 @@ public:
     		std::copy(
     			begin(storedLikContribs),
     			end(storedLikContribs),
-    			begin(likContribs) + updatedLocation * locationCount //TODO isn't updated location = -1 ?
+    			begin(likContribs) + updatedLocation * locationCount
     		);
 
     		// COMPUTE
@@ -336,7 +263,7 @@ public:
     }
 
     void setParameters(std::vector<double> data, size_t length) override {
-//		assert(length == 1);
+		assert(length == 6);
 		sigmaXprec = data[0];
 		tauXprec = data[1];
 		tauTprec = data[2];

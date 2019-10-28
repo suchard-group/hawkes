@@ -75,36 +75,29 @@ public:
 
     NewHawkes(int embeddingDimension, int locationCount, long flags, int threads)
         : AbstractHawkes(embeddingDimension, locationCount, flags),
-          precision(0.0), storedPrecision(0.0),
-          oneOverSd(0.0), storedOneOverSd(0.0),
-          sumOfIncrements(0.0), storedSumOfIncrements(0.0),
+          sigmaXprec(0.0), storedSigmaXprec(0.0),
+          tauXprec(0.0), storedTauXprec(0.0),
+          tauTprec(0.0), storedTauTprec(0.0),
+          omega(0.0), storedOmega(0.0),
+          theta(0.0), storedTheta(0.0),
+          mu0(0.0), storedMu0(0.0),
 
-          observations(locationCount * locationCount),
+          locDists(locationCount * locationCount),
+          timDiffs(locationCount * locationCount),
 
-          locations0(locationCount * embeddingDimension),
-		  locations1(locationCount * embeddingDimension),
-		  locationsPtr(&locations0),
-		  storedLocationsPtr(&locations1),
+          times(locationCount),
 
-          increments(locationCount * locationCount),
+          sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
 
-          storedIncrements(locationCount),
-          gradientPtr(&gradient0),
+          likContribs(locationCount),
+          storedLikContribs(locationCount),
 
-
-          isStoredIncrementsEmpty(false),
+          isStoredLikContribsEmpty(false),
 
           nThreads(threads)
     {
 
-    	if (flags & Flags::LEFT_TRUNCATION) {
-    		isLeftTruncated = true;
-#ifdef RBUILD
-        Rcpp::Rcout << "Using left truncation" << std::endl;
-#else
-    		std::cout << "Using left truncation" << std::endl;
-#endif
-    	}
+
 
 #ifdef USE_TBB
         if (flags & hph::Flags::TBB) {
@@ -128,207 +121,121 @@ public:
 
 	int getInternalDimension() { return embeddingDimension; }
 
-    void updateLocations(int locationIndex, double* location, size_t length) {
-
-		size_t offset{0};
-
-		if (locationIndex == -1) {
-			// Update all locations
-			assert(length == embeddingDimension * locationCount);
-
-			incrementsKnown = false;
-			isStoredIncrementsEmpty = true;
-
-			// TODO Do anything with updatedLocation?
-		} else {
-			// Update a single location
-    		assert(length == embeddingDimension);
-
-	    	if (updatedLocation != - 1) {
-    			// more than one location updated -- do a full recomputation
-	    		incrementsKnown = false;
-	    		isStoredIncrementsEmpty = true;
-    		}
-
-	    	updatedLocation = locationIndex;
-	    	offset = locationIndex * embeddingDimension;
-	    }
-
-		mm::bufferedCopy(location, location + length,
-			begin(*locationsPtr) + offset,
-			buffer
-		);
-
-    	sumOfIncrementsKnown = false;
-    }
-
-    void computeIncrements() {
-		if (!incrementsKnown) {
-			if (isLeftTruncated) { // run-time dispatch to compile-time optimization
-				if (embeddingDimension == 2) {
-					computeSumOfIncrementsGeneric<true, typename TypeInfo::SimdType, TypeInfo::SimdSize, NonGeneric>();
-				} else {
-					computeSumOfIncrementsGeneric<true, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
-				}
-			} else {
-				if (embeddingDimension == 2) {
-					computeSumOfIncrementsGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, NonGeneric>();
-				} else {
-					computeSumOfIncrementsGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
-				}
-			}
-			incrementsKnown = true;
-		} else {
-			if (isLeftTruncated) {
-				updateSumOfIncrements<true>();
-			} else {
-				updateSumOfIncrements<false>();
-			}
-		}
-    }
-
-    double getSumOfIncrements() {
-    	if (!sumOfIncrementsKnown) {
-			computeIncrements();
-			sumOfIncrementsKnown = true;
-		}
-		if (isLeftTruncated) {
-			return sumOfIncrements;
-		} else {
-			return 0.5 * precision * sumOfIncrements;
-		}
+    double getSumOfLikContribs() {
+        computeSumOfLikContribsGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+    	return sumOfLikContribs;
  	}
 
     void storeState() {
-    	storedSumOfIncrements = sumOfIncrements;
+    	storedSumOfLikContribs = sumOfLikContribs;
+    	isStoredLikContribsEmpty = true;
 
-    	std::copy(begin(*locationsPtr), end(*locationsPtr),
-    		begin(*storedLocationsPtr));
-
-    	isStoredIncrementsEmpty = true;
-
-    	updatedLocation = -1;
-
-    	storedPrecision = precision;
-    	storedOneOverSd = oneOverSd;
-    }
-
-    double getDiagnostic() {
-        return std::accumulate(
-            begin(increments),
-            end(increments),
-            RealType(0));
+        sigmaXprec = storedSigmaXprec;
+        tauXprec = storedTauXprec;
+        tauTprec = storedTauTprec;
+        omega = storedOmega;
+        theta = storedTheta;
+        mu0 = storedMu0;
     }
 
     void acceptState() {
-        if (!isStoredIncrementsEmpty) {
+        if (!isStoredLikContribsEmpty) {
     		for (int j = 0; j < locationCount; ++j) {
-    			increments[j * locationCount + updatedLocation] = increments[updatedLocation * locationCount + j];
+    			likContribs[j * locationCount + updatedLocation] = likContribs[updatedLocation * locationCount + j];
     		}
     	}
     }
 
     void restoreState() {
-    	sumOfIncrements = storedSumOfIncrements;
-    	sumOfIncrementsKnown = true;
+    	sumOfLikContribs = storedSumOfLikContribs;
 
-		if (!isStoredIncrementsEmpty) {
-    		std::copy(
-    			begin(storedIncrements),
-    			end(storedIncrements),
-    			begin(increments) + updatedLocation * locationCount
-    		);
-    		incrementsKnown = true;
-    	} else {
-    		incrementsKnown = false; // Force recompute;  TODO cache
-    	}
-
-    	precision = storedPrecision;
-    	oneOverSd = storedOneOverSd;
-
-    	auto tmp1 = storedLocationsPtr;
-    	storedLocationsPtr = locationsPtr;
-    	locationsPtr = tmp1;
+        sigmaXprec = storedSigmaXprec;
+        tauXprec = storedTauXprec;
+        tauTprec = storedTauTprec;
+        omega = storedOmega;
+        theta = storedTheta;
+        mu0 = storedMu0;
     }
 
-    void setPairwiseData(double* data, size_t length) {
-		assert(length == observations.size());
-		mm::bufferedCopy(data, data + length, begin(observations), buffer);
+    void setLocDistsData(double* data, size_t length) {
+		assert(length == locDists.size());
+		mm::bufferedCopy(data, data + length, begin(locDists), buffer);
+    }
+
+    void setTimDiffsData(double* data, size_t length) {
+        assert(length == timDiffs.size());
+        mm::bufferedCopy(data, data + length, begin(timDiffs), buffer);
+    }
+
+    void setTimesData(double* data, size_t length) {
+        assert(length == times.size());
+        mm::bufferedCopy(data, data + length, begin(times), buffer);
     }
 
     void setParameters(double* data, size_t length) {
-		assert(length == 1); // Call only with precision
-		precision = data[0]; // TODO Remove
-		oneOverSd = std::sqrt(data[0]);
-
-		// Handle truncations
-		if (isLeftTruncated) {
-			incrementsKnown = false;
-			sumOfIncrementsKnown = false;
-
-    		isStoredIncrementsEmpty = true;
-		}
+        assert(length == 6);
+        sigmaXprec = data[0];
+        tauXprec = data[1];
+        tauTprec = data[2];
+        omega = data[3];
+        theta = data[4];
+        mu0 = data[5];
     }
 
-    void makeDirty() {
-    	sumOfIncrementsKnown = false;
-    	incrementsKnown = false;
-    }
+//	void getLogLikelihoodGradient(double* result, size_t length) {
+//
+//		assert (length == locationCount * embeddingDimension);
+//
+//        // TODO Cache values
+//
+//		if (isLeftTruncated) { // run-time dispatch to compile-time optimization
+//			if (embeddingDimension == 2) {
+//				computeLogLikelihoodGradientGeneric<true, typename TypeInfo::SimdType, TypeInfo::SimdSize, NonGeneric>();
+//			} else {
+//				computeLogLikelihoodGradientGeneric<true, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+//			}
+//		} else {
+//			if (embeddingDimension == 2) {
+//				computeLogLikelihoodGradientGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, NonGeneric>();
+//			} else {
+//				computeLogLikelihoodGradientGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+//			}
+//		}
+//
+//		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
+//    }
 
-	void getLogLikelihoodGradient(double* result, size_t length) {
-
-		assert (length == locationCount * embeddingDimension);
-
-        // TODO Cache values
-
-		if (isLeftTruncated) { // run-time dispatch to compile-time optimization
-			if (embeddingDimension == 2) {
-				computeLogLikelihoodGradientGeneric<true, typename TypeInfo::SimdType, TypeInfo::SimdSize, NonGeneric>();
-			} else {
-				computeLogLikelihoodGradientGeneric<true, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
-			}
-		} else {
-			if (embeddingDimension == 2) {
-				computeLogLikelihoodGradientGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, NonGeneric>();
-			} else {
-				computeLogLikelihoodGradientGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
-			}
-		}
-
-		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
-    }
-
-	template <bool withTruncation, typename SimdType, int SimdSize, typename Algorithm>
-    void computeLogLikelihoodGradientGeneric() {
-
-        const auto length = locationCount * embeddingDimension;
-        if (length != gradientPtr->size()) {
-            gradientPtr->resize(length);
-        }
-
-        std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
-                  static_cast<RealType>(0.0));
-
-        //const auto dim = embeddingDimension;
-        //RealType* gradient = gradientPtr->data();
-        const RealType scale = precision;
-
-        for_each(0, locationCount, [this, scale](const int i) { // [gradient,dim]
-
-			const int vectorCount = locationCount - locationCount % SimdSize;
-
-			DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-
-			innerGradientLoop<withTruncation, SimdType, SimdSize>(dispatch, scale, i, 0, vectorCount);
-
-			if (vectorCount < locationCount) { // Edge-cases
-
-				DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-
-				innerGradientLoop<withTruncation, RealType, 1>(dispatch, scale, i, vectorCount, locationCount);
-			}
-        }, ParallelType());
-    }
+//	template <bool withTruncation, typename SimdType, int SimdSize, typename Algorithm>
+//    void computeLogLikelihoodGradientGeneric() {
+//
+//        const auto length = locationCount * embeddingDimension;
+//        if (length != gradientPtr->size()) {
+//            gradientPtr->resize(length);
+//        }
+//
+//        std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
+//                  static_cast<RealType>(0.0));
+//
+//        //const auto dim = embeddingDimension;
+//        //RealType* gradient = gradientPtr->data();
+//        const RealType scale = precision;
+//
+//        for_each(0, locationCount, [this, scale](const int i) { // [gradient,dim]
+//
+//			const int vectorCount = locationCount - locationCount % SimdSize;
+//
+//			DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+//
+//			innerGradientLoop<withTruncation, SimdType, SimdSize>(dispatch, scale, i, 0, vectorCount);
+//
+//			if (vectorCount < locationCount) { // Edge-cases
+//
+//				DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+//
+//				innerGradientLoop<withTruncation, RealType, 1>(dispatch, scale, i, vectorCount, locationCount);
+//			}
+//        }, ParallelType());
+//    }
 
 #ifdef USE_SIMD
 
@@ -415,47 +322,47 @@ public:
 		return x;
 	}
 
-	template <bool withTruncation, typename SimdType, int SimdSize, typename DispatchType>
-	void innerGradientLoop(const DispatchType& dispatch, const RealType scale, const int i,
-								 const int begin, const int end) {
-
-        const SimdType sqrtScale(std::sqrt(scale));
-
-		for (int j = begin; j < end; j += SimdSize) {
-
-			const auto distance = dispatch.calculate(j);
-			const auto observation = SimdHelper<SimdType, RealType>::get(&observations[i * locationCount + j]);
-			const auto notMissing = !getMissing(i, j, observation);
-
-			if (any(notMissing)) {
-
-				auto residual = mask(notMissing, observation - distance);
-
-				if (withTruncation) {
-
-					residual -= mask(notMissing, math::pdf_new( distance * sqrtScale ) /
-									  (xsimd::exp(math::phi_new(distance * sqrtScale)) *
-									   sqrtScale) );
-				}
-
-				auto dataContribution = mask(notMissing, residual * scale / distance);
-
-                for (int k = 0; k < SimdSize; ++k) {
-                    for (int d = 0; d < embeddingDimension; ++d) {
-
-                        const RealType something = getScalar(dataContribution, k);
-
-                        const RealType update = something *
-                                                ((*locationsPtr)[i * embeddingDimension + d] -
-                                                 (*locationsPtr)[(j + k) * embeddingDimension + d]);
-
-
-                        (*gradientPtr)[i * embeddingDimension + d] += update;
-                    }
-                }
-			}
-		}
-	}
+//	template <bool withTruncation, typename SimdType, int SimdSize, typename DispatchType>
+//	void innerGradientLoop(const DispatchType& dispatch, const RealType scale, const int i,
+//								 const int begin, const int end) {
+//
+//        const SimdType sqrtScale(std::sqrt(scale));
+//
+//		for (int j = begin; j < end; j += SimdSize) {
+//
+//			const auto distance = dispatch.calculate(j);
+//			const auto observation = SimdHelper<SimdType, RealType>::get(&observations[i * locationCount + j]);
+//			const auto notMissing = !getMissing(i, j, observation);
+//
+//			if (any(notMissing)) {
+//
+//				auto residual = mask(notMissing, observation - distance);
+//
+//				if (withTruncation) {
+//
+//					residual -= mask(notMissing, math::pdf_new( distance * sqrtScale ) /
+//									  (xsimd::exp(math::phi_new(distance * sqrtScale)) *
+//									   sqrtScale) );
+//				}
+//
+//				auto dataContribution = mask(notMissing, residual * scale / distance);
+//
+//                for (int k = 0; k < SimdSize; ++k) {
+//                    for (int d = 0; d < embeddingDimension; ++d) {
+//
+//                        const RealType something = getScalar(dataContribution, k);
+//
+//                        const RealType update = something *
+//                                                ((*locationsPtr)[i * embeddingDimension + d] -
+//                                                 (*locationsPtr)[(j + k) * embeddingDimension + d]);
+//
+//
+//                        (*gradientPtr)[i * embeddingDimension + d] += update;
+//                    }
+//                }
+//			}
+//		}
+//	}
 
 	double getScalar(double x, int i) {
 		return x;
@@ -488,129 +395,55 @@ public:
 	}
 #endif
 
-    template <bool withTruncation, typename SimdType, int SimdSize, typename DispatchType>
-    RealType innerLikelihoodLoop(const DispatchType& dispatch, const RealType scale, const int i,
-                                 const int begin, const int end) {
+    template <typename SimdType, int SimdSize>
+    RealType innerLikelihoodLoop(const int i, const int begin, const int end) {
 
         SimdType sum = SimdType(RealType(0));
 
         for (int j = begin; j < end; j += SimdSize) {
 
-            const auto distance = dispatch.calculate(j);
-            const auto observation = SimdHelper<SimdType, RealType>::get(&observations[i * locationCount + j]);
-            const auto notMissing = !getMissing(i, j, observation);
+            const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            if (any(notMissing)) {
+            const auto rate = mu0 * tauXprec * tauTprec * math::pdf_new(locDist * tauXprec) *
+                    math::pdf_new( timDiff*tauTprec ) +
+                    mask(timDiff>0,
+                         xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));;
 
-                const auto residual = mask(notMissing, observation - distance);
-                auto squaredResidual = residual * residual;
-
-                if (withTruncation) {
-                    squaredResidual *= scale;
-                    squaredResidual += mask(notMissing, math::phi_new(distance * oneOverSd));
-                }
-
-                SimdHelper<SimdType, RealType>::put(squaredResidual, &increments[i * locationCount + j]);
-                sum += squaredResidual;
-            }
+            SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
+            sum += rate;
         }
 
         return reduce(sum);
     }
 
-    template <bool withTruncation, typename SimdType, int SimdSize, typename Algorithm>
-    void computeSumOfIncrementsGeneric() {
-
-        const auto scale = 0.5 * precision;
+    template <typename SimdType, int SimdSize, typename Algorithm>
+    void computeSumOfLikContribsGeneric() {
 
         RealType delta =
-                accumulate(0, locationCount, RealType(0), [this, scale](const int i) {
+                accumulate(0, locationCount, RealType(0), [this](const int i) {
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
-                    DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-
-					RealType sumOfSquaredResiduals =
-                            innerLikelihoodLoop<withTruncation, SimdType, SimdSize>(dispatch, scale, i,
-                                                                                    0, vectorCount);
-
+					RealType sumOfRates = xsimd::log(innerLikelihoodLoop<SimdType, SimdSize>(i, 0, vectorCount)) +
+					        theta/omega*(xsimd::exp(-omega*(times[locationCount]-times[i]))-1) -
+					        mu0*(math::phi_new(tauTprec*(times[locationCount]-times[i])) -
+                                    math::phi_new(tauTprec*(-times[i])));
 
                     if (vectorCount < locationCount) { // Edge-cases
-
-                        DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-
-                        sumOfSquaredResiduals +=
-                                innerLikelihoodLoop<withTruncation, RealType, 1>(dispatch, scale, i,
-                                                                                 vectorCount, locationCount);
+                        sumOfRates += xsimd::log(innerLikelihoodLoop<RealType, 1>(i, vectorCount, locationCount)) +
+                                theta/omega*(xsimd::exp(-omega*(times[locationCount]-times[i]))-1) -
+                                mu0*(math::phi_new(tauTprec*(times[locationCount]-times[i])) -
+                                     math::phi_new(tauTprec*(-times[i])));
                     }
 
-                    return sumOfSquaredResiduals;
+                    return sumOfRates;
 
                 }, ParallelType());
 
-        double lSumOfSquaredResiduals = delta;
-
-        lSumOfSquaredResiduals /= 2.0;
-        sumOfIncrements = lSumOfSquaredResiduals;
-
-        incrementsKnown = true;
-        sumOfIncrementsKnown = true;
+        sumOfLikContribs = delta;
     }
 
-	template <bool withTruncation>
-	void updateSumOfIncrements() { // TODO To be vectorized (when we start using this function again)
-
-		assert (false); // Should not get here anymore
-		const RealType scale = RealType(0.5) * precision;
-
-		const int i = updatedLocation;
-		isStoredIncrementsEmpty = false;
-
-		//auto start  = begin(*locationsPtr) + i * embeddingDimension;
-		//auto offset = begin(*locationsPtr);
-
-		RealType delta =
- 		accumulate(0, locationCount, RealType(0),
-
-			[this, i, // , &offset, &start]
-      scale](const int j) {
-                const auto distance = 0.0; // TODO
-//                        calculateDistance<mm::MemoryManager<RealType>>(
-//                    start,
-//                    offset + embeddingDimension * j,
-//                    embeddingDimension
-//                );
-
-                const auto observation = observations[i * locationCount + j];
-                auto squaredResidual = RealType(0);
-
-                if (!std::isnan(observation)) {
-                    const auto residual = distance - observation;
-                    squaredResidual = residual * residual;
-
-                    if (withTruncation) { // Compile-time
-                        squaredResidual = scale * squaredResidual;
-                        if (i != j) {
-                            squaredResidual += math::phi2<NewHawkes>(distance * oneOverSd);
-                        }
-                    }
-                }
-
-            	// store old value
-            	const auto oldSquaredResidual = increments[i * locationCount + j];
-            	storedIncrements[j] = oldSquaredResidual;
-
-                const auto inc = squaredResidual - oldSquaredResidual;
-
-            	// store new value
-                increments[i * locationCount + j] = squaredResidual;
-
-                return inc;
-            }, ParallelType()
-		);
-
-		sumOfIncrements += delta;
-	}
 
 // Parallelization helper functions
 
@@ -741,35 +574,40 @@ public:
 #endif
 
 private:
-	double precision;
-	double storedPrecision;
+    double sigmaXprec;
+    double storedSigmaXprec;
+    double tauXprec;
+    double storedTauXprec;
+    double tauTprec;
+    double storedTauTprec;
+    double omega;
+    double storedOmega;
+    double theta;
+    double storedTheta;
+    double mu0;
+    double storedMu0;
 
-	double oneOverSd;
-	double storedOneOverSd;
+    double sumOfLikContribs;
+    double storedSumOfLikContribs;
 
-    double sumOfIncrements;
-    double storedSumOfIncrements;
+    mm::MemoryManager<RealType> locDists;
+    mm::MemoryManager<RealType> timDiffs;
 
-    mm::MemoryManager<RealType> observations;
+    mm::MemoryManager<RealType> times;
 
-    mm::MemoryManager<RealType> locations0;
-    mm::MemoryManager<RealType> locations1;
 
-    mm::MemoryManager<RealType>* locationsPtr;
-    mm::MemoryManager<RealType>* storedLocationsPtr;
+    mm::MemoryManager<RealType> likContribs;
+    mm::MemoryManager<RealType> storedLikContribs;
 
-    mm::MemoryManager<RealType> increments;
-    mm::MemoryManager<RealType> storedIncrements;
-
-    mm::MemoryManager<RealType> gradient0;
-    mm::MemoryManager<RealType> gradient1;
-
-    mm::MemoryManager<RealType>* gradientPtr;
-    mm::MemoryManager<RealType>* storedGradientPtr;
+//    mm::MemoryManager<RealType> gradient0;
+//    mm::MemoryManager<RealType> gradient1;
+//
+//    mm::MemoryManager<RealType>* gradientPtr;
+//    mm::MemoryManager<RealType>* storedGradientPtr;
 
     mm::MemoryManager<double> buffer;
 
-    bool isStoredIncrementsEmpty;
+    bool isStoredLikContribsEmpty;
 
     int nThreads;
 

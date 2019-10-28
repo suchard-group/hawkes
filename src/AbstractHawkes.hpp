@@ -39,7 +39,6 @@ public:
     virtual ~AbstractHawkes() = default;
 
     // Interface
-    virtual void updateLocations(int, double*, size_t) = 0; // TODO: updateParameters
     virtual double getSumOfLikContribs() = 0;
 //    virtual void getLogLikelihoodGradient(double*, size_t) = 0;
     virtual void storeState() = 0;

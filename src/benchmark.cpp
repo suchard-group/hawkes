@@ -211,9 +211,8 @@ int main(int argc, char* argv[]) {
 
 		instance->storeState();
 
-		generateLocation(allLocations, normal, prng);
-		instance->updateLocations(-1, &allLocations[0], dataDimension * locationCount);
-		
+		//TODO: generate and set new parameters
+
 		auto startTime1 = std::chrono::steady_clock::now();
 
 		double inc = instance->getSumOfLikContribs();
