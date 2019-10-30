@@ -405,13 +405,13 @@ public:
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            const auto rate = mu0 * pow(tauXprec, embeddingDimension/2) * tauTprec * math::pdf_new(locDist * tauXprec) *
-                    math::pdf_new( timDiff*tauTprec ) +
+            const auto rate = mu0 * pow(tauXprec, embeddingDimension/2) * tauTprec *
+                    math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec ) +
                     pow(sigmaXprec, embeddingDimension/2) * theta * mask(timDiff>zero,
                          xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
-            SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
-            sum += rate;
+            //SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
+            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
         }
 
         return reduce(sum);
@@ -431,9 +431,9 @@ public:
                         sumOfRates += innerLikelihoodLoop<RealType, 1>(i, vectorCount, locationCount);
                     }
 
-                    return log(sumOfRates) +
-                           theta/omega*(xsimd::exp(-omega*(times[locationCount]-times[i]))-1) -
-                           mu0*(xsimd::exp(math::phi_new(tauTprec*(times[locationCount]-times[i]))) -
+                    return xsimd::log(sumOfRates) +
+                           theta/omega*(xsimd::exp(-omega*(times[locationCount-1]-times[i]))-1) -
+                           mu0*(xsimd::exp(math::phi_new(tauTprec*(times[locationCount-1]-times[i]))) -
                                 xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
 
                 }, ParallelType());
