@@ -405,9 +405,9 @@ public:
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            const auto rate = mu0 * pow(tauXprec, embeddingDimension/2) * tauTprec *
+            const auto rate = mu0 * pow(tauXprec, embeddingDimension) * tauTprec *
                     math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec ) +
-                    pow(sigmaXprec, embeddingDimension/2) * theta * mask(timDiff>zero,
+                    pow(sigmaXprec, embeddingDimension) * theta * mask(timDiff>zero,
                          xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
             //SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
