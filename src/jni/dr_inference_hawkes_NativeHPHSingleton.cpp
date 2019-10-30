@@ -20,21 +20,21 @@ JNIEXPORT jint JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_initialize
     return instances.size() - 1;
   }
 
-extern "C"
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_updateLocations
-  (JNIEnv *env, jobject, jint instance, jint index, jdoubleArray xArray) {
-  	jsize len = env->GetArrayLength(xArray);
-  	jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
-
-    instances[instance]->updateLocations(index, x, len);
-
-    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
-}
+//extern "C"
+//JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_updateLocations
+//  (JNIEnv *env, jobject, jint instance, jint index, jdoubleArray xArray) {
+//  	jsize len = env->GetArrayLength(xArray);
+//  	jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
+//
+//    instances[instance]->updateLocations(index, x, len);
+//
+//    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
+//}
 
 extern "C"
 JNIEXPORT jdouble JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getSumOfIncrements
   (JNIEnv *, jobject, jint instance) {
-    return instances[instance]->getSumOfIncrements();
+    return instances[instance]->getSumOfLikContribs();
 }
 
 extern "C"
@@ -56,26 +56,37 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_acceptState
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setPairwiseData
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setLocDistsData
   (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
   	jsize len = env->GetArrayLength(xArray);
   	jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
 
-    instances[instance]->setPairwiseData(x, len);
+    instances[instance]->setLocDistsData(x, len);
 
     env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient
-  (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
-	jsize len = env->GetArrayLength(xArray);
-	jdouble* x = env->GetDoubleArrayElements(xArray, NULL); // TODO: Try GetPrimitiveArrayCritical
-	
-	instances[instance]->getLogLikelihoodGradient(x, len);	
-	
-	env->ReleaseDoubleArrayElements(xArray, x, 0); // copy values back	  
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimDiffsData
+        (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
+    jsize len = env->GetArrayLength(xArray);
+    jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
+
+    instances[instance]->setTimDiffsData(x, len);
+
+    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
 }
+
+//extern "C"
+//JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient
+//  (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
+//	jsize len = env->GetArrayLength(xArray);
+//	jdouble* x = env->GetDoubleArrayElements(xArray, NULL); // TODO: Try GetPrimitiveArrayCritical
+//
+//	instances[instance]->getLogLikelihoodGradient(x, len);
+//
+//	env->ReleaseDoubleArrayElements(xArray, x, 0); // copy values back
+//}
 
 extern "C"
 JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setParameters
@@ -86,12 +97,6 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setParameters
     instances[instance]->setParameters(x, len);
 
     env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
-}
-
-extern "C"
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_makeDirty
-  (JNIEnv *, jobject, jint instance) {
-    instances[instance]->makeDirty();
 }
 
 extern "C"

@@ -65,8 +65,9 @@ int main(int argc, char* argv[]) {
 
 	int embeddingDimension = vm["dimension"].as<int>();
 	int locationCount = vm["locations"].as<int>();
+    int iterations = vm["iterations"].as<int>();
 
-	long flags = 0L;
+    long flags = 0L;
 
 	auto normal = std::normal_distribution<double>(0.0, 1.0);
 	auto uniform = std::uniform_int_distribution<int>(0, locationCount - 1);
@@ -155,9 +156,9 @@ int main(int argc, char* argv[]) {
     auto elementCount = locationCount * locationCount; // size of pairwise data
 
     std::vector<double> times(locationCount);
-	times[0] = expo(prng);
+	times[0] = 1;//expo(prng);
 	for (int i = 1; i < locationCount; ++i) {
-	    times[i] = times[i-1] + expo(prng);
+	    times[i] = times[i-1] + 1;//expo(prng);
 	}
     instance->setTimesData(&times[0], locationCount);
 
@@ -167,7 +168,7 @@ int main(int argc, char* argv[]) {
         for (int j = i + 1; j < locationCount; ++j) {
 
             const double draw = normalData(prng);
-            double distance = draw * draw;
+            double distance = 1;//draw * draw;
 
             data[i * locationCount + j] = distance;
             data[j * locationCount + i] = distance;
@@ -176,8 +177,10 @@ int main(int argc, char* argv[]) {
 	instance->setLocDistsData(&data[0], elementCount);
 
     for (int i = 0; i < locationCount; ++i) { // pairwise times data
-        for (int j =0 ; j < locationCount; ++j) {
+        data[i * locationCount + i] = 0.0;
+        for (int j = i + 1; j < locationCount; ++j) {
             data[i * locationCount + j] = times[j]-times[i];
+            data[j * locationCount + i] = times[i]-times[j];
         }
     }
     instance->setTimDiffsData(&data[0], elementCount);
@@ -187,9 +190,9 @@ int main(int argc, char* argv[]) {
 
 	std::vector<double> parameters(6);
     for (int i = 0; i < 6; ++i) {
-        parameters[i] = 1;
+        parameters[i] = 1;//expo(prng2);
     }
-	instance->setParameters(parameters, 6);
+	instance->setParameters(&parameters[0], 6);
 
 //	instance->makeDirty();
 	auto logLik = instance->getSumOfLikContribs();
@@ -202,16 +205,16 @@ int main(int argc, char* argv[]) {
 	std::cout << "Starting HPH benchmark" << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
-	int iterations = vm["iterations"].as<int>();
-	
 	double timer = 0;
     double timer2 = 0;
 
 	for (auto itr = 0; itr < iterations; ++itr) {
 
-		instance->storeState();
 
-		//TODO: generate and set new parameters
+        for (int i = 0; i < 6; ++i) {
+            parameters[i] = 1;//expo(prng2);
+        }
+        instance->setParameters(&parameters[0], 6);
 
 		auto startTime1 = std::chrono::steady_clock::now();
 
@@ -221,12 +224,6 @@ int main(int argc, char* argv[]) {
 		auto duration1 = std::chrono::steady_clock::now() - startTime1;
 		timer += std::chrono::duration<double, std::milli>(duration1).count();
 
-		bool restore = binomial(prng);
-		if (restore) {
-			instance->restoreState();
-		} else {
-		    instance->acceptState();
-		}
 
 //        auto startTime2 = std::chrono::steady_clock::now();
 

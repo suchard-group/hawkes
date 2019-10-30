@@ -262,7 +262,7 @@ public:
                                  buffer, queue);
     }
 
-    void setParameters(std::vector<double> data, size_t length) override {
+    void setParameters(double* data, size_t length) override {
 		assert(length == 6);
 		sigmaXprec = data[0];
 		tauXprec = data[1];

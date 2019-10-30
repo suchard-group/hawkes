@@ -128,8 +128,6 @@ public:
 
     void storeState() {
     	storedSumOfLikContribs = sumOfLikContribs;
-    	isStoredLikContribsEmpty = true;
-
         sigmaXprec = storedSigmaXprec;
         tauXprec = storedTauXprec;
         tauTprec = storedTauTprec;
@@ -399,16 +397,18 @@ public:
     RealType innerLikelihoodLoop(const int i, const int begin, const int end) {
 
         SimdType sum = SimdType(RealType(0));
+        SimdType zero = SimdType(RealType(0));
+
 
         for (int j = begin; j < end; j += SimdSize) {
 
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            const auto rate = mu0 * tauXprec * tauTprec * math::pdf_new(locDist * tauXprec) *
+            const auto rate = mu0 * pow(tauXprec, embeddingDimension/2) * tauTprec * math::pdf_new(locDist * tauXprec) *
                     math::pdf_new( timDiff*tauTprec ) +
-                    mask(timDiff>0,
-                         xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));;
+                    pow(sigmaXprec, embeddingDimension/2) * theta * mask(timDiff>zero,
+                         xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
             SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
             sum += rate;
@@ -425,19 +425,16 @@ public:
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
-					RealType sumOfRates = xsimd::log(innerLikelihoodLoop<SimdType, SimdSize>(i, 0, vectorCount)) +
-					        theta/omega*(xsimd::exp(-omega*(times[locationCount]-times[i]))-1) -
-					        mu0*(math::phi_new(tauTprec*(times[locationCount]-times[i])) -
-                                    math::phi_new(tauTprec*(-times[i])));
+					RealType sumOfRates = innerLikelihoodLoop<SimdType, SimdSize>(i, 0, vectorCount);
 
                     if (vectorCount < locationCount) { // Edge-cases
-                        sumOfRates += xsimd::log(innerLikelihoodLoop<RealType, 1>(i, vectorCount, locationCount)) +
-                                theta/omega*(xsimd::exp(-omega*(times[locationCount]-times[i]))-1) -
-                                mu0*(math::phi_new(tauTprec*(times[locationCount]-times[i])) -
-                                     math::phi_new(tauTprec*(-times[i])));
+                        sumOfRates += innerLikelihoodLoop<RealType, 1>(i, vectorCount, locationCount);
                     }
 
-                    return sumOfRates;
+                    return log(sumOfRates) +
+                           theta/omega*(xsimd::exp(-omega*(times[locationCount]-times[i]))-1) -
+                           mu0*(xsimd::exp(math::phi_new(tauTprec*(times[locationCount]-times[i]))) -
+                                xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
 
                 }, ParallelType());
 
