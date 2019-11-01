@@ -95,7 +95,7 @@ public:
       };
 
       dLocDists = mm::GPUMemoryManager<RealType>(locDists.size(), ctx);
-      dtimDiffs = mm::GPUMemoryManager<RealType>(timDiffs.size(), ctx);
+      dTimDiffs = mm::GPUMemoryManager<RealType>(timDiffs.size(), ctx);
 
       Rcpp::Rcout << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 

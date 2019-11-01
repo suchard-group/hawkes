@@ -168,7 +168,12 @@ int main(int argc, char* argv[]) {
         for (int j = i + 1; j < locationCount; ++j) {
 
             const double draw = normalData(prng);
-            double distance = 1;//draw * draw;
+            double distance = 1;
+
+//            if(i==0 && j==1){ distance = 1.996679;}//draw * draw;
+//            if(i==0 && j==2){ distance = 1.956614;}//draw * draw;
+//            if(i==1 && j==2){ distance = 3.913225;}//draw * draw;
+
 
             data[i * locationCount + j] = distance;
             data[j * locationCount + i] = distance;
@@ -190,7 +195,7 @@ int main(int argc, char* argv[]) {
 
 	std::vector<double> parameters(6);
     for (int i = 0; i < 6; ++i) {
-        parameters[i] = 1;//expo(prng2);
+        parameters[i] = i+1;//expo(prng2);
     }
 	instance->setParameters(&parameters[0], 6);
 
@@ -212,7 +217,7 @@ int main(int argc, char* argv[]) {
 
 
         for (int i = 0; i < 6; ++i) {
-            parameters[i] = 1;//expo(prng2);
+            parameters[i] = i+1;//expo(prng2);
         }
         instance->setParameters(&parameters[0], 6);
 

@@ -22,15 +22,15 @@ PKG_LIBS += $(shell "${R_HOME}/bin${R_ARCH_BIN}/Rscript.exe" \
 # Uncomment the following line for OpenCL use
 # PKG_LIBS += -L../inst/lib/$(ARCH_DIR) -lOpenCL
 
-SOURCES = MassiveMDS.cpp \
+SOURCES = hpHawkes.cpp \
 	        RcppExports.cpp \
 	        factory.cpp \
 	        backend/opencl/instantiate.cpp
 
-OBJECTS = MassiveMDS.o \
+OBJECTS = hpHawkes.o \
 	        RcppExports.o \
 	        factory.o \
 	        backend/opencl/instantiate.o
 
 all: $(SHLIB)
-$(SHLIB): MassiveMDS.o
+$(SHLIB): hpHawkes.o

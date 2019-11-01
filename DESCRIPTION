@@ -1,10 +1,10 @@
-Package: MassiveMDS
-Title: Massively Parallel Multidimensional Scaling Library
+Package: hpHawkes
+Title: High Performance Hawkes Process Library
 Version: 0.1.0
 Authors@R:
     c(person("Marc A.", "Suchard", email = "msuchard@ucla.edu", role = "aut"),
     person("Andrew J.", "Holbrook", email = "aholbroo@g.ucla.edu", role = c("aut","cre")))
-Description: Facilitates fast Bayesian MDS through GPU, multi-core CPU, and SIMD vectorization powered implementations of the Hamiltonian Monte Carlo algorithm. The package may be built either as a standalone library or as an R package relying on Rcpp.
+Description: Facilitates fast Bayesian inference for Hawkes processes through GPU, multi-core CPU, and SIMD vectorization powered R package relying on Rcpp.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

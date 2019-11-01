@@ -2,45 +2,44 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 rcpp_hello <- function() {
-    .Call('_MassiveMDS_rcpp_hello', PACKAGE = 'MassiveMDS')
+    .Call('_hpHawkes_rcpp_hello', PACKAGE = 'hpHawkes')
 }
 
-#' Create MDS engine object
+#' Create HPH engine object
 #'
-#' Helper function creates MDS engine object with given latent dimension, location count and various
-#' implementation details. Called by \code{MassiveMDS::engineInitial()}.
+#' Helper function creates HPH engine object with given latent dimension, location count and various
+#' implementation details. Called by \code{hpHawkes::engineInitial()}.
 #'
 #' @param embeddingDimension Dimension of latent locations.
 #' @param locationCount Number of locations and size of distance matrix.
 #' @param tbb Number of CPU cores to be used.
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
-#' @param truncation Likelihood includes truncation term? Defaults to \code{TRUE}.
 #' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
 #' @param single Set \code{single=1} if your GPU does not accommodate doubles.
-#' @return MDS engine object.
+#' @return HPH engine object.
 #'
 #' @export
-createEngine <- function(embeddingDimension, locationCount, truncation, tbb, simd, gpu, single) {
-    .Call('_MassiveMDS_createEngine', PACKAGE = 'MassiveMDS', embeddingDimension, locationCount, truncation, tbb, simd, gpu, single)
+createEngine <- function(embeddingDimension, locationCount, tbb, simd, gpu, single) {
+    .Call('_hpHawkes_createEngine', PACKAGE = 'hpHawkes', embeddingDimension, locationCount, tbb, simd, gpu, single)
 }
 
-.setPairwiseData <- function(sexp, data) {
-    invisible(.Call('_MassiveMDS_setPairwiseData', PACKAGE = 'MassiveMDS', sexp, data))
+.setLocDistsData <- function(sexp, data) {
+    invisible(.Call('_hpHawkes_setLocDistsData', PACKAGE = 'hpHawkes', sexp, data))
 }
 
-.updateLocations <- function(sexp, locations) {
-    invisible(.Call('_MassiveMDS_updateLocations', PACKAGE = 'MassiveMDS', sexp, locations))
+.setTimDiffsData <- function(sexp, data) {
+    invisible(.Call('_hpHawkes_setTimDiffsData', PACKAGE = 'hpHawkes', sexp, data))
 }
 
-.setPrecision <- function(sexp, precision) {
-    invisible(.Call('_MassiveMDS_setPrecision', PACKAGE = 'MassiveMDS', sexp, precision))
+.setTimesData <- function(sexp, data) {
+    invisible(.Call('_hpHawkes_setTimesData', PACKAGE = 'hpHawkes', sexp, data))
 }
 
-.getLogLikelihoodGradient <- function(sexp, len) {
-    .Call('_MassiveMDS_getLogLikelihoodGradient', PACKAGE = 'MassiveMDS', sexp, len)
+.setParameters <- function(sexp, parameters) {
+    invisible(.Call('_hpHawkes_setParameters', PACKAGE = 'hpHawkes', sexp, parameters))
 }
 
-.getSumOfIncrements <- function(sexp) {
-    .Call('_MassiveMDS_getSumOfIncrements', PACKAGE = 'MassiveMDS', sexp)
+.getSumOfLikContribs <- function(sexp) {
+    .Call('_hpHawkes_getSumOfLikContribs', PACKAGE = 'hpHawkes', sexp)
 }
 

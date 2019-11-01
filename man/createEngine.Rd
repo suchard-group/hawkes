@@ -2,17 +2,14 @@
 % Please edit documentation in R/RcppExports.R
 \name{createEngine}
 \alias{createEngine}
-\title{Create MDS engine object}
+\title{Create HPH engine object}
 \usage{
-createEngine(embeddingDimension, locationCount, truncation, tbb, simd, gpu,
-  single)
+createEngine(embeddingDimension, locationCount, tbb, simd, gpu, single)
 }
 \arguments{
 \item{embeddingDimension}{Dimension of latent locations.}
 
 \item{locationCount}{Number of locations and size of distance matrix.}
-
-\item{truncation}{Likelihood includes truncation term? Defaults to \code{TRUE}.}
 
 \item{tbb}{Number of CPU cores to be used.}
 
@@ -23,9 +20,9 @@ createEngine(embeddingDimension, locationCount, truncation, tbb, simd, gpu,
 \item{single}{Set \code{single=1} if your GPU does not accommodate doubles.}
 }
 \value{
-MDS engine object.
+HPH engine object.
 }
 \description{
-Helper function creates MDS engine object with given latent dimension, location count and various
-implementation details. Called by \code{MassiveMDS::engineInitial()}.
+Helper function creates HPH engine object with given latent dimension, location count and various
+implementation details. Called by \code{hpHawkes::engineInitial()}.
 }
