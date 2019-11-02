@@ -22,7 +22,7 @@ test(locationCount = 10, threads = 0, simd = 0, gpu = 0,
 Returns MDS log likelihoods (should be equal) and distance between gradients (should be 0).
 }
 \description{
-Compare outputs for serially and parallel-ly computed MDS log likelihoods and gradients across
-a range of implementations for both truncated and non-truncated likelihoods. Randomly generates
+Compare outputs for serially and parallel-ly computed Hawkes process log likelihoods and gradients across
+a range of implementations. Randomly generates
 distance matrix and latent locations.
 }

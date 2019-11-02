@@ -33,5 +33,5 @@ MDS engine object.
 }
 \description{
 Takes data, parameters and implementation details and returns MDS engine object. Used within
-\code{MassiveMDS::hmcsampler()}.
+\code{hpHawkes::hmcsampler()}.
 }

@@ -2,26 +2,23 @@
 % Please edit documentation in R/Untitled.R
 \name{computeLoglikelihood}
 \alias{computeLoglikelihood}
-\title{Serially computed MDS log likelihood and gradient}
+\title{Serially computed Hawkes process log likelihood and gradient}
 \usage{
-computeLoglikelihood(data, locations, precision, truncation = TRUE,
-  gradient = FALSE)
+computeLoglikelihood(locations, times, parameters, gradient = FALSE)
 }
 \arguments{
-\item{data}{A distance matrix.}
+\item{locations}{Matrix of spatial locations (nxp).}
 
-\item{locations}{Object positions in latent space.}
+\item{times}{Vector of times.}
 
-\item{precision}{Precision for MDS likelihood.}
-
-\item{truncation}{Should truncation term be included? Defaults to TRUE.}
+\item{parameters}{Hawkes process parameters (length=6).}
 
 \item{gradient}{Return gradient (or log likelihood)? Defaults to FALSE.}
 }
 \value{
-MDS log likelihood or its gradient.
+Hawkes process log likelihood or its gradient.
 }
 \description{
-Called by \code{MassiveMDS::test()} to compare output with parallel implementations.
+Called by \code{hpHawkes::test()} to compare output with parallel implementations.
 Slow. Not recommended for use.
 }

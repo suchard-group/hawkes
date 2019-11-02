@@ -1,103 +1,33 @@
 
 
-#' Serially computed MDS log likelihood and gradient
+#' Serially computed Hawkes process log likelihood and gradient
 #'
-#' Called by \code{MassiveMDS::test()} to compare output with parallel implementations.
+#' Called by \code{hpHawkes::test()} to compare output with parallel implementations.
 #' Slow. Not recommended for use.
 #'
-#' @param data A distance matrix.
-#' @param locations Object positions in latent space.
-#' @param precision Precision for MDS likelihood.
-#' @param truncation Should truncation term be included? Defaults to TRUE.
+#' @param locations Matrix of spatial locations (nxp).
+#' @param times    Vector of times.
+#' @param parameters Hawkes process parameters (length=6).
 #' @param gradient Return gradient (or log likelihood)? Defaults to FALSE.
-#' @return MDS log likelihood or its gradient.
+#' @return Hawkes process log likelihood or its gradient.
 #'
 #' @export
-computeLoglikelihood <- function(data, locations, precision, truncation = TRUE, gradient = FALSE) {
-
-  locationCount <- dim(data)[1]
-  sd <- 1 / sqrt(precision)
-  logLikelihood <- 0
-  gradlogLikelihood <- 0*locations
-  for (i in 1:locationCount) {
-    for (j in i:locationCount) {
-      if (i != j) {
-        mean <- as.numeric(dist(rbind(locations[i,], locations[j,])))
-        if (gradient) {
-          if(truncation) {
-            gradlogLikelihood[i,] <- gradlogLikelihood[i,] - ((mean-data[i,j])*precision+dnorm(mean/sd)/(sd*pnorm(mean/sd)))*
-              (locations[i,]-locations[j,])/mean
-            gradlogLikelihood[j,] <- gradlogLikelihood[j,] - ((mean-data[i,j])*precision+dnorm(mean/sd)/(sd*pnorm(mean/sd)))*
-              (locations[j,]-locations[i,])/mean
-          } else {
-            gradlogLikelihood[i,] <- gradlogLikelihood[i,] + (data[i,j]-mean)*precision*(locations[i,]-locations[j,])/mean
-            gradlogLikelihood[j,] <- gradlogLikelihood[j,] + (data[i,j]-mean)*precision*(locations[j,]-locations[i,])/mean
-          }
-        } else {
-          logLikelihood <- logLikelihood + dnorm(data[i, j], mean = mean, sd = sd, log = TRUE)
-          if (truncation) {
-            logLikelihood <- logLikelihood - log(pnorm(mean/sd))
-          }
-        }
-      }
-    }
-  }
+computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE) {
 
   if (gradient) {
+    gradLogLikelihood <- NA
     return(gradlogLikelihood)
-  }
-  else {
+  } else {
+    logLikelihood <- log_lik(params=parameters,obs_x=locations,obs_t=times)
     return(logLikelihood)
   }
 }
 
-#' Matrix normal log density and gradient
-#'
-#' Default prior for latent locations.  Called by \code{MassiveMDS::hmcsampler()}.
-#'
-#' @param X An n by p matrix of n p-dimensional latent locations.
-#' @param Mu The n by p mean of the matrix normal.
-#' @param U The n by n covariance matrix.
-#' @param V The p by p covariance matrix.
-#' @param Uinv The inverse of U.
-#' @param Vinv The inverse of V.
-#' @param gradient Return gradient (or log likelihood)? Defaults to FALSE.
-#' @return Matrix normal log density or its gradient.
-#'
-#' @export
-dmatrixnorm <- function(X, Mu = NULL, U, V, Uinv, Vinv, gradient=FALSE) {
-  # n is number of objects
-  # p is latent dimension
-
-  n <- dim(X)[1]
-  p <- dim(X)[2]
-
-  if (!is.null(Mu)) {
-    X <- X - Mu
-  }
-
-  if (gradient) {
-    result <- -0.5*(t(Vinv %*% t(X) %*% Uinv) + Uinv %*% X %*% Vinv)
-    return(unname(result))
-  }
-  else {
-  product <- Vinv %*% t(X) %*% Uinv %*% X
-  exponent <- -0.5 * sum(diag(product))
-
-  logDetV <- determinant(V, logarithm = TRUE)
-  logDetU <- determinant(U, logarithm = TRUE)
-
-  result <- exponent - (n * p / 2) * log(2 * pi) -
-    (n / 2) * logDetV$modulus - (p / 2) * logDetU$modulus
-
-  return(as.vector(result)) # remove attributes
-  }
-}
 
 #' Compare serially and parallel-ly computed log likelihoods and gradients
 #'
-#' Compare outputs for serially and parallel-ly computed MDS log likelihoods and gradients across
-#' a range of implementations for both truncated and non-truncated likelihoods. Randomly generates
+#' Compare outputs for serially and parallel-ly computed Hawkes process log likelihoods and gradients across
+#' a range of implementations. Randomly generates
 #' distance matrix and latent locations.
 #'
 #' @param locationCount Size of distance matrix or number of latent locations.
@@ -111,64 +41,46 @@ dmatrixnorm <- function(X, Mu = NULL, U, V, Uinv, Vinv, gradient=FALSE) {
 test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
 
   embeddingDimension <- 2
-  truncation <- FALSE
 
-  data <- matrix(rnorm(n = locationCount * locationCount, sd = 2),
-                 ncol = locationCount, nrow = locationCount)
-  data <- data * data    # Make positive
-  data <- data + t(data) # Make symmetric
-  diag(data) <- 0        # Make pairwise distance
+  locations <- matrix(rnorm(n = locationCount * embeddingDimension),
+                 ncol = embeddingDimension, nrow = locationCount)
+  times <- seq(from=1, to=locationCount, by=1)
 
-  locations <- matrix(rnorm(n = embeddingDimension * locationCount, sd = 1),
-                      ncol = embeddingDimension, nrow = locationCount)
+  locDists <- as.matrix(dist(locations))
+  timDiffs <- matrix(0,locationCount,locationCount)
+  for(i in 1:locationCount){
+    for(j in 1:locationCount){
+      timDiffs[i,j] <- times[j]-times[i]
+    }
+  }
+  params <- rexp(6)
 
-  cat("no trunc\n")
-  engine <- MassiveMDS::createEngine(embeddingDimension, locationCount, truncation, threads, simd, gpu,single)
-  engine <- MassiveMDS::setPairwiseData(engine, data)
-  engine <- MassiveMDS::updateLocations(engine, locations)
-
-  cat("logliks\n")
-  engine <- MassiveMDS::setPrecision(engine, 2.0)
-  print(MassiveMDS::getLogLikelihood(engine))
-  print(computeLoglikelihood(data, locations, 2.0, truncation))
-
-  engine <- MassiveMDS::setPrecision(engine, 0.5)
-  print(MassiveMDS::getLogLikelihood(engine))
-  print(computeLoglikelihood(data, locations, 0.5, truncation))
-
-  cat("grads (max error)\n")
-  engine <- MassiveMDS::setPrecision(engine, 2.0)
-  print(max(abs(MassiveMDS::getGradient(engine) -
-                  computeLoglikelihood(data, locations, 2.0, truncation,gradient = TRUE))))
-
-  engine <- MassiveMDS::setPrecision(engine, 0.5)
-  print(max(abs(MassiveMDS::getGradient(engine) -
-                  computeLoglikelihood(data, locations, 0.5, truncation,gradient = TRUE))))
-
-  truncation <- TRUE
-
-  engine <- MassiveMDS::createEngine(embeddingDimension, locationCount, truncation, threads, simd,gpu,single)
-  engine <- MassiveMDS::setPairwiseData(engine, data)
-  engine <- MassiveMDS::updateLocations(engine, locations)
+  engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
+  engine <- hpHawkes::setLocDistsData(engine, locDists)
+  engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
+  engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
+  engine <- hpHawkes::setTimesData(engine, times)
+  engine <- hpHawkes::setParameters(engine, params)
+  params2 <- list()
+  params2$h     <- 1/params[1]
+  params2$tau_x <- 1/params[2]
+  params2$tau_t <- 1/params[3]
+  params2$omega <- params[4]
+  params2$theta <- params[5]
+  params2$mu_0  <- params[6]
 
   cat("logliks\n")
-  engine <- MassiveMDS::setPrecision(engine, 2.0)
-  print(MassiveMDS::getLogLikelihood(engine))
-  print(computeLoglikelihood(data, locations, 2.0, truncation))
+  print(hpHawkes::getLogLikelihood(engine))
+  print(computeLoglikelihood(locations=locations,
+                             times=times,
+                             parameters=params2))
 
-  engine <- MassiveMDS::setPrecision(engine, 0.5)
-  print(MassiveMDS::getLogLikelihood(engine))
-  print(computeLoglikelihood(data, locations, 0.5, truncation))
-
-  cat("grads (max error)\n")
-  engine <- MassiveMDS::setPrecision(engine, 2.0)
-  print(max(abs(MassiveMDS::getGradient(engine) -
-                  computeLoglikelihood(data, locations, 2.0, truncation,gradient = TRUE))))
-
-  engine <- MassiveMDS::setPrecision(engine, 0.5)
-  print(max(abs(MassiveMDS::getGradient(engine) -
-                  computeLoglikelihood(data, locations, 0.5, truncation,gradient = TRUE))))
+#  cat("grads (max error)\n")
+ # engine <- hpHawkes::setPrecision(engine, 2.0)
+  #print(max(abs(hpHawkes::getGradient(engine) -
+   #               computeLoglikelihood(data, locations, 2.0, truncation,gradient = TRUE))))
 }
+
 
 #' Time log likelihood and gradient calculations
 #'
@@ -198,15 +110,15 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
 
   locations <- matrix(rnorm(n = embeddingDimension * locationCount, sd = 1),
                       ncol = embeddingDimension, nrow = locationCount)
-  engine <- MassiveMDS::createEngine(embeddingDimension, locationCount, truncation, threads, simd, gpu, single)
-  engine <- MassiveMDS::setPairwiseData(engine, data)
-  engine <- MassiveMDS::updateLocations(engine, locations)
-  engine <- MassiveMDS::setPrecision(engine, 2.0)
+  engine <- hpHawkes::createEngine(embeddingDimension, locationCount, truncation, threads, simd, gpu, single)
+  engine <- hpHawkes::setPairwiseData(engine, data)
+  engine <- hpHawkes::updateLocations(engine, locations)
+  engine <- hpHawkes::setPrecision(engine, 2.0)
 
   ptm <- proc.time()
   for(i in 1:maxIts){
-    MassiveMDS::getLogLikelihood(engine)
-    MassiveMDS::getGradient(engine)
+    hpHawkes::getLogLikelihood(engine)
+    hpHawkes::getGradient(engine)
   }
   proc.time() - ptm
 }
@@ -276,25 +188,25 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
 #
 #   # Build reusable object
 #   truncation <- FALSE
-#   engine <- MassiveMDS::createEngine(embeddingDimension = P,
+#   engine <- hpHawkes::createEngine(embeddingDimension = P,
 #                                     locationCount = N, truncation = truncation)
 #   # Set data once
-#   engine <- MassiveMDS::setPairwiseData(engine, as.matrix(data))
+#   engine <- hpHawkes::setPairwiseData(engine, as.matrix(data))
 #
 #   # Call every time locations change
-#   engine <- MassiveMDS::updateLocations(engine, locations)
+#   engine <- hpHawkes::updateLocations(engine, locations)
 #
 #   # Call every time precision changes
-#   engine <- MassiveMDS::setPrecision(engine, precision = precision)
+#   engine <- hpHawkes::setPrecision(engine, precision = precision)
 #
 #   # Compute the log likelihood (faster, cached)
 #   system.time(
-#     logLikelihood2 <- MassiveMDS::getLogLikelihood(engine)
+#     logLikelihood2 <- hpHawkes::getLogLikelihood(engine)
 #   )
 #
 #   # Compute gradient (faster, but not yet cached)
 #   system.time(
-#     gradient2 <- MassiveMDS::getGradient(engine)
+#     gradient2 <- hpHawkes::getGradient(engine)
 #   )
 # }
 
@@ -376,7 +288,7 @@ getdata <- function(N, locations, file="h3_Deff") { # TEMP EDIT: ADD locations p
 #' Initialize MDS engine object
 #'
 #' Takes data, parameters and implementation details and returns MDS engine object. Used within
-#' \code{MassiveMDS::hmcsampler()}.
+#' \code{hpHawkes::hmcsampler()}.
 #'
 #' @param data N by N distance matrix.
 #' @param locations N by P latent locations.
@@ -395,16 +307,16 @@ engineInitial <- function(data,locations,N,P,
                           precision = 1,threads,simd,truncation,gpu,single) {
 
   # Build reusable object
-  engine <- MassiveMDS::createEngine(embeddingDimension = P,
+  engine <- hpHawkes::createEngine(embeddingDimension = P,
                                     locationCount = N, truncation = truncation, tbb = threads, simd=simd, gpu=gpu, single=single)
   # Set data once
-  engine <- MassiveMDS::setPairwiseData(engine, as.matrix(data))
+  engine <- hpHawkes::setPairwiseData(engine, as.matrix(data))
 
   # Call every time locations change
-  engine <- MassiveMDS::updateLocations(engine, locations)
+  engine <- hpHawkes::updateLocations(engine, locations)
 
   # Call every time precision changes
-  engine <- MassiveMDS::setPrecision(engine, precision = precision)
+  engine <- hpHawkes::setPrecision(engine, precision = precision)
 
   return(engine)
 }
@@ -431,14 +343,14 @@ Potential <- function(engine,locations,treeVcv,traitVcv,treePrec,traitPrec,gradi
     if (gradient) {
     logPriorGrad <- dmatrixnorm(X = locations, U = treeVcv, V = traitVcv,
                                 Uinv=treePrec,Vinv=traitPrec,gradient=gradient)
-    logLikelihoodGrad <- MassiveMDS::getGradient(engine)
+    logLikelihoodGrad <- hpHawkes::getGradient(engine)
 
     return(-(logPriorGrad + logLikelihoodGrad))
   }
   else {
     logPrior <- dmatrixnorm(X = locations, U = treeVcv, V = traitVcv,
                             Uinv=treePrec, Vinv=traitPrec)
-    logLikelihood <- MassiveMDS::getLogLikelihood(engine)
+    logLikelihood <- hpHawkes::getLogLikelihood(engine)
 
     return(-(logPrior+logLikelihood))
   }
@@ -453,7 +365,7 @@ Potential <- function(engine,locations,treeVcv,traitVcv,treePrec,traitPrec,gradi
 #' @param n_iter Number of MCMC iterations.
 #' @param burnIn Number of initial samples to throw away.
 #' @param data Distance matrix.
-#' @param beast \code{beast} object created by \code{MassiveMDS::readbeast()}. Only used for phylogenetic MDS.
+#' @param beast \code{beast} object created by \code{hpHawkes::readbeast()}. Only used for phylogenetic MDS.
 #' @param latentDimension Dimension of latent space. Integer ranging from 2 to 8.
 #' @param distFile For phylogenetic MDS. File contains distance matrix matching \code{.trees} file
 #'        used to build \code{beast} object.
@@ -583,13 +495,13 @@ hmcsampler <- function(n_iter,
 
   # if we want to learn traitPrec use iterate else use fixed matrix
   # to evaluate potential
-  engine <- MassiveMDS::updateLocations(engine, CurrentLocation)
-  engine <- MassiveMDS::setPrecision(engine, precision[1])
+  engine <- hpHawkes::updateLocations(engine, CurrentLocation)
+  engine <- hpHawkes::setPrecision(engine, precision[1])
   CurrentU = Potential(engine,locations,treeVcv=beast$treeVcv,
                       traitVcv = solve(traitPrec[1,,]),
                       treePrec = treePrec, traitPrec = traitPrec[1,,])
 
-  cat(paste0('Initial log-likelihood: ', MassiveMDS::getLogLikelihood(engine), '\n'))
+  cat(paste0('Initial log-likelihood: ', hpHawkes::getLogLikelihood(engine), '\n'))
 
   # track number of likelihood evaluations
   likEvals = likEvals + 1;
@@ -598,8 +510,8 @@ hmcsampler <- function(n_iter,
   for (Iteration in 1:NumOfIterations) {
 
     ProposedLocation = CurrentLocation
-    engine <- MassiveMDS::updateLocations(engine, ProposedLocation)
-    engine <- MassiveMDS::setPrecision(engine, precision[Iteration])
+    engine <- hpHawkes::updateLocations(engine, ProposedLocation)
+    engine <- hpHawkes::setPrecision(engine, precision[Iteration])
 
     # Sample the marginal momentum
     CurrentMomentum = MASS::mvrnorm(N,rep(0,P),matrix(c(1,0,0,1),2,2))
@@ -614,7 +526,7 @@ hmcsampler <- function(n_iter,
       likEvals = likEvals + 1;
 
       ProposedLocation = ProposedLocation + StepSize * ProposedMomentum
-      engine <- MassiveMDS::updateLocations(engine, ProposedLocation)
+      engine <- hpHawkes::updateLocations(engine, ProposedLocation)
       ProposedMomentum = ProposedMomentum - StepSize/2 * Potential(engine,ProposedLocation,beast$treeVcv,solve(traitPrec[Iteration,,]),
                                                                    treePrec=treePrec, traitPrec=traitPrec[Iteration,,], gradient=T)
       likEvals = likEvals + 1;
@@ -667,7 +579,7 @@ hmcsampler <- function(n_iter,
     # MH step for residual precision
     if (learnPrec) {
       prec_star <- abs(runif(1, precision[Iteration] - .01, precision[Iteration] + .01)) # draw from uniform
-      engine <- MassiveMDS::setPrecision(engine, prec_star)
+      engine <- hpHawkes::setPrecision(engine, prec_star)
       ProposedU = Potential(engine,CurrentLocation,beast$treeVcv,solve(traitPrec[Iteration,,]),
                             treePrec = treePrec, traitPrec = traitPrec[Iteration,,])
 
@@ -679,7 +591,7 @@ hmcsampler <- function(n_iter,
         acceptPrec <- acceptPrec + 1
       } else {
         precision[Iteration + 1] <- precision[Iteration]
-        engine <- MassiveMDS::setPrecision(engine, precision[Iteration])
+        engine <- hpHawkes::setPrecision(engine, precision[Iteration])
       }
 
       if (Iteration %% 20 == 0) { # print MH acceptances
@@ -763,7 +675,7 @@ hmcsampler <- function(n_iter,
 #   # Initialize the location
 #   likEvals <- 0;
 #   CurrentLocation <- locations # QUESTION: is this an initialization at truth?
-#   CurrentLogLik <- MassiveMDS::getLogLikelihood(engine)
+#   CurrentLogLik <- hpHawkes::getLogLikelihood(engine)
 #   likEvals = likEvals + 1;
 #
 #   cat(paste0('Initial log-likelihood: ', CurrentLogLik, '\n'))
@@ -798,8 +710,8 @@ hmcsampler <- function(n_iter,
 #       # Get proposal and evaluate logLik
 #       ProposedLocation <- CurrentLocation*cos(thetaMax) +
 #         nu*sin(thetaMax)
-#       engine <- MassiveMDS::updateLocations(engine, ProposedLocation)
-#       ProposedLogLik <- MassiveMDS::getLogLikelihood(engine)
+#       engine <- hpHawkes::updateLocations(engine, ProposedLocation)
+#       ProposedLogLik <- hpHawkes::getLogLikelihood(engine)
 #       likEvals = likEvals + 1;
 #
 #       if (ProposedLogLik > threshold) {
@@ -875,8 +787,8 @@ hmcsampler <- function(n_iter,
 #   # Build reusable object to compute Loglikelihood (gradient)
 #   engine <- engineInitial(data,locations,N,P, mdsPrecision)
 #
-#   y <- MassiveMDS::getLogLikelihood(engine)
-#   y_gradient <- MassiveMDS::getGradient(engine)
+#   y <- hpHawkes::getLogLikelihood(engine)
+#   y_gradient <- hpHawkes::getGradient(engine)
 #
 #   return(list(estimates = c(x,beast$log$loc.traitLikelihood, y, beast$log$mdsLikelihood),
 #               x_gradient = x_gradient[inverse_permutation,],

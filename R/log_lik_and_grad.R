@@ -1,6 +1,3 @@
-# setwd('~/hawkes_proto/')
-#
-# library(mvtnorm)
 
 bg_rate <- function (x,t,params,obs_x,obs_t) {
   # takes the following inputs and returns the background rate
@@ -10,7 +7,6 @@ bg_rate <- function (x,t,params,obs_x,obs_t) {
   # params is list of model parameters
   # obs_x is nxd matrix of observed positions
   # obs_t is n vector of observed times
-
   mu_0 <- params$mu_0
 
   tau_x    <- params$tau_x
@@ -87,7 +83,6 @@ log_lik <- function (params,obs_x,obs_t) {
   }
 
   integ <- integral(params, obs_x, obs_t)
-
   return( non_int-integ )
 }
 

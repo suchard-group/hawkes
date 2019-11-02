@@ -18,7 +18,7 @@ hmcsampler(n_iter, burnIn = 0, data = NULL, beast = NULL,
 
 \item{data}{Distance matrix.}
 
-\item{beast}{\code{beast} object created by \code{MassiveMDS::readbeast()}. Only used for phylogenetic MDS.}
+\item{beast}{\code{beast} object created by \code{hpHawkes::readbeast()}. Only used for phylogenetic MDS.}
 
 \item{latentDimension}{Dimension of latent space. Integer ranging from 2 to 8.}
 
