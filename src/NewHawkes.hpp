@@ -180,60 +180,44 @@ public:
         mu0 = data[5];
     }
 
-//	void getLogLikelihoodGradient(double* result, size_t length) {
-//
-//		assert (length == locationCount * embeddingDimension);
-//
-//        // TODO Cache values
-//
-//		if (isLeftTruncated) { // run-time dispatch to compile-time optimization
-//			if (embeddingDimension == 2) {
-//				computeLogLikelihoodGradientGeneric<true, typename TypeInfo::SimdType, TypeInfo::SimdSize, NonGeneric>();
-//			} else {
-//				computeLogLikelihoodGradientGeneric<true, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
-//			}
-//		} else {
-//			if (embeddingDimension == 2) {
-//				computeLogLikelihoodGradientGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, NonGeneric>();
-//			} else {
-//				computeLogLikelihoodGradientGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
-//			}
-//		}
-//
-//		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
-//    }
+	void getLogLikelihoodGradient(double* result, size_t length) {
 
-//	template <bool withTruncation, typename SimdType, int SimdSize, typename Algorithm>
-//    void computeLogLikelihoodGradientGeneric() {
-//
-//        const auto length = locationCount * embeddingDimension;
-//        if (length != gradientPtr->size()) {
-//            gradientPtr->resize(length);
-//        }
-//
-//        std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
-//                  static_cast<RealType>(0.0));
-//
-//        //const auto dim = embeddingDimension;
-//        //RealType* gradient = gradientPtr->data();
-//        const RealType scale = precision;
-//
-//        for_each(0, locationCount, [this, scale](const int i) { // [gradient,dim]
-//
-//			const int vectorCount = locationCount - locationCount % SimdSize;
-//
-//			DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-//
-//			innerGradientLoop<withTruncation, SimdType, SimdSize>(dispatch, scale, i, 0, vectorCount);
-//
-//			if (vectorCount < locationCount) { // Edge-cases
-//
-//				DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-//
-//				innerGradientLoop<withTruncation, RealType, 1>(dispatch, scale, i, vectorCount, locationCount);
-//			}
-//        }, ParallelType());
-//    }
+		assert (length == 6);
+		computeLogLikelihoodGradientGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
+    }
+
+	template <bool withTruncation, typename SimdType, int SimdSize, typename Algorithm>
+    void computeLogLikelihoodGradientGeneric() {
+
+        const auto length = locationCount * embeddingDimension;
+        if (length != gradientPtr->size()) {
+            gradientPtr->resize(length);
+        }
+
+        std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
+                  static_cast<RealType>(0.0));
+
+        //const auto dim = embeddingDimension;
+        //RealType* gradient = gradientPtr->data();
+        const RealType scale = precision;
+
+        for_each(0, locationCount, [this, scale](const int i) { // [gradient,dim]
+
+			const int vectorCount = locationCount - locationCount % SimdSize;
+
+			DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+
+			innerGradientLoop<withTruncation, SimdType, SimdSize>(dispatch, scale, i, 0, vectorCount);
+
+			if (vectorCount < locationCount) { // Edge-cases
+
+				DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+
+				innerGradientLoop<withTruncation, RealType, 1>(dispatch, scale, i, vectorCount, locationCount);
+			}
+        }, ParallelType());
+    }
 
 #ifdef USE_SIMD
 
@@ -394,7 +378,7 @@ public:
 #endif
 
     template <typename SimdType, int SimdSize>
-    RealType innerLikelihoodLoop(const int i, const int begin, const int end) {
+    RealType ratesLoop(const int i, const int begin, const int end) {
 
         SimdType sum = SimdType(RealType(0));
         SimdType zero = SimdType(RealType(0));
@@ -418,6 +402,33 @@ public:
     }
 
     template <typename SimdType, int SimdSize, typename Algorithm>
+    void computeRatesVector() {
+
+        const auto length = locationCount;
+        if (length != ratesVectorPtr->size()) {
+            ratesVectorPtr->resize(length);
+        }
+
+        std::fill(std::begin(*ratesVectorPtr), std::end(*ratesVectorPtr),
+                  static_cast<RealType>(0.0));
+
+        for_each(0, locationCount, [this](const int i) { // [gradient,dim]
+
+            const int vectorCount = locationCount - locationCount % SimdSize;
+
+            RealType sumOfRates = ratesLoop<SimdType, SimdSize>(i, 0, vectorCount);
+
+            if (vectorCount < locationCount) { // Edge-cases
+                sumOfRates += ratesLoop<RealType, 1>(i, vectorCount, locationCount);
+            }
+
+            (*ratesVectorPtr)[i] += sumOfRates;
+
+        }, ParallelType());
+
+	}
+
+    template <typename SimdType, int SimdSize, typename Algorithm>
     void computeSumOfLikContribsGeneric() {
 
         RealType delta =
@@ -425,10 +436,10 @@ public:
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
-					RealType sumOfRates = innerLikelihoodLoop<SimdType, SimdSize>(i, 0, vectorCount);
+					RealType sumOfRates = ratesLoop<SimdType, SimdSize>(i, 0, vectorCount);
 
                     if (vectorCount < locationCount) { // Edge-cases
-                        sumOfRates += innerLikelihoodLoop<RealType, 1>(i, vectorCount, locationCount);
+                        sumOfRates += ratesLoop<RealType, 1>(i, vectorCount, locationCount);
                     }
 
                     return xsimd::log(sumOfRates) +
@@ -596,10 +607,13 @@ private:
     mm::MemoryManager<RealType> likContribs;
     mm::MemoryManager<RealType> storedLikContribs;
 
-//    mm::MemoryManager<RealType> gradient0;
+    mm::MemoryManager<RealType> ratesVector;
+    mm::MemoryManager<RealType>* ratesVectorPtr;
+
+    mm::MemoryManager<RealType> gradient;
 //    mm::MemoryManager<RealType> gradient1;
 //
-//    mm::MemoryManager<RealType>* gradientPtr;
+    mm::MemoryManager<RealType>* gradientPtr;
 //    mm::MemoryManager<RealType>* storedGradientPtr;
 
     mm::MemoryManager<double> buffer;

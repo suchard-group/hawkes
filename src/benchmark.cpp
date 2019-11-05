@@ -190,22 +190,16 @@ int main(int argc, char* argv[]) {
     }
     instance->setTimDiffsData(&data[0], elementCount);
 
-
-//    int gradientIndex = 1;
-
 	std::vector<double> parameters(6);
     for (int i = 0; i < 6; ++i) {
         parameters[i] = i+1;//expo(prng2);
     }
 	instance->setParameters(&parameters[0], 6);
 
-//	instance->makeDirty();
 	auto logLik = instance->getSumOfLikContribs();
 
-//    std::vector<double> gradient(locationCount * dataDimension);
-
-//    instance->getLogLikelihoodGradient(gradient.data(), locationCount * dataDimension);
-//    double sumGradient = gradient[gradientIndex];
+	auto gradient = instance->getLogLikelihoodGradient();
+    auto sumGradient = gradient;
 
 	std::cout << "Starting HPH benchmark" << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
@@ -230,25 +224,27 @@ int main(int argc, char* argv[]) {
 		timer += std::chrono::duration<double, std::milli>(duration1).count();
 
 
-//        auto startTime2 = std::chrono::steady_clock::now();
+        auto startTime2 = std::chrono::steady_clock::now();
 
-//        instance->getLogLikelihoodGradient(gradient.data(), locationCount * dataDimension);
+        auto gradient = instance->getLogLikelihoodGradient();
 
-//        auto duration2 = std::chrono::steady_clock::now() - startTime2;
-//        timer2 += std::chrono::duration<double, std::milli>(duration2).count();
+        auto duration2 = std::chrono::steady_clock::now() - startTime2;
+        timer2 += std::chrono::duration<double, std::milli>(duration2).count();
 
-//        sumGradient += gradient[gradientIndex];
+        std::transform(sumGradient.begin(),sumGradient.end(),
+                gradient.begin(),sumGradient.begin(),std::plus<double>());
 
 	}
 	logLik /= iterations + 1;
-//    sumGradient /= iterations + 1;
+ //   sumGradient /= iterations + 1;
 
 	auto endTime = std::chrono::steady_clock::now();
 	auto duration = endTime - startTime;
 
 	std::cout << "End HPH benchmark" << std::endl;
 	std::cout << "AvgLogLik = " << logLik << std::endl;
-//    std::cout << "AvgSumGradient = " << sumGradient << std::endl;
+    std::cout << "AvgGradient = " << sumGradient[0] << sumGradient[1] << sumGradient[2] <<
+    sumGradient[3] << sumGradient[4] << sumGradient[5] << std::endl;
 	std::cout << timer  << " ms" << std::endl;
     std::cout << timer2 << " ms" << std::endl;
 
