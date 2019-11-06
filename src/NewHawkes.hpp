@@ -92,6 +92,9 @@ public:
           likContribs(locationCount),
           storedLikContribs(locationCount),
 
+          gradientPtr(&gradient),
+          ratesVectorPtr(&ratesVector),
+
           isStoredLikContribsEmpty(false),
 
           nThreads(threads)
@@ -181,16 +184,15 @@ public:
     }
 
 	void getLogLikelihoodGradient(double* result, size_t length) {
-
 		assert (length == 6);
-		computeLogLikelihoodGradientGeneric<false, typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+		computeLogLikelihoodGradientGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
 		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
     }
 
-	template <bool withTruncation, typename SimdType, int SimdSize, typename Algorithm>
+	template <typename SimdType, int SimdSize, typename Algorithm>
     void computeLogLikelihoodGradientGeneric() {
 
-        const auto length = locationCount * embeddingDimension;
+        const auto length = 6;
         if (length != gradientPtr->size()) {
             gradientPtr->resize(length);
         }
@@ -198,25 +200,27 @@ public:
         std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
                   static_cast<RealType>(0.0));
 
-        //const auto dim = embeddingDimension;
-        //RealType* gradient = gradientPtr->data();
-        const RealType scale = precision;
+        computeRatesVector<SimdType, SimdSize, Generic>();
 
-        for_each(0, locationCount, [this, scale](const int i) { // [gradient,dim]
+        // theta derivative
+        RealType thetaGrad =
+                accumulate(0, locationCount, RealType(0), [this](const int i) {
 
-			const int vectorCount = locationCount - locationCount % SimdSize;
+                    const int vectorCount = locationCount - locationCount % SimdSize;
 
-			DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+                    RealType sumOfRates = innerThetaGradLoop<SimdType, SimdSize>(i, 0, vectorCount);
 
-			innerGradientLoop<withTruncation, SimdType, SimdSize>(dispatch, scale, i, 0, vectorCount);
+                    if (vectorCount < locationCount) { // Edge-cases
+                        sumOfRates += innerThetaGradLoop<RealType, 1>(i, vectorCount, locationCount);
+                    }
 
-			if (vectorCount < locationCount) { // Edge-cases
+                    return sumOfRates/(*ratesVectorPtr)[i] +
+                           1/omega*(xsimd::exp(-omega*(times[locationCount-1]-times[i]))-1);
 
-				DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+                }, ParallelType());
 
-				innerGradientLoop<withTruncation, RealType, 1>(dispatch, scale, i, vectorCount, locationCount);
-			}
-        }, ParallelType());
+        (*gradientPtr)[4] += thetaGrad;
+
     }
 
 #ifdef USE_SIMD
@@ -401,6 +405,27 @@ public:
         return reduce(sum);
     }
 
+    template <typename SimdType, int SimdSize>
+    RealType innerThetaGradLoop(const int i, const int begin, const int end) {
+
+        SimdType sum = SimdType(RealType(0));
+        SimdType zero = SimdType(RealType(0));
+
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+            const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
+
+            const auto rate = pow(sigmaXprec, embeddingDimension) * mask(timDiff>zero,
+                    xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
+
+            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+        }
+
+        return reduce(sum);
+    }
+
     template <typename SimdType, int SimdSize, typename Algorithm>
     void computeRatesVector() {
 
@@ -412,7 +437,7 @@ public:
         std::fill(std::begin(*ratesVectorPtr), std::end(*ratesVectorPtr),
                   static_cast<RealType>(0.0));
 
-        for_each(0, locationCount, [this](const int i) { // [gradient,dim]
+        for_each(0, locationCount, [this](const int i) {
 
             const int vectorCount = locationCount - locationCount % SimdSize;
 
@@ -611,10 +636,7 @@ private:
     mm::MemoryManager<RealType>* ratesVectorPtr;
 
     mm::MemoryManager<RealType> gradient;
-//    mm::MemoryManager<RealType> gradient1;
-//
     mm::MemoryManager<RealType>* gradientPtr;
-//    mm::MemoryManager<RealType>* storedGradientPtr;
 
     mm::MemoryManager<double> buffer;
 

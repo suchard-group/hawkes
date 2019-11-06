@@ -152,6 +152,9 @@ public:
 
     int getInternalDimension() override { return OpenCLRealType::dim; }
 
+    void getLogLikelihoodGradient(double* result, size_t length) override {
+        std::cerr << "nothing to see here, move along now" << std::endl;
+    }
 //	void getLogLikelihoodGradient(double* result, size_t length) override {
 //
 //		kernelGradientVector.set_arg(0, *dLocationsPtr);

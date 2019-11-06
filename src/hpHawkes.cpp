@@ -136,13 +136,13 @@ void setParameters(SEXP sexp, std::vector<double>& parameters) {
   ptr->setParameters(&parameters[0], parameters.size());
 }
 
-// // [[Rcpp::export(.getLogLikelihoodGradient)]]
-// std::vector<double> getLogLikelihoodGradient(SEXP sexp, size_t len) {
-//   auto ptr = parsePtr(sexp);
-//   std::vector<double> result(len);
-//   ptr->getLogLikelihoodGradient(&result[0], len);
-//   return result;
-// }
+// [[Rcpp::export(.getLogLikelihoodGradient)]]
+std::vector<double> getLogLikelihoodGradient(SEXP sexp, size_t len) {
+  auto ptr = parsePtr(sexp);
+  std::vector<double> result(len);
+  ptr->getLogLikelihoodGradient(&result[0], len);
+  return result;
+}
 
 // [[Rcpp::export(.getSumOfLikContribs)]]
 double getSumOfLikContribs(SEXP sexp) {

@@ -40,7 +40,7 @@ public:
 
     // Interface
     virtual double getSumOfLikContribs() = 0;
-    virtual std::vector<double> getLogLikelihoodGradient() = 0;
+    virtual void getLogLikelihoodGradient(double*, size_t) = 0;
     virtual void storeState() = 0;
     virtual void restoreState() = 0;
     virtual void acceptState() = 0;
@@ -48,7 +48,6 @@ public:
     virtual void setTimDiffsData(double*, size_t)  = 0;
     virtual void setTimesData(double*, size_t)  = 0;
     virtual void setParameters(double*, size_t) = 0;
-//    virtual void makeDirty() = 0;
     virtual int getInternalDimension() = 0;
 
 protected:
@@ -58,8 +57,6 @@ protected:
     long flags;
 
     int updatedLocation = -1;
-    bool incrementsKnown = false;
-    bool sumOfIncrementsKnown = false;
 };
 
 typedef std::shared_ptr<hph::AbstractHawkes> SharedPtr;

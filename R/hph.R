@@ -34,31 +34,34 @@ getLogLikelihood <- function(engine) {
   return(logLikelihood)
 }
 
-#' #' Helper MDS log likelihood gradient function
-#' #'
-#' #' Takes MDS engine object and returns log likelihood gradient.
-#' #'
-#' #' @param engine An MDS engine object.
-#' #' @return MDS log likelihood gradient.
-#' #'
-#' #' @export
-#' getGradient <- function(engine) {
+#' Helper HPH log likelihood gradient function
 #'
-#'   if (!engine$dataInitialized) {
-#'     stop("data are not set")
-#'   }
+#' Takes HPH engine object and returns log likelihood gradient.
 #'
-#'   if (!engine$locationsInitialized) {
-#'     stop("locations are not set")
-#'   }
+#' @param engine An HPH engine object.
+#' @return HPH log likelihood gradient.
 #'
-#'   if (is.null(engine$precision)) {
-#'     stop("precision is not set")
-#'   }
-#'
-#'   matrix(.getLogLikelihoodGradient(engine$engine, engine$locationCount * engine$embeddingDimension),
-#'          nrow = engine$locationCount, byrow = TRUE)
-#' }
+#' @export
+getGradient <- function(engine) {
+
+  if (!engine$locDistsInitialized) {
+    stop("locations distance matrix not set")
+  }
+
+  if (!engine$timDiffsInitialized) {
+    stop("times difference matrix not set")
+  }
+
+  if (!engine$timesInitialized) {
+    stop("times not set")
+  }
+
+  if (is.null(engine$parameters)) {
+    stop("parameters not set")
+  }
+
+  .getLogLikelihoodGradient(engine$engine, 6)
+}
 
 #' Deliver parameters to HPH engine object
 #'

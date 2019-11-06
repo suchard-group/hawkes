@@ -15,8 +15,9 @@
 computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE) {
 
   if (gradient) {
-    gradLogLikelihood <- NA
-    return(gradlogLikelihood)
+    gradLogLikelihood <- rep(0,6)
+    gradLogLikelihood[5] <- num_grad("theta",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
+    return(gradLogLikelihood)
   } else {
     logLikelihood <- log_lik(params=parameters,obs_x=locations,obs_t=times)
     return(logLikelihood)
@@ -75,10 +76,11 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
                              times=times,
                              parameters=params2))
 
-#  cat("grads (max error)\n")
- # engine <- hpHawkes::setPrecision(engine, 2.0)
-  #print(max(abs(hpHawkes::getGradient(engine) -
-   #               computeLoglikelihood(data, locations, 2.0, truncation,gradient = TRUE))))
+ cat("grads\n")
+print(hpHawkes::getGradient(engine))
+print(computeLoglikelihood(locations=locations,
+                           times=times,
+                           parameters=params2,gradient = TRUE))
 }
 
 

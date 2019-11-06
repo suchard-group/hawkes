@@ -75,6 +75,18 @@ BEGIN_RCPP
     return R_NilValue;
 END_RCPP
 }
+// getLogLikelihoodGradient
+std::vector<double> getLogLikelihoodGradient(SEXP sexp, size_t len);
+RcppExport SEXP _hpHawkes_getLogLikelihoodGradient(SEXP sexpSEXP, SEXP lenSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type sexp(sexpSEXP);
+    Rcpp::traits::input_parameter< size_t >::type len(lenSEXP);
+    rcpp_result_gen = Rcpp::wrap(getLogLikelihoodGradient(sexp, len));
+    return rcpp_result_gen;
+END_RCPP
+}
 // getSumOfLikContribs
 double getSumOfLikContribs(SEXP sexp);
 RcppExport SEXP _hpHawkes_getSumOfLikContribs(SEXP sexpSEXP) {
@@ -94,6 +106,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpHawkes_setTimDiffsData", (DL_FUNC) &_hpHawkes_setTimDiffsData, 2},
     {"_hpHawkes_setTimesData", (DL_FUNC) &_hpHawkes_setTimesData, 2},
     {"_hpHawkes_setParameters", (DL_FUNC) &_hpHawkes_setParameters, 2},
+    {"_hpHawkes_getLogLikelihoodGradient", (DL_FUNC) &_hpHawkes_getLogLikelihoodGradient, 2},
     {"_hpHawkes_getSumOfLikContribs", (DL_FUNC) &_hpHawkes_getSumOfLikContribs, 1},
     {NULL, NULL, 0}
 };

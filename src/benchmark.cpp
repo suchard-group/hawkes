@@ -198,7 +198,8 @@ int main(int argc, char* argv[]) {
 
 	auto logLik = instance->getSumOfLikContribs();
 
-	auto gradient = instance->getLogLikelihoodGradient();
+    std::vector<double> gradient(6);
+	instance->getLogLikelihoodGradient(gradient.data(),6);
     auto sumGradient = gradient;
 
 	std::cout << "Starting HPH benchmark" << std::endl;
@@ -226,7 +227,7 @@ int main(int argc, char* argv[]) {
 
         auto startTime2 = std::chrono::steady_clock::now();
 
-        auto gradient = instance->getLogLikelihoodGradient();
+        instance->getLogLikelihoodGradient(gradient.data(),6);
 
         auto duration2 = std::chrono::steady_clock::now() - startTime2;
         timer2 += std::chrono::duration<double, std::milli>(duration2).count();
@@ -243,8 +244,8 @@ int main(int argc, char* argv[]) {
 
 	std::cout << "End HPH benchmark" << std::endl;
 	std::cout << "AvgLogLik = " << logLik << std::endl;
-    std::cout << "AvgGradient = " << sumGradient[0] << sumGradient[1] << sumGradient[2] <<
-    sumGradient[3] << sumGradient[4] << sumGradient[5] << std::endl;
+    std::cout << "AvgGradient = " << "(" << sumGradient[0] << ", " << sumGradient[1] << ", " <<  sumGradient[2] << ", " <<
+    sumGradient[3] << ", " <<  sumGradient[4] << ", " <<  sumGradient[5] << ")" <<  std::endl;
 	std::cout << timer  << " ms" << std::endl;
     std::cout << timer2 << " ms" << std::endl;
 
