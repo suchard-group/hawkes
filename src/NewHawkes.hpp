@@ -506,22 +506,22 @@ public:
     RealType innerTauXGradLoop(const int i, const int begin, const int end) {
 
         SimdType sum = SimdType(RealType(0));
-        SimdType zero = SimdType(RealType(0));
-
+        const SimdType zero = SimdType(RealType(0));
+        const SimdType tauXprec2 = SimdType(tauXprec * tauXprec);
 
         for (int j = begin; j < end; j += SimdSize) {
 
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            const auto rate = pow(tauXprec, embeddingDimension+1) *
-                    (pow(tauXprec*locDist, 2)-embeddingDimension)* tauTprec *
-                    math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
+            const auto rate =
+                    (tauXprec2 * locDist * locDist - embeddingDimension) *
+                    math::pdf_new(locDist * tauXprec) * math::pdf_new(timDiff * tauTprec);
 
             sum += rate;
         }
 
-        return reduce(sum);
+        return reduce(sum) * pow(tauXprec, embeddingDimension + 1) * tauTprec;
     }
 
 
