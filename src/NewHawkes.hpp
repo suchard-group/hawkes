@@ -220,7 +220,7 @@ public:
 
         (*gradientPtr)[0] += sigmaXGrad;
 
-        // sigmaX derivative
+        // tauX derivative
         RealType tauXGrad =
                 accumulate(0, locationCount, RealType(0), [this](const int i) {
 
@@ -237,6 +237,28 @@ public:
                 }, ParallelType());
 
         (*gradientPtr)[1] += tauXGrad;
+
+        // tauT derivative
+        RealType tauTGrad =
+                accumulate(0, locationCount, RealType(0), [this](const int i) {
+
+                    const int vectorCount = locationCount - locationCount % SimdSize;
+
+                    RealType sumOfRates = innerTauTGradLoop<SimdType, SimdSize>(i, 0, vectorCount);
+
+                    if (vectorCount < locationCount) { // Edge-cases
+                        sumOfRates += innerTauTGradLoop<RealType, 1>(i, vectorCount, locationCount);
+                    }
+
+                    return mu0 * (sumOfRates / (*ratesVectorPtr)[i] +
+                                 pow(tauTprec,2)*
+                                 (math::pdf_new(tauTprec*(times[locationCount-1]-times[i]))*
+                                         (times[locationCount-1]-times[i])+
+                                         math::pdf_new(tauTprec*times[i])*times[i]));
+
+                }, ParallelType());
+
+        (*gradientPtr)[2] += tauTGrad;
 
         // theta derivative
         RealType thetaGrad =
@@ -517,6 +539,28 @@ public:
             const auto rate = pow(tauXprec, embeddingDimension+1) *
                     (pow(tauXprec*locDist, 2)-embeddingDimension)* tauTprec *
                     math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
+
+            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+        }
+
+        return reduce(sum);
+    }
+
+    template <typename SimdType, int SimdSize>
+    RealType innerTauTGradLoop(const int i, const int begin, const int end) {
+
+        SimdType sum = SimdType(RealType(0));
+        SimdType zero = SimdType(RealType(0));
+
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+            const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
+
+            const auto rate = pow(tauXprec, embeddingDimension) * pow(tauTprec, 2) *
+                              (pow(tauTprec*timDiff, 2)-1) *
+                              math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
 
             sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
         }
