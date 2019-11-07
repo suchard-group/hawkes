@@ -518,7 +518,7 @@ public:
                     (pow(tauXprec*locDist, 2)-embeddingDimension)* tauTprec *
                     math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
 
-            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+            sum += rate;
         }
 
         return reduce(sum);
