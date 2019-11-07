@@ -259,6 +259,25 @@ public:
 
         (*gradientPtr)[3] += omegaGrad;
 
+        // theta derivative
+        RealType mu0Grad =
+                accumulate(0, locationCount, RealType(0), [this](const int i) {
+
+                    const int vectorCount = locationCount - locationCount % SimdSize;
+
+                    RealType sumOfRates = innerMu0GradLoop<SimdType, SimdSize>(i, 0, vectorCount);
+
+                    if (vectorCount < locationCount) { // Edge-cases
+                        sumOfRates += innerMu0GradLoop<RealType, 1>(i, vectorCount, locationCount);
+                    }
+
+                    return sumOfRates/(*ratesVectorPtr)[i] -
+                            (xsimd::exp(math::phi_new(tauTprec*(times[locationCount-1]-times[i]))) -
+                             xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
+
+                }, ParallelType());
+
+        (*gradientPtr)[5] += mu0Grad;
     }
 
 #ifdef USE_SIMD
@@ -560,6 +579,27 @@ public:
         sumOfLikContribs = delta;
     }
 
+    template <typename SimdType, int SimdSize>
+    RealType innerMu0GradLoop(const int i, const int begin, const int end) {
+
+        SimdType sum = SimdType(RealType(0));
+        SimdType zero = SimdType(RealType(0));
+
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+            const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
+
+            const auto rate = pow(tauXprec, embeddingDimension) * tauTprec *
+                              math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
+
+            //SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
+            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+        }
+
+        return reduce(sum);
+    }
 
 // Parallelization helper functions
 
