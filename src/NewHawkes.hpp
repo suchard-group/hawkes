@@ -253,7 +253,7 @@ public:
                     return mu0 * (sumOfRates / (*ratesVectorPtr)[i] +
                                  pow(tauTprec,2)*
                                  (math::pdf_new(tauTprec*(times[locationCount-1]-times[i]))*
-                                         (times[locationCount-1]-times[i])+
+                                         (times[locationCount-1]-times[i]) +
                                          math::pdf_new(tauTprec*times[i])*times[i]));
 
                 }, ParallelType());
@@ -482,7 +482,9 @@ public:
     RealType ratesLoop(const int i, const int begin, const int end) {
 
         SimdType sum = SimdType(RealType(0));
-        SimdType zero = SimdType(RealType(0));
+        const SimdType zero = SimdType(RealType(0));
+        const SimdType tauXprecD = SimdType(pow(tauXprec, embeddingDimension));
+        const SimdType sigmaXprecD = SimdType(pow(sigmaXprec, embeddingDimension));
 
 
         for (int j = begin; j < end; j += SimdSize) {
@@ -490,9 +492,9 @@ public:
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            const auto rate = mu0 * pow(tauXprec, embeddingDimension) * tauTprec *
+            const auto rate = mu0 * tauXprecD * tauTprec *
                     math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec ) +
-                    pow(sigmaXprec, embeddingDimension) * theta * mask(timDiff>zero,
+                    sigmaXprecD * theta * mask(timDiff>zero,
                          xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
             //SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
@@ -506,7 +508,7 @@ public:
     RealType innerSigmaXGradLoop(const int i, const int begin, const int end) {
 
         SimdType sum = SimdType(RealType(0));
-        SimdType zero = SimdType(RealType(0));
+        const SimdType zero = SimdType(RealType(0));
 
 
         for (int j = begin; j < end; j += SimdSize) {
@@ -562,7 +564,7 @@ public:
                               (pow(tauTprec*timDiff, 2)-1) *
                               math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
 
-            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+            sum += rate ;//* pow(M_1_SQRT_2PI, (embeddingDimension-1));
         }
 
         return reduce(sum);
