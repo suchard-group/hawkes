@@ -202,6 +202,24 @@ public:
 
         computeRatesVector<SimdType, SimdSize, Generic>();
 
+        // sigmaX derivative
+        RealType sigmaXGrad =
+                accumulate(0, locationCount, RealType(0), [this](const int i) {
+
+                    const int vectorCount = locationCount - locationCount % SimdSize;
+
+                    RealType sumOfRates = innerSigmaXGradLoop<SimdType, SimdSize>(i, 0, vectorCount);
+
+                    if (vectorCount < locationCount) { // Edge-cases
+                        sumOfRates += innerSigmaXGradLoop<RealType, 1>(i, vectorCount, locationCount);
+                    }
+
+                    return theta * sumOfRates / (*ratesVectorPtr)[i];
+
+                }, ParallelType());
+
+        (*gradientPtr)[0] += sigmaXGrad;
+
         // theta derivative
         RealType thetaGrad =
                 accumulate(0, locationCount, RealType(0), [this](const int i) {
@@ -424,6 +442,29 @@ public:
 
         return reduce(sum);
     }
+
+    template <typename SimdType, int SimdSize>
+    RealType innerSigmaXGradLoop(const int i, const int begin, const int end) {
+
+        SimdType sum = SimdType(RealType(0));
+        SimdType zero = SimdType(RealType(0));
+
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+            const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
+
+            const auto rate = pow(sigmaXprec, embeddingDimension+1) * mask(timDiff>zero,
+                    (pow(sigmaXprec*locDist, 2)-embeddingDimension)*
+                    xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
+
+            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+        }
+
+        return reduce(sum);
+    }
+
 
     template <typename SimdType, int SimdSize>
     RealType innerOmegaGradLoop(const int i, const int begin, const int end) {
