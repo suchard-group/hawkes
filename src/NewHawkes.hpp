@@ -456,7 +456,7 @@ public:
                          xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
             //SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
-            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+            sum += rate;
         }
 
         return reduce(sum);
@@ -478,7 +478,7 @@ public:
                     (pow(sigmaXprec*locDist, 2)-embeddingDimension)*
                     xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
-            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+            sum += rate;
         }
 
         return reduce(sum);
@@ -500,7 +500,7 @@ public:
             const auto rate = pow(sigmaXprec, embeddingDimension) * mask(timDiff>zero,
                     timDiff*xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
-            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+            sum += rate;
         }
 
         return reduce(sum);
@@ -522,7 +522,7 @@ public:
             const auto rate = pow(sigmaXprec, embeddingDimension) * mask(timDiff>zero,
                     xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
-            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+            sum += rate;
         }
 
         return reduce(sum);
@@ -576,7 +576,7 @@ public:
 
                 }, ParallelType());
 
-        sumOfLikContribs = delta;
+        sumOfLikContribs = delta + locationCount * (embeddingDimension - 1) * log(M_1_SQRT_2PI);
     }
 
     template <typename SimdType, int SimdSize>
@@ -595,7 +595,7 @@ public:
                               math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
 
             //SimdHelper<SimdType, RealType>::put(rate, &likContribs[i * locationCount + j]);
-            sum += rate * pow(M_1_SQRT_2PI, (embeddingDimension-1));
+            sum += rate;
         }
 
         return reduce(sum);
