@@ -503,6 +503,37 @@ public:
         return reduce(sum);
     }
 
+    template <typename SimdType, int SimdSize, int N>
+    std::array<RealType, N> innerLoop1(const int i, const int begin, const int end) {
+
+	    std::array<SimdType, N> sum = std::array<SimdType, N>(RealType(0));
+
+	    for (int j = begin; j < end; j += SimdSize) {
+
+	    }
+
+	    std::array<RealType, N> reduction;
+	    for (int i = 0; i < N; ++i) {
+	        reduction[i] = reduce(sum[i]);
+	    }
+
+	    return reduction;
+	}
+
+    template <typename SimdType, int SimdSize, typename Vector, int N>
+    void innerLoop2(Vector out, const int i, const int begin, const int end) {
+
+        std::array<SimdType, N> sum = std::array<SimdType, N>(RealType(0));
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+        }
+
+        for (int i = 0; i < N; ++i) {
+            out[i] += reduce(sum[i]);
+        }
+    }
+
     template <typename SimdType, int SimdSize>
     RealType innerSigmaXGradLoop(const int i, const int begin, const int end) {
 
