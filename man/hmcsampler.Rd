@@ -2,48 +2,30 @@
 % Please edit documentation in R/Untitled.R
 \name{hmcsampler}
 \alias{hmcsampler}
-\title{HMC based Gibbs sampler for Bayesian MDS}
+\title{HMC for Bayesian inference of Hawkes model parameters}
 \usage{
-hmcsampler(n_iter, burnIn = 0, data = NULL, beast = NULL,
-  latentDimension = 2, distFile = "h3_Deff", learnPrec = FALSE,
-  learnTraitPrec = FALSE, trajectory = 0.2, traitInvWeight = 1,
-  priorRootSampleSize = 0.001, mdsPrecision = 1, threads = 1,
-  simd = 0, treeCov = TRUE, truncation = TRUE, gpu = 0,
-  single = 0)
+hmcsampler(n_iter, burnIn = 0, locDists = NULL, times = NULL,
+  params = rep(1, 6), latentDimension = 2, trajectory = 0.2,
+  threads = 1, simd = 0, gpu = 0, single = 0)
 }
 \arguments{
 \item{n_iter}{Number of MCMC iterations.}
 
 \item{burnIn}{Number of initial samples to throw away.}
 
-\item{data}{Distance matrix.}
+\item{locDists}{Locations distance matrix.}
 
-\item{beast}{\code{beast} object created by \code{hpHawkes::readbeast()}. Only used for phylogenetic MDS.}
+\item{times}{Observation times.}
+
+\item{params}{Length 6, default 1.}
 
 \item{latentDimension}{Dimension of latent space. Integer ranging from 2 to 8.}
 
-\item{distFile}{For phylogenetic MDS. File contains distance matrix matching \code{.trees} file
-used to build \code{beast} object.}
-
-\item{learnPrec}{Should we perform inference on MDS likelihood precision? Defaults \code{FALSE}.}
-
-\item{learnTraitPrec}{Should we perform inference on latent (\code{latentDimension}-al) precision? Defaults \code{FALSE}.}
-
 \item{trajectory}{HMC trajectory length.}
-
-\item{traitInvWeight}{How often to update \code{TraitPrec}. Defaults to 1 or once for every HMC iteration.}
-
-\item{priorRootSampleSize}{For phylogenetic MDS. Hyperprior denoting how much tree should dictate covariance.}
-
-\item{mdsPrecision}{Value of fixed MDS likelihood precision. Ignored when \code{learnPrec=TRUE}.}
 
 \item{threads}{Number of CPU cores to be used.}
 
 \item{simd}{For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).}
-
-\item{treeCov}{For phylogenetic MDS.  Should we use N by N latent covariance based on tree file? Defaults \code{TRUE}.}
-
-\item{truncation}{Likelihood includes truncation term? Defaults to \code{TRUE}.}
 
 \item{gpu}{Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.}
 
@@ -53,7 +35,6 @@ used to build \code{beast} object.}
 List containing posterior samples, negative log likelihood values (\code{target}) and time to compute (\code{Time}).
 }
 \description{
-Takes a number of settings and returns posterior samples for Bayesian MDS model. Uses HMC
-for inference with respect to latent locations.  Performs Gibbs and metropolis within
-Gibbs updates for latent covariances and MDS precision.
+Takes a number of settings and returns posterior samples of parameters
+for spatio-temporal Hawkes process model.
 }

@@ -4,21 +4,12 @@
 \alias{Potential}
 \title{Potential function and gradient for HMC}
 \usage{
-Potential(engine, locations, treeVcv, traitVcv, treePrec, traitPrec,
-  gradient = FALSE)
+Potential(engine, parameters, gradient = FALSE)
 }
 \arguments{
-\item{engine}{MDS engine object.}
+\item{engine}{HPH engine object.}
 
-\item{locations}{N by P matrix of N P-dimensional latent locations.}
-
-\item{treeVcv}{N by N covariance.}
-
-\item{traitVcv}{P by P covariance.}
-
-\item{treePrec}{N by N precision.}
-
-\item{traitPrec}{P by P precision.}
+\item{parameters}{(Exponentiated) spatio-temporal Hawkes process parameters (d=6).}
 
 \item{gradient}{Return gradient (instead of potential)? Defaults \code{FALSE}.}
 }
@@ -26,6 +17,7 @@ Potential(engine, locations, treeVcv, traitVcv, treePrec, traitPrec,
 Potential or its gradient.
 }
 \description{
-Takes MDS engine object, latent locations and other model parameters. Returns
-potential (proportional to log posterior) function or its gradient.
+Takes HPH engine object and model parameters. Returns
+potential (proportional to log posterior) function or its gradient. Using
+lognormal(0,1) prior.
 }
