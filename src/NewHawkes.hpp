@@ -523,8 +523,43 @@ public:
         return reduce(sum);
     }
 
+    template <int N>
+	class RealTypePack {
+	public:
+	    RealTypePack(RealType x) : pack(x) { }
+
+	    RealTypePack& operator+=(const RealTypePack& rhs) {
+	        for (int i = 0; i < N; ++i) {
+	            pack[i] += rhs[i];
+	        }
+	        return *this;
+	    }
+
+	    RealType& operator[](std::size_t i) {
+	        return pack[i];
+	    }
+
+	    const RealType& operator[](std::size_t i) const {
+	        return pack[i];
+	    }
+
+	private:
+	    std::array<RealType, N> pack;
+	};
+
+	template <typename SimdType, int N>
+	RealTypePack<N> reduce(const std::array<SimdType, N> rhs) {
+
+	    RealTypePack<N> pack;
+	    for (int i = 0; i < N; ++i) {
+	        pack[i] = reduce(rhs[i]);
+	    }
+
+	    return pack;
+	}
+
     template <typename SimdType, int SimdSize, int N>
-    std::array<RealType, N> innerLoop1(const int i, const int begin, const int end) {
+    RealTypePack<N> innerLoop1(const int i, const int begin, const int end) {
 
 	    std::array<SimdType, N> sum = std::array<SimdType, N>(RealType(0));
 
@@ -532,12 +567,7 @@ public:
 
 	    }
 
-	    std::array<RealType, N> reduction;
-	    for (int i = 0; i < N; ++i) {
-	        reduction[i] = reduce(sum[i]);
-	    }
-
-	    return reduction;
+        return reduce(sum);
 	}
 
     template <typename SimdType, int SimdSize, typename Vector, int N>
