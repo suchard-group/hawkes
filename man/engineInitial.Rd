@@ -2,27 +2,25 @@
 % Please edit documentation in R/Untitled.R
 \name{engineInitial}
 \alias{engineInitial}
-\title{Initialize MDS engine object}
+\title{Initialize HPH engine object}
 \usage{
-engineInitial(data, locations, N, P, precision = 1, threads, simd,
-  truncation, gpu, single)
+engineInitial(locDists, N, P, times, parameters = c(1, 6), threads, simd,
+  gpu, single)
 }
 \arguments{
-\item{data}{N by N distance matrix.}
-
-\item{locations}{N by P latent locations.}
+\item{locDists}{N by N locations distances matrix.}
 
 \item{N}{Number of locations and size of distance matrix.}
 
-\item{P}{Dimension of latent locations.}
+\item{P}{Dimension of locations.}
 
-\item{precision}{MDS likelihood precision.}
+\item{times}{Vector of times.}
+
+\item{parameters}{Hawkes process parameters (length=6).}
 
 \item{threads}{Number of CPU cores to be used.}
 
 \item{simd}{For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).}
-
-\item{truncation}{Likelihood includes truncation term? Defaults to \code{TRUE}.}
 
 \item{gpu}{Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.}
 
@@ -32,6 +30,6 @@ engineInitial(data, locations, N, P, precision = 1, threads, simd,
 MDS engine object.
 }
 \description{
-Takes data, parameters and implementation details and returns MDS engine object. Used within
+Takes data, parameters and implementation details and returns HPH engine object. Used within
 \code{hpHawkes::hmcsampler()}.
 }

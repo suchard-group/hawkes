@@ -221,7 +221,7 @@ public:
                   static_cast<RealType>(0.0));
 
         computeRatesVector<SimdType, SimdSize, Generic>();
-
+        
         // sigmaX derivative
         RealType sigmaXGrad =
                 accumulate(0, locationCount, RealType(0), [this](const int i) {
