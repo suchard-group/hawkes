@@ -9,6 +9,8 @@
 
 #ifdef RBUILD
 #include <Rcpp.h>
+#else
+#include <iostream>
 #endif
 
 
@@ -18,8 +20,31 @@
 #include "AbstractHawkes.hpp"
 #include "Distance.hpp"
 
-
 namespace hph {
+
+    struct DefaultOut {
+
+        template <typename T>
+        DefaultOut& operator<<(const T& val) {
+#ifdef RBUILD
+            Rcpp::Rcout << val;
+#else
+            std::cout << val;
+#endif
+            return *this;
+        }
+
+        DefaultOut& operator<<(std::ostream&(*pManip)(std::ostream&)) {
+#ifdef RBUILD
+            Rcpp::Rcout << (*pManip);
+#else
+            std::cout << (*pManip);
+#endif
+            return *this;
+        }
+    };
+
+    static DefaultOut defaultOut;
 
 	struct DoubleNoSimdTypeInfo {
 		using BaseType = double;
@@ -100,18 +125,13 @@ public:
           nThreads(threads)
     {
 
-
-
 #ifdef USE_TBB
         if (flags & hph::Flags::TBB) {
     		if (nThreads <= 0) {
                 nThreads = tbb::task_scheduler_init::default_num_threads();
     		}
-#ifdef RBUILD
-    		    Rcpp::Rcout << "Using " << nThreads << " threads" << std::endl;
-#else
-            std::cout << "Using " << nThreads << " threads" << std::endl;
-#endif
+
+    		defaultOut << "Using " << nThreads << " threads" << std::endl;
 
             control = std::make_shared<tbb::global_control>(tbb::global_control::max_allowed_parallelism, nThreads);
     	}
@@ -503,6 +523,37 @@ public:
         return reduce(sum);
     }
 
+    template <typename SimdType, int SimdSize, int N>
+    std::array<RealType, N> innerLoop1(const int i, const int begin, const int end) {
+
+	    std::array<SimdType, N> sum = std::array<SimdType, N>(RealType(0));
+
+	    for (int j = begin; j < end; j += SimdSize) {
+
+	    }
+
+	    std::array<RealType, N> reduction;
+	    for (int i = 0; i < N; ++i) {
+	        reduction[i] = reduce(sum[i]);
+	    }
+
+	    return reduction;
+	}
+
+    template <typename SimdType, int SimdSize, typename Vector, int N>
+    void innerLoop2(Vector out, const int i, const int begin, const int end) {
+
+        std::array<SimdType, N> sum = std::array<SimdType, N>(RealType(0));
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+        }
+
+        for (int i = 0; i < N; ++i) {
+            out[i] += reduce(sum[i]);
+        }
+    }
+
     template <typename SimdType, int SimdSize>
     RealType innerSigmaXGradLoop(const int i, const int begin, const int end) {
 
@@ -859,42 +910,26 @@ private:
 // factory
 std::shared_ptr<AbstractHawkes>
 constructNewHawkesDoubleNoParallelNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-	Rcpp::Rcout << "DOUBLE, NO PARALLEL, NO SIMD" << std::endl;
-#else
-  std::cerr << "DOUBLE, NO PARALLEL, NO SIMD" << std::endl;
-#endif
+	defaultOut << "DOUBLE, NO PARALLEL, NO SIMD" << std::endl;
 	return std::make_shared<NewHawkes<DoubleNoSimdTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
 }
 
 std::shared_ptr<AbstractHawkes>
 constructNewHawkesDoubleTbbNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-  Rcpp::Rcout << "DOUBLE, TBB PARALLEL, NO SIMD" << std::endl;
-#else
-  std::cerr << "DOUBLE, TBB PARALLEL, NO SIMD" << std::endl;
-#endif
-  return std::make_shared<NewHawkes<DoubleNoSimdTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+    defaultOut << "DOUBLE, TBB PARALLEL, NO SIMD" << std::endl;
+    return std::make_shared<NewHawkes<DoubleNoSimdTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
 }
 
 std::shared_ptr<AbstractHawkes>
 constructNewHawkesFloatNoParallelNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-  Rcpp::Rcout << "SINGLE, NO PARALLEL, NO SIMD" << std::endl;
-#else
-  std::cerr << "SINGLE, NO PARALLEL, NO SIMD" << std::endl;
-#endif
-  return std::make_shared<NewHawkes<FloatNoSimdTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+    defaultOut << "SINGLE, NO PARALLEL, NO SIMD" << std::endl;
+    return std::make_shared<NewHawkes<FloatNoSimdTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
 }
 
 std::shared_ptr<AbstractHawkes>
 constructNewHawkesFloatTbbNoSimd(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-  Rcpp::Rcout << "SINGLE, TBB PARALLEL, NO SIMD" << std::endl;
-#else
-  std::cerr << "SINGLE, TBB PARALLEL, NO SIMD" << std::endl;
-#endif
-  return std::make_shared<NewHawkes<FloatNoSimdTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+    defaultOut << "SINGLE, TBB PARALLEL, NO SIMD" << std::endl;
+    return std::make_shared<NewHawkes<FloatNoSimdTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
 }
 
 #ifdef USE_SIMD
@@ -902,21 +937,13 @@ constructNewHawkesFloatTbbNoSimd(int embeddingDimension, int locationCount, long
 #ifdef USE_AVX
     std::shared_ptr<AbstractHawkes>
     constructNewHawkesDoubleNoParallelAvx(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-        Rcpp::Rcout << "DOUBLE, NO PARALLEL, AVX" << std::endl;
-#else
-        std::cerr << "DOUBLE, NO PARALLEL, AVX" << std::endl;
-#endif
+        defaultOut << "DOUBLE, NO PARALLEL, AVX" << std::endl;
         return std::make_shared<NewHawkes<DoubleAvxTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 
     std::shared_ptr<AbstractHawkes>
     constructNewHawkesDoubleTbbAvx(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-      Rcpp::Rcout << "DOUBLE, TBB PARALLEL, AVX" << std::endl;
-#else
-      std::cerr << "DOUBLE, TBB PARALLEL, AVX" << std::endl;
-#endif
+        defaultOut << "DOUBLE, TBB PARALLEL, AVX" << std::endl;
         return std::make_shared<NewHawkes<DoubleAvxTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 #endif
@@ -924,21 +951,13 @@ constructNewHawkesFloatTbbNoSimd(int embeddingDimension, int locationCount, long
 #ifdef USE_AVX512
     std::shared_ptr<AbstractHawkes>
     constructNewHawkesDoubleNoParallelAvx512(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-      Rcpp::Rcout << "DOUBLE, NO PARALLEL, AVX512" << std::endl;
-#else
-      std::cerr << "DOUBLE, NO PARALLEL, AVX512" << std::endl;
-#endif
+        defaultOut << "DOUBLE, NO PARALLEL, AVX512" << std::endl;
         return std::make_shared<NewHawkes<DoubleAvx512TypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 
     std::shared_ptr<AbstractHawkes>
     constructNewHawkesDoubleTbbAvx512(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-      Rcpp::Rcout << "DOUBLE, TBB PARALLEL, AVX512" << std::endl;
-#else
-      std::cerr << "DOUBLE, TBB PARALLEL, AVX512" << std::endl;
-#endif
+        defaultOut << "DOUBLE, TBB PARALLEL, AVX512" << std::endl;
         return std::make_shared<NewHawkes<DoubleAvx512TypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 #endif
@@ -946,42 +965,26 @@ constructNewHawkesFloatTbbNoSimd(int embeddingDimension, int locationCount, long
 #ifdef USE_SSE
     std::shared_ptr<AbstractHawkes>
     constructNewHawkesDoubleNoParallelSse(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-      Rcpp::Rcout << "DOUBLE, NO PARALLEL, SSE" << std::endl;
-#else
-      std::cerr << "DOUBLE, NO PARALLEL, SSE" << std::endl;
-#endif
-      return std::make_shared<NewHawkes<DoubleSseTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+        defaultOut << "DOUBLE, NO PARALLEL, SSE" << std::endl;
+        return std::make_shared<NewHawkes<DoubleSseTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 
     std::shared_ptr<AbstractHawkes>
     constructNewHawkesDoubleTbbSse(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-      Rcpp::Rcout << "DOUBLE, TBB PARALLEL, SSE" << std::endl;
-#else
-      std::cerr << "DOUBLE, TBB PARALLEL, SSE" << std::endl;
-#endif
-      return std::make_shared<NewHawkes<DoubleSseTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+        defaultOut << "DOUBLE, TBB PARALLEL, SSE" << std::endl;
+        return std::make_shared<NewHawkes<DoubleSseTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
     }
 
 	std::shared_ptr<AbstractHawkes>
 	constructNewHawkesFloatNoParallelSse(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-	  Rcpp::Rcout << "SINGLE, NO PARALLEL, SSE" << std::endl;
-#else
-	  std::cerr << "SINGLE, NO PARALLEL, SSE" << std::endl;
-#endif
-	  return std::make_shared<NewHawkes<FloatSseTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
+        defaultOut << "SINGLE, NO PARALLEL, SSE" << std::endl;
+        return std::make_shared<NewHawkes<FloatSseTypeInfo, CpuAccumulate>>(embeddingDimension, locationCount, flags, threads);
 	}
 
 	std::shared_ptr<AbstractHawkes>
 	constructNewHawkesFloatTbbSse(int embeddingDimension, int locationCount, long flags, int threads) {
-#ifdef RBUILD
-	  Rcpp::Rcout << "SINGLE, TBB PARALLEL, SSE" << std::endl;
-#else
-	  std::cerr << "SINGLE, TBB PARALLEL, SSE" << std::endl;
-#endif
-	  return std::make_shared<NewHawkes<FloatSseTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
+        defaultOut << "SINGLE, TBB PARALLEL, SSE" << std::endl;
+        return std::make_shared<NewHawkes<FloatSseTypeInfo, TbbAccumulate>>(embeddingDimension, locationCount, flags, threads);
 	}
 #endif
 
