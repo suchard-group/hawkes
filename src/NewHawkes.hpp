@@ -535,11 +535,11 @@ public:
 	        return *this;
 	    }
 
-	    RealType operator[](std::size_t i) {
+	    RealType& operator[](std::size_t i) {
 	        return pack[i];
 	    }
 
-	    const RealType operator[](std::size_t i) const {
+	    const RealType& operator[](std::size_t i) const {
 	        return pack[i];
 	    }
 
