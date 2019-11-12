@@ -220,36 +220,41 @@ public:
         std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
                   static_cast<RealType>(0.0));
 
-        computeRatesVector<SimdType, SimdSize, Generic>(); // TODO Is this extra loop through data really necessary?
+//        computeRatesVector<SimdType, SimdSize, Generic>(); // TODO Is this extra loop through data really necessary?
 
         RealTypePack<6> grad =
                 accumulate(0, locationCount, RealTypePack<6>(0.0), [this](const int i) {
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
-                    RealTypePack<6> sumOfRates = innerLoop1<SimdType, SimdSize, 6>(i, 0, vectorCount);
+                    RealTypePack<7> sumOfRates = innerLoop1<SimdType, SimdSize, 7>(i, 0, vectorCount);
 
                     if (vectorCount < locationCount) { // Edge-cases
-                        sumOfRates += innerLoop1<RealType, 1, 6>(i, vectorCount, locationCount);
+                        sumOfRates += innerLoop1<RealType, 1, 7>(i, vectorCount, locationCount);
                     }
 
-                    sumOfRates[0] /= (*ratesVectorPtr)[i];
-                    sumOfRates[1] /= (*ratesVectorPtr)[i];
-                    sumOfRates[2] = sumOfRates[2]/(*ratesVectorPtr)[i]+
+                    sumOfRates[0] /= sumOfRates[6];
+                    sumOfRates[1] /= sumOfRates[6];
+                    sumOfRates[2] = sumOfRates[2]/sumOfRates[6]+
                                      pow(tauTprec,2)*
                                      (math::pdf_new(tauTprec*(times[locationCount-1]-times[i]))*
                                       (times[locationCount-1]-times[i]) +
                                       math::pdf_new(tauTprec*times[i])*times[i]);
                     sumOfRates[3] = (1-(1+omega*(times[locationCount-1]-times[i])) *
                                     xsimd::exp(-omega*(times[locationCount-1]-times[i])))/(omega*omega) -
-                                    sumOfRates[3]/(*ratesVectorPtr)[i];
-                    sumOfRates[4] = sumOfRates[4]/(*ratesVectorPtr)[i] +
+                                    sumOfRates[3]/sumOfRates[6];
+                    sumOfRates[4] = sumOfRates[4]/sumOfRates[6] +
                                     (xsimd::exp(-omega*(times[locationCount-1]-times[i]))-1)/omega;
-                    sumOfRates[5] = sumOfRates[5]/(*ratesVectorPtr)[i] -
+                    sumOfRates[5] = sumOfRates[5]/sumOfRates[6] -
                                     (xsimd::exp(math::phi_new(tauTprec*(times[locationCount-1]-times[i]))) -
                                     xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
 
-                    return sumOfRates;
+                    RealTypePack<6> sumOfRatesMinusLast(0.0);
+                    for(int j=0; j<6; j++){
+                        sumOfRatesMinusLast[j] = sumOfRates[j];
+                    }
+
+                    return sumOfRatesMinusLast;
 
                 }, ParallelType());
 
@@ -612,10 +617,12 @@ public:
     RealTypePack<N> innerLoop1(const int i, const int begin, const int end) {
 
         const SimdType zero = SimdType(RealType(0));
-        std::array<SimdType, N> sum = {zero, zero, zero, zero, zero, zero};
+        std::array<SimdType, N> sum = {zero, zero, zero, zero, zero, zero, zero};
         const SimdType sigmaXprec2 = SimdType(sigmaXprec*sigmaXprec);
         const SimdType tauXprec2 = SimdType(tauXprec * tauXprec);
         const SimdType tauTprec2 = SimdType(tauTprec * tauTprec);
+        const SimdType tauXprecD = SimdType(pow(tauXprec, embeddingDimension));
+        const SimdType sigmaXprecD = SimdType(pow(sigmaXprec, embeddingDimension));
 
         for (int j = begin; j < end; j += SimdSize) {
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
@@ -634,6 +641,10 @@ public:
             const auto thetaRate = mask(timDiff>zero,
                                    xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
             const auto mu0Rate = math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
+            const auto totalRate = mu0 * tauXprecD * tauTprec *
+                              math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec ) +
+                              sigmaXprecD * theta * mask(timDiff>zero,
+                                      xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
 
             sum[0] += sigmaXrate;
@@ -642,6 +653,7 @@ public:
             sum[3] += omegaRate;
             sum[4] += thetaRate;
             sum[5] += mu0Rate;
+            sum[6] += totalRate;
 	    }
 
         sum[0] *= pow(sigmaXprec, embeddingDimension+1);
