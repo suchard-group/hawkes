@@ -219,9 +219,7 @@ public:
 
         std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
                   static_cast<RealType>(0.0));
-
-//        computeRatesVector<SimdType, SimdSize, Generic>(); // TODO Is this extra loop through data really necessary?
-
+        
         RealTypePack<6> grad =
                 accumulate(0, locationCount, RealTypePack<6>(0.0), [this](const int i) {
 
