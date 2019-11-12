@@ -223,7 +223,7 @@ public:
         computeRatesVector<SimdType, SimdSize, Generic>();
 
         RealTypePack<6> grad =
-                accumulate<RealTypePack<6>>(0, locationCount, RealType(0.0), [this](const int i) {
+                accumulate(0, locationCount, RealTypePack<6>(0.0), [this](const int i) {
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
@@ -568,13 +568,21 @@ public:
     template <int N>
 	class RealTypePack {
 	public:
-	    RealTypePack(RealType x) : pack(x) { }
+	    RealTypePack(RealType x) {
+	        pack.fill(x);
+	    }
 
 	    RealTypePack& operator+=(const RealTypePack& rhs) {
 	        for (int i = 0; i < N; ++i) {
 	            pack[i] += rhs[i];
 	        }
 	        return *this;
+	    }
+
+	    const RealTypePack operator+(const RealTypePack& rhs) const {
+	        RealTypePack result = *this;
+	        result += rhs;
+	        return result;
 	    }
 
 	    RealType& operator[](std::size_t i) {
