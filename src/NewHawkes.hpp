@@ -145,7 +145,8 @@ public:
 	int getInternalDimension() { return embeddingDimension; }
 
     double getSumOfLikContribs() {
-        computeSumOfLikContribsGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+        // TODO do lazy computation (i.e., check if changed)
+        sumOfLikContribs = computeSumOfLikContribsGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
     	return sumOfLikContribs;
  	}
 
@@ -210,22 +211,19 @@ public:
     }
 
 	template <typename SimdType, int SimdSize, typename Algorithm>
-    void computeLogLikelihoodGradientGeneric() {
+    RealType computeLogLikelihoodGradientGeneric() {
 
         const auto length = 6;
         if (length != gradientPtr->size()) {
             gradientPtr->resize(length);
         }
 
-        std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
-                  static_cast<RealType>(0.0));
-        
-        RealTypePack<6> grad =
-                accumulate(0, locationCount, RealTypePack<6>(0.0), [this](const int i) {
+        const auto grad =
+                accumulate(0, locationCount, RealTypePack<7>(0.0), [this](const int i) {
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
-                    RealTypePack<7> sumOfRates = innerLoop1<SimdType, SimdSize, 7>(i, 0, vectorCount);
+                    auto sumOfRates = innerLoop1<SimdType, SimdSize, 7>(i, 0, vectorCount);
 
                     if (vectorCount < locationCount) { // Edge-cases
                         sumOfRates += innerLoop1<RealType, 1, 7>(i, vectorCount, locationCount);
@@ -246,23 +244,20 @@ public:
                     sumOfRates[5] = sumOfRates[5]/sumOfRates[6] -
                                     (xsimd::exp(math::phi_new(tauTprec*(times[locationCount-1]-times[i]))) -
                                     xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
+                    sumOfRates[6] = std::log(sumOfRates[6]);
 
-                    RealTypePack<6> sumOfRatesMinusLast(0.0);
-                    for(int j=0; j<6; j++){
-                        sumOfRatesMinusLast[j] = sumOfRates[j];
-                    }
-
-                    return sumOfRatesMinusLast;
+                    return sumOfRates;
 
                 }, ParallelType());
 
-        (*gradientPtr)[0] += grad[0] * theta; //sigmaX
-        (*gradientPtr)[1] += grad[1] * mu0;   //tauX
-        (*gradientPtr)[2] += grad[2] * mu0;   //tauT
-        (*gradientPtr)[3] += grad[3] * theta; //omega
-        (*gradientPtr)[4] += grad[4];         //theta
-        (*gradientPtr)[5] += grad[5];         //mu0
+        (*gradientPtr)[0] = grad[0] * theta; //sigmaX
+        (*gradientPtr)[1] = grad[1] * mu0;   //tauX
+        (*gradientPtr)[2] = grad[2] * mu0;   //tauT
+        (*gradientPtr)[3] = grad[3] * theta; //omega
+        (*gradientPtr)[4] = grad[4];         //theta
+        (*gradientPtr)[5] = grad[5];         //mu0
 
+        return grad[6]; // TODO log-likelihood
     }
 
 #ifdef USE_SIMD
@@ -464,24 +459,30 @@ public:
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            const auto sigmaXrate = mask(timDiff>zero,
+            const auto pdfLocDistSigmaXPrec = math::pdf_new(locDist * sigmaXprec);
+            const auto pdfLocDistTauXPrec = math::pdf_new(locDist * tauXprec);
+            const auto pdfTimDiffTauTPrec = math::pdf_new(timDiff * tauTprec);
+            const auto timDiffGrZero = timDiff > zero;
+
+            const auto sigmaXrate = mask(timDiffGrZero,
                                    (sigmaXprec2*locDist*locDist-embeddingDimension)*
-                                   xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
+                                   xsimd::exp(-omega*timDiff) * pdfLocDistSigmaXPrec);
             const auto tauXrate =
                     (tauXprec2 * locDist * locDist - embeddingDimension) *
-                    math::pdf_new(locDist * tauXprec) * math::pdf_new(timDiff * tauTprec);
+                            pdfLocDistTauXPrec * math::pdf_new(timDiff * tauTprec);
             const auto tauTrate = (tauTprec2*timDiff*timDiff-1) *
-                              math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
-            const auto omegaRate =  mask(timDiff>zero,
-                                    timDiff*xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
-            const auto thetaRate = mask(timDiff>zero,
-                                   xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
-            const auto mu0Rate = math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec );
+                    pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
+            const auto omegaRate =  mask(timDiffGrZero,
+                                    timDiff*xsimd::exp(-omega*timDiff) * pdfLocDistSigmaXPrec);
+            const auto thetaRate = mask(timDiffGrZero,
+                                   xsimd::exp(-omega*timDiff) * pdfLocDistSigmaXPrec);
+            const auto mu0Rate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
             const auto totalRate = mu0 * tauXprecD * tauTprec *
-                              math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec ) +
-                              sigmaXprecD * theta * mask(timDiff>zero,
-                                      xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
+                                           pdfLocDistTauXPrec * pdfTimDiffTauTPrec +
+                              sigmaXprecD * theta * mask(timDiffGrZero,
+                                      xsimd::exp(-omega*timDiff) * pdfLocDistSigmaXPrec);
 
+            // TODO Expressions above still need serious cleaning to avoid code-duplication
 
             sum[0] += sigmaXrate;
             sum[1] += tauXrate;
@@ -503,7 +504,7 @@ public:
 	}
 
     template <typename SimdType, int SimdSize, typename Algorithm>
-    void computeSumOfLikContribsGeneric() {
+    RealType computeSumOfLikContribsGeneric() {
 
         RealType delta =
                 accumulate(0, locationCount, RealType(0), [this](const int i) {
@@ -523,7 +524,7 @@ public:
 
                 }, ParallelType());
 
-        sumOfLikContribs = delta + locationCount * (embeddingDimension - 1) * log(M_1_SQRT_2PI);
+        return delta + locationCount * (embeddingDimension - 1) * log(M_1_SQRT_2PI);
     }
 
 // Parallelization helper functions
