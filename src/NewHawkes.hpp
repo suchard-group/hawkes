@@ -379,12 +379,13 @@ public:
     template <typename SimdType, int SimdSize>
     RealType ratesLoop(const int i, const int begin, const int end) {
 
-        SimdType sum = SimdType(RealType(0));
-        const SimdType zero = SimdType(RealType(0));
-        const SimdType tauXprecD = SimdType(pow(tauXprec, embeddingDimension));
-        const SimdType sigmaXprecD = SimdType(pow(sigmaXprec, embeddingDimension));
-        const SimdType mu0TauXprecDTauTprec = SimdType(mu0 * tauXprecD * tauTprec);
-        const SimdType sigmaXprecDTheta = SimdType(sigmaXprecD * theta);
+        auto sum = SimdType(RealType(0));
+        const auto zero = SimdType(RealType(0));
+
+        const auto tauXprecD = pow(tauXprec, embeddingDimension);
+        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
+        const auto mu0TauXprecDTauTprec = mu0 * tauXprecD * tauTprec;
+        const auto sigmaXprecDTheta = sigmaXprecD * theta;
 
         for (int j = begin; j < end; j += SimdSize) {
 
@@ -392,9 +393,9 @@ public:
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
             const auto rate = mu0TauXprecDTauTprec *
-                    math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec ) +
-                    sigmaXprecDTheta * mask(timDiff>zero,
-                         xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
+                    math::pdf_new(locDist * tauXprec) * math::pdf_new(timDiff * tauTprec) +
+                    sigmaXprecDTheta * mask(timDiff > zero,
+                         xsimd::exp(-omega * timDiff) * math::pdf_new(locDist * sigmaXprec));
 
             sum += rate;
         }
@@ -448,15 +449,16 @@ public:
     template <typename SimdType, int SimdSize, int N>
     RealTypePack<N> innerLoop1(const int i, const int begin, const int end) {
 
-        const SimdType zero = SimdType(RealType(0));
-        std::array<SimdType, N> sum = {zero, zero, zero, zero, zero, zero, zero};
-        const SimdType sigmaXprec2 = SimdType(sigmaXprec*sigmaXprec);
-        const SimdType tauXprec2 = SimdType(tauXprec * tauXprec);
-        const SimdType tauTprec2 = SimdType(tauTprec * tauTprec);
-        const SimdType tauXprecD = SimdType(pow(tauXprec, embeddingDimension));
-        const SimdType sigmaXprecD = SimdType(pow(sigmaXprec, embeddingDimension));
-        const SimdType mu0TauXprecDTauTprec = SimdType(mu0 * tauXprecD * tauTprec);
-        const SimdType sigmaXprecDTheta = SimdType(sigmaXprecD * theta);
+        const auto sigmaXprec2 = sigmaXprec * sigmaXprec;
+        const auto tauXprec2 = tauXprec * tauXprec;
+        const auto tauTprec2 = tauTprec * tauTprec;
+        const auto tauXprecD = pow(tauXprec, embeddingDimension);
+        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
+        const auto mu0TauXprecDTauTprec = mu0 * tauXprecD * tauTprec;
+        const auto sigmaXprecDTheta = sigmaXprecD * theta;
+
+		const auto zero = SimdType(RealType(0));
+		std::array<SimdType, N> sum = {zero, zero, zero, zero, zero, zero, zero};
 
         for (int j = begin; j < end; j += SimdSize) {
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
@@ -472,8 +474,8 @@ public:
 
             const auto sigmaXrate = (sigmaXprec2*locDist*locDist - embeddingDimension) * thetaRate;
             const auto tauXrate = (tauXprec2 * locDist * locDist - embeddingDimension) * mu0Rate;
-            const auto tauTrate = (tauTprec2*timDiff*timDiff-1) * mu0Rate;
-            const auto omegaRate = timDiff*thetaRate;
+            const auto tauTrate = (tauTprec2 * timDiff * timDiff - 1) * mu0Rate;
+            const auto omegaRate = timDiff * thetaRate;
             const auto totalRate = mu0TauXprecDTauTprec * mu0Rate + sigmaXprecDTheta * thetaRate;
 
             sum[0] += sigmaXrate;
@@ -510,9 +512,9 @@ public:
                     }
 
                     return xsimd::log(sumOfRates) +
-                           theta/omega*(xsimd::exp(-omega*(times[locationCount-1]-times[i]))-1) -
-                           mu0*(xsimd::exp(math::phi_new(tauTprec*(times[locationCount-1]-times[i]))) -
-                                xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
+                           theta / omega * (xsimd::exp(-omega * (times[locationCount - 1] - times[i])) - 1) -
+                           mu0 * (xsimd::exp(math::phi_new(tauTprec * (times[locationCount - 1] - times[i]))) -
+                                xsimd::exp(math::phi_new(tauTprec * (-times[i]))));
 
                 }, ParallelType());
 
