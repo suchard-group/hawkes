@@ -464,11 +464,10 @@ public:
             const auto pdfLocDistSigmaXPrec = math::pdf_new(locDist * sigmaXprec);
             const auto pdfLocDistTauXPrec = math::pdf_new(locDist * tauXprec);
             const auto pdfTimDiffTauTPrec = math::pdf_new(timDiff * tauTprec);
-            const auto timDiffGrZero = timDiff > zero;
             const auto expOmegaTimDiff = xsimd::exp(-omega*timDiff);
 
             const auto mu0Rate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
-            const auto thetaRate = mask(timDiffGrZero, expOmegaTimDiff * pdfLocDistSigmaXPrec);
+            const auto thetaRate = mask(timDiff > zero, expOmegaTimDiff * pdfLocDistSigmaXPrec);
 
             const auto sigmaXrate = (sigmaXprec2*locDist*locDist - embeddingDimension) * thetaRate;
             const auto tauXrate = (tauXprec2 * locDist * locDist - embeddingDimension) * mu0Rate;
