@@ -298,8 +298,8 @@ public:
         kernelLikContribsVector.set_arg(7, omega);
         kernelLikContribsVector.set_arg(8, theta);
         kernelLikContribsVector.set_arg(9, mu0);
-        kernelLikContribsVector.set_arg(10, boost::compute::uint_(embeddingDimension));
-        kernelLikContribsVector.set_arg(11, boost::compute::uint_(locationCount));
+//        kernelLikContribsVector.set_arg(10, boost::compute::uint_(embeddingDimension));
+        kernelLikContribsVector.set_arg(10, boost::compute::uint_(locationCount));
 
 		const size_t local_work_size[2] = {TILE_DIM, TILE_DIM};
 		size_t work_groups = locationCount / TILE_DIM;
@@ -547,7 +547,7 @@ public:
 		    "   const uint lid = get_local_id(0);                                   \n" <<
 		    "   uint j = get_local_id(0);                                           \n" <<
 		    "                                                                       \n" <<
-		    "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
+		    "   __local REAL scratch[TPB];                                          \n" <<
 		    "                                                                       \n" <<
 		    "   REAL        sum = ZERO;                                             \n" <<
 		    "                                                                       \n" <<
@@ -565,6 +565,7 @@ public:
         code <<
              "     sum += innerContrib;                                              \n" <<
              "     j += TPB;                                                         \n" <<
+             "  }                                                                    \n" <<
              "     scratch[lid] = sum;                                               \n";
 #ifdef USE_VECTOR
         code << reduce::ReduceBody1<RealType,false>::body();
@@ -577,7 +578,7 @@ public:
 
         code <<
              "     likContribs[i] =  log(scratch[0]) + theta / omega *               \n" <<
-             "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) -            \n" << //TODO: use precomputed timeDiffs
+             "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) -            \n" <<
              "       mu0 * ( cdf((times[locationCount-1]-times[i])*tauTprec)-             \n" <<
              "               cdf(-times[i]*tauTprec) )   ;                               \n" <<
              "   }                                                                   \n" <<
@@ -588,6 +589,12 @@ public:
 
         program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
 		kernelLikContribsVector = boost::compute::kernel(program, "computeLikContribs");
+
+		#ifdef RBUILD
+        Rcpp:Rcout << "Successful build." << std::endl;
+#else
+        std::cerr << "Successful build." << std::endl;
+#endif
 
 		size_t index = -1;
         kernelLikContribsVector.set_arg(index++, dLocDists);
