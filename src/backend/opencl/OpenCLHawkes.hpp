@@ -13,6 +13,8 @@
 #include <Rcpp.h>
 #endif
 
+//#define DEBUG_KERNELS
+
 #define SSE
 //#undef SSE
 
@@ -329,17 +331,18 @@ public:
 
 		queue.finish();
 
+//        std::cout << dLikContribs[0] << std::endl;
+
+//        kernelLikSum.set_arg(0, dLikContribs);
+//        kernelLikSum.set_arg(1, sumOfLikContribs);
+//        kernelLikSum.set_arg(2, boost::compute::uint_(locationCount));
 		// now sum over likelihood contributions on GPU?
-//        queue.enqueue_1d_range_kernel(kernelLikSum, 0, locationCount, 0);
 
-		RealType sum = RealType(0.0);
-		boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
+        RealType sum = RealType(0.0);
+        boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
+        queue.finish();
 
-		queue.finish();
-
-	    lSumOfLikContribs = sum;
-
-    	sumOfLikContribs = lSumOfLikContribs;
+        sumOfLikContribs = sum;
 
 	    count++;
 	}
@@ -391,7 +394,7 @@ public:
 //        std::stringstream code;
 //        std::stringstream options;
 //
-//        options << "-DTILE_DIM=" << TILE_DIM;
+//        options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
 //
 //        if (sizeof(RealType) == 8) { // 64-bit fp
 //            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
@@ -404,7 +407,7 @@ public:
 //        }
 //
 //        code <<
-//             " __kernel void computeSum(__global const REAL_VECTOR *summand,           \n" <<
+//             " __kernel void computeSum(__global const REAL *summand,           \n" <<
 //             "                                 __global REAL *partialSum,              \n" <<
 //             "						           const uint locationCount) {             \n";
 //
@@ -412,7 +415,7 @@ public:
 //             "   const uint lid = get_local_id(0);                                   \n" <<
 //             "   uint j = get_local_id(0);                                           \n" <<
 //             "                                                                       \n" <<
-//             "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
+//             "   __local REAL scratch[TPB];                                   \n" <<
 //             "                                                                       \n" <<
 //             "   REAL sum = ZERO;                                                    \n" <<
 //             "                                                                       \n" <<
@@ -422,6 +425,7 @@ public:
 //        code <<
 //             "     sum += summand[j];                                                \n" <<
 //             "     j += TPB;                                                         \n" <<
+//             "  }                                                                    \n" <<
 //             "     scratch[lid] = sum;                                               \n";
 //#ifdef USE_VECTOR
 //        code << reduce::ReduceBody1<RealType,false>::body();
@@ -433,7 +437,7 @@ public:
 //             "   if (lid == 0) {                                                     \n";
 //
 //        code <<
-//             "     partialSum    =  scratch[0];                                      \n" <<
+//             "     partialSum[0]    =  scratch[0];                                      \n" <<
 //             "   }                                                                   \n" <<
 //             " }                                                                     \n ";
 //
@@ -441,7 +445,7 @@ public:
 //        #ifdef RBUILD
 //		    Rcpp::Rcout << "Summation kernel\n" << code.str() << std::endl;
 //#else
-//        std::cerr << "Summation kernel\n" << code.str() << std::endl;
+//        std::cerr << "Summation kernel\n" << options.str() << code.str() << std::endl;
 //#endif
 //#endif
 //
@@ -551,7 +555,7 @@ public:
 		    "                                                                       \n" <<
 		    "   REAL        sum = ZERO;                                             \n" <<
 		    "                                                                       \n" <<
-		    "   while (j < i) {                                                     \n" << // originally j < locationCount
+		    "   while (j < locationCount) {                                         \n" << // originally j < locationCount
 		    "                                                                       \n" <<
 		    "     const REAL timDiff = timDiffs[i * locationCount + j];            \n" <<
             "     const REAL distance = locDists[i * locationCount + j];            \n";
@@ -584,30 +588,37 @@ public:
              "   }                                                                   \n" <<
              " }                                                                     \n ";
 
-                std::cerr << "Likelihood contributions kernel\n" << options.str() << code.str() << std::endl;
-
+#ifdef DEBUG_KERNELS
+#ifdef RBUILD
+        Rcpp::Rcout << "Likelihood contributions kernel\n" << code.str() << std::endl;
+#else
+        std::cerr << "Likelihood contributions kernel\n" << options.str() << code.str() << std::endl;
+#endif
+#endif
 
         program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
 		kernelLikContribsVector = boost::compute::kernel(program, "computeLikContribs");
 
-		#ifdef RBUILD
+#ifdef DEBUG_KERNELS
+#ifdef RBUILD
         Rcpp:Rcout << "Successful build." << std::endl;
 #else
         std::cerr << "Successful build." << std::endl;
 #endif
+#endif
 
-		size_t index = -1;
-        kernelLikContribsVector.set_arg(index++, dLocDists);
-		kernelLikContribsVector.set_arg(index++, dTimDiffs);
-        kernelLikContribsVector.set_arg(index++, dTimes);
-        kernelLikContribsVector.set_arg(index++, dLikContribs);
-        kernelLikContribsVector.set_arg(index++, sigmaXprec);
-        kernelLikContribsVector.set_arg(index++, tauXprec);
-        kernelLikContribsVector.set_arg(index++, tauTprec);
-        kernelLikContribsVector.set_arg(index++, omega);
-        kernelLikContribsVector.set_arg(index++, theta);
-        kernelLikContribsVector.set_arg(index++, mu0);
-        kernelLikContribsVector.set_arg(index++, boost::compute::uint_(locationCount));
+//		size_t index = -1;
+//        kernelLikContribsVector.set_arg(index++, dLocDists);
+//		kernelLikContribsVector.set_arg(index++, dTimDiffs);
+//        kernelLikContribsVector.set_arg(index++, dTimes);
+//        kernelLikContribsVector.set_arg(index++, dLikContribs);
+//        kernelLikContribsVector.set_arg(index++, sigmaXprec);
+//        kernelLikContribsVector.set_arg(index++, tauXprec);
+//        kernelLikContribsVector.set_arg(index++, tauTprec);
+//        kernelLikContribsVector.set_arg(index++, omega);
+//        kernelLikContribsVector.set_arg(index++, theta);
+//        kernelLikContribsVector.set_arg(index++, mu0);
+//        kernelLikContribsVector.set_arg(index++, boost::compute::uint_(locationCount));
 
 	}
 
@@ -839,7 +850,7 @@ private:
     mm::MemoryManager<double> doubleBuffer;
 
     boost::compute::program program;
-//    boost::compute::kernel kernelLikSum;  // TODO guessing this goes here
+//    boost::compute::kernel kernelLikSum;
 
 #ifdef USE_VECTORS
 	boost::compute::kernel kernelLikContribsVector;
