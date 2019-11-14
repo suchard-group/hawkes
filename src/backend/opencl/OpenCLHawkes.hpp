@@ -310,6 +310,7 @@ public:
 
 		queue.enqueue_nd_range_kernel(kernelLikContribsVector, 2, 0, global_work_size, local_work_size);
 
+
 #else
         kernelLikContribs.set_arg(0, dLocDists);
         kernelLikContribs.set_arg(1, dTimDiffs);
@@ -329,7 +330,7 @@ public:
 		queue.finish();
 
 		// now sum over likelihood contributions on GPU?
-        queue.enqueue_1d_range_kernel(kernelLikSum, 0, locationCount, 0);
+//        queue.enqueue_1d_range_kernel(kernelLikSum, 0, locationCount, 0);
 
 		RealType sum = RealType(0.0);
 		boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
@@ -385,89 +386,89 @@ public:
 		return sum;
 	}
 
-	void createOpenCLSummationKernel() {
-
-        std::stringstream code;
-        std::stringstream options;
-
-        options << "-DTILE_DIM=" << TILE_DIM;
-
-        if (sizeof(RealType) == 8) { // 64-bit fp
-            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
-            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
-                    << " -DZERO=0.0 -DHALF=0.5";
-
-        } else { // 32-bit fp
-            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
-                    << " -DZERO=0.0f -DHALF=0.5f";
-        }
-
-        code <<
-             " __kernel void computeSum(__global const REAL_VECTOR *summand,           \n" <<
-             "                                 __global REAL *partialSum,              \n" <<
-             "						           const uint locationCount) {             \n";
-
-        code <<
-             "   const uint lid = get_local_id(0);                                   \n" <<
-             "   uint j = get_local_id(0);                                           \n" <<
-             "                                                                       \n" <<
-             "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
-             "                                                                       \n" <<
-             "   REAL sum = ZERO;                                                    \n" <<
-             "                                                                       \n" <<
-             "   while (j < locationCount) {                                         \n";
-
-
-        code <<
-             "     sum += summand[j];                                                \n" <<
-             "     j += TPB;                                                         \n" <<
-             "     scratch[lid] = sum;                                               \n";
-#ifdef USE_VECTOR
-        code << reduce::ReduceBody1<RealType,false>::body();
-#else
-        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
-#endif
-        code <<
-             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
-             "   if (lid == 0) {                                                     \n";
-
-        code <<
-             "     partialSum    =  scratch[0];                                      \n" <<
-             "   }                                                                   \n" <<
-             " }                                                                     \n ";
-
-#ifdef DEBUG_KERNELS
-        #ifdef RBUILD
-		    Rcpp::Rcout << "Summation kernel\n" << code.str() << std::endl;
-#else
-        std::cerr << "Summation kernel\n" << code.str() << std::endl;
-#endif
-#endif
-
-        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
-        kernelLikSum = boost::compute::kernel(program, "computeSum");
-
-#ifdef DEBUG_KERNELS
-        #ifdef RBUILD
-        Rcpp:Rcout << "Successful build." << std::endl;
-#else
-        std::cerr << "Successful build." << std::endl;
-#endif
-#endif
-
-#ifdef DOUBLE_CHECK
-        #ifdef RBUILD
-        Rcpp::Rcout << kernelSumOfLikContribsVector.get_program().source() << std::endl;
-#else
-        std::cerr << kernelSumOfLikContribsVector.get_program().source() << std::endl;
-#endif
-//        exit(-1);
-#endif // DOUBLE_CHECK
-
-        kernelLikSum.set_arg(0, dLikContribs);
-        kernelLikSum.set_arg(1, sumOfLikContribs);
-        kernelLikSum.set_arg(2, boost::compute::uint_(locationCount));
-	}
+//	void createOpenCLSummationKernel() {
+//
+//        std::stringstream code;
+//        std::stringstream options;
+//
+//        options << "-DTILE_DIM=" << TILE_DIM;
+//
+//        if (sizeof(RealType) == 8) { // 64-bit fp
+//            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+//            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
+//                    << " -DZERO=0.0 -DHALF=0.5";
+//
+//        } else { // 32-bit fp
+//            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
+//                    << " -DZERO=0.0f -DHALF=0.5f";
+//        }
+//
+//        code <<
+//             " __kernel void computeSum(__global const REAL_VECTOR *summand,           \n" <<
+//             "                                 __global REAL *partialSum,              \n" <<
+//             "						           const uint locationCount) {             \n";
+//
+//        code <<
+//             "   const uint lid = get_local_id(0);                                   \n" <<
+//             "   uint j = get_local_id(0);                                           \n" <<
+//             "                                                                       \n" <<
+//             "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
+//             "                                                                       \n" <<
+//             "   REAL sum = ZERO;                                                    \n" <<
+//             "                                                                       \n" <<
+//             "   while (j < locationCount) {                                         \n";
+//
+//
+//        code <<
+//             "     sum += summand[j];                                                \n" <<
+//             "     j += TPB;                                                         \n" <<
+//             "     scratch[lid] = sum;                                               \n";
+//#ifdef USE_VECTOR
+//        code << reduce::ReduceBody1<RealType,false>::body();
+//#else
+//        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
+//#endif
+//        code <<
+//             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+//             "   if (lid == 0) {                                                     \n";
+//
+//        code <<
+//             "     partialSum    =  scratch[0];                                      \n" <<
+//             "   }                                                                   \n" <<
+//             " }                                                                     \n ";
+//
+//#ifdef DEBUG_KERNELS
+//        #ifdef RBUILD
+//		    Rcpp::Rcout << "Summation kernel\n" << code.str() << std::endl;
+//#else
+//        std::cerr << "Summation kernel\n" << code.str() << std::endl;
+//#endif
+//#endif
+//
+//        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+//        kernelLikSum = boost::compute::kernel(program, "computeSum");
+//
+//#ifdef DEBUG_KERNELS
+//        #ifdef RBUILD
+//        Rcpp:Rcout << "Successful build." << std::endl;
+//#else
+//        std::cerr << "Successful build." << std::endl;
+//#endif
+//#endif
+//
+//#ifdef DOUBLE_CHECK
+//        #ifdef RBUILD
+//        Rcpp::Rcout << kernelSumOfLikContribsVector.get_program().source() << std::endl;
+//#else
+//        std::cerr << kernelSumOfLikContribsVector.get_program().source() << std::endl;
+//#endif
+////        exit(-1);
+//#endif // DOUBLE_CHECK
+//
+//        kernelLikSum.set_arg(0, dLikContribs);
+//        kernelLikSum.set_arg(1, sumOfLikContribs);
+//        kernelLikSum.set_arg(2, boost::compute::uint_(locationCount));
+//	}
 
 	void createOpenCLLikContribsKernel() {
 
@@ -511,18 +512,20 @@ public:
 		std::stringstream code;
 		std::stringstream options;
 
-		options << "-DTILE_DIM=" << TILE_DIM;
+		options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
 
 		if (sizeof(RealType) == 8) { // 64-bit fp
 			code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
 			options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
                     << " -DZERO=0.0 -DHALF=0.5";
 			code << cdfString1Double;
+			code << pdfString1Double;
 
 		} else { // 32-bit fp
 			options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
                     << " -DZERO=0.0f -DHALF=0.5f";
 			code << cdfString1Float;
+			code << pdfString1Float;
 		}
 
 		code <<
@@ -536,7 +539,6 @@ public:
 			"                                 const REAL omega,                       \n" <<
 			"                                 const REAL theta,                       \n" <<
 			"                                 const REAL mu0,                         \n" <<
-			"                                 const uint dimX,                        \n" <<
 			"						          const uint locationCount) {             \n";
 
 		code <<
@@ -557,7 +559,7 @@ public:
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                     // TODO unsure whether I need to pown(tauXprec,dimX) pown(sigmaXprec,dimX) outside of pdf
                     REAL innerContrib = mu0 * tauXprec * tauTprec * pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
-                            select(theta, ZERO, timDiff>0) * pdf(distance * sigmaXprec) * exp(-omega*timeDiff);
+                            select(theta, ZERO, timDiff>0) * pdf(distance * sigmaXprec) * exp(-omega*timDiff);
         );
 
         code <<
@@ -575,13 +577,16 @@ public:
 
         code <<
              "     likContribs[i] =  log(scratch[0]) + theta / omega *               \n" <<
-             "       ( exp(-omega*(times[locationCounts]-times[i]))-1 ) -            \n" << //TODO: use precomputed timeDiffs
-             "       mu0 * ( cdf((times[locationCounts]-times[i])/tauT)-             \n" <<
-             "               cdf(-times[i]/tauT) )   ;                               \n" <<
+             "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) -            \n" << //TODO: use precomputed timeDiffs
+             "       mu0 * ( cdf((times[locationCount-1]-times[i])*tauTprec)-             \n" <<
+             "               cdf(-times[i]*tauTprec) )   ;                               \n" <<
              "   }                                                                   \n" <<
              " }                                                                     \n ";
 
-		program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+                std::cerr << "Likelihood contributions kernel\n" << options.str() << code.str() << std::endl;
+
+
+        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
 		kernelLikContribsVector = boost::compute::kernel(program, "computeLikContribs");
 
 		size_t index = -1;
@@ -595,7 +600,6 @@ public:
         kernelLikContribsVector.set_arg(index++, omega);
         kernelLikContribsVector.set_arg(index++, theta);
         kernelLikContribsVector.set_arg(index++, mu0);
-        kernelLikContribsVector.set_arg(index++, boost::compute::uint_(embeddingDimension));
         kernelLikContribsVector.set_arg(index++, boost::compute::uint_(locationCount));
 
 	}
@@ -772,7 +776,7 @@ public:
 
 	void createOpenCLKernels() {
 
-        createOpenCLSummationKernel();
+//        createOpenCLSummationKernel();
         createOpenCLLikContribsKernel();
 //		createOpenCLGradientKernel();
 
@@ -828,7 +832,7 @@ private:
     mm::MemoryManager<double> doubleBuffer;
 
     boost::compute::program program;
-    boost::compute::kernel kernelLikSum;  // TODO guessing this goes here
+//    boost::compute::kernel kernelLikSum;  // TODO guessing this goes here
 
 #ifdef USE_VECTORS
 	boost::compute::kernel kernelLikContribsVector;
