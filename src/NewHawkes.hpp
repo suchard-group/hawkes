@@ -454,6 +454,8 @@ public:
         const SimdType tauTprec2 = SimdType(tauTprec * tauTprec);
         const SimdType tauXprecD = SimdType(pow(tauXprec, embeddingDimension));
         const SimdType sigmaXprecD = SimdType(pow(sigmaXprec, embeddingDimension));
+        const SimdType mu0TauXprecDTauTprec = SimdType(mu0 * tauXprecD * tauTprec);
+        const SimdType sigmaXprecDTheta = SimdType(sigmaXprecD * theta);
 
         for (int j = begin; j < end; j += SimdSize) {
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
@@ -463,26 +465,16 @@ public:
             const auto pdfLocDistTauXPrec = math::pdf_new(locDist * tauXprec);
             const auto pdfTimDiffTauTPrec = math::pdf_new(timDiff * tauTprec);
             const auto timDiffGrZero = timDiff > zero;
+            const auto expOmegaTimDiff = xsimd::exp(-omega*timDiff);
 
-            const auto sigmaXrate = mask(timDiffGrZero,
-                                   (sigmaXprec2*locDist*locDist-embeddingDimension)*
-                                   xsimd::exp(-omega*timDiff) * pdfLocDistSigmaXPrec);
-            const auto tauXrate =
-                    (tauXprec2 * locDist * locDist - embeddingDimension) *
-                            pdfLocDistTauXPrec * math::pdf_new(timDiff * tauTprec);
-            const auto tauTrate = (tauTprec2*timDiff*timDiff-1) *
-                    pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
-            const auto omegaRate =  mask(timDiffGrZero,
-                                    timDiff*xsimd::exp(-omega*timDiff) * pdfLocDistSigmaXPrec);
-            const auto thetaRate = mask(timDiffGrZero,
-                                   xsimd::exp(-omega*timDiff) * pdfLocDistSigmaXPrec);
             const auto mu0Rate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
-            const auto totalRate = mu0 * tauXprecD * tauTprec *
-                                           pdfLocDistTauXPrec * pdfTimDiffTauTPrec +
-                              sigmaXprecD * theta * mask(timDiffGrZero,
-                                      xsimd::exp(-omega*timDiff) * pdfLocDistSigmaXPrec);
+            const auto thetaRate = mask(timDiffGrZero, expOmegaTimDiff * pdfLocDistSigmaXPrec);
 
-            // TODO Expressions above still need serious cleaning to avoid code-duplication
+            const auto sigmaXrate = (sigmaXprec2*locDist*locDist - embeddingDimension) * thetaRate;
+            const auto tauXrate = (tauXprec2 * locDist * locDist - embeddingDimension) * mu0Rate;
+            const auto tauTrate = (tauTprec2*timDiff*timDiff-1) * mu0Rate;
+            const auto omegaRate = timDiff*thetaRate;
+            const auto totalRate = mu0TauXprecDTauTprec * mu0Rate + sigmaXprecDTheta * thetaRate;
 
             sum[0] += sigmaXrate;
             sum[1] += tauXrate;
@@ -493,12 +485,12 @@ public:
             sum[6] += totalRate;
 	    }
 
-        sum[0] *= pow(sigmaXprec, embeddingDimension+1);
-        sum[1] *= pow(tauXprec, embeddingDimension + 1) * tauTprec;;
-        sum[2] *= pow(tauXprec, embeddingDimension) * tauTprec2;
-        sum[3] *= pow(sigmaXprec, embeddingDimension);
-        sum[4] *= pow(sigmaXprec, embeddingDimension);
-        sum[5] *= pow(tauXprec, embeddingDimension) * tauTprec;
+        sum[0] *= sigmaXprecD * sigmaXprec;
+        sum[1] *= tauXprecD * tauXprec * tauTprec;;
+        sum[2] *= tauXprecD * tauTprec2;
+        sum[3] *= sigmaXprecD;
+        sum[4] *= sigmaXprecD;
+        sum[5] *= tauXprecD * tauTprec;
 
         return reduce<SimdType,N>(sum);
 	}
