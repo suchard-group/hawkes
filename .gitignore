@@ -15,3 +15,5 @@ src/Makevars
 config.log
 config.status
 autom4te.cache/
+cmake-build-debug/
+.DS_Store
