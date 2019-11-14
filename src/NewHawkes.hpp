@@ -383,16 +383,17 @@ public:
         const SimdType zero = SimdType(RealType(0));
         const SimdType tauXprecD = SimdType(pow(tauXprec, embeddingDimension));
         const SimdType sigmaXprecD = SimdType(pow(sigmaXprec, embeddingDimension));
-
+        const SimdType mu0TauXprecDTauTprec = SimdType(mu0 * tauXprecD * tauTprec);
+        const SimdType sigmaXprecDTheta = SimdType(sigmaXprecD * theta);
 
         for (int j = begin; j < end; j += SimdSize) {
 
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            const auto rate = mu0 * tauXprecD * tauTprec *
+            const auto rate = mu0TauXprecDTauTprec *
                     math::pdf_new(locDist * tauXprec) * math::pdf_new( timDiff*tauTprec ) +
-                    sigmaXprecD * theta * mask(timDiff>zero,
+                    sigmaXprecDTheta * mask(timDiff>zero,
                          xsimd::exp(-omega*timDiff) * math::pdf_new(locDist*sigmaXprec));
 
             sum += rate;
