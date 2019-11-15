@@ -487,8 +487,9 @@ public:
             sum[6] += totalRate;
 	    }
 
+        // TODO Maybe this re-scaling be done once after the outer-loop, or is this not possible / convenient?
         sum[0] *= sigmaXprecD * sigmaXprec;
-        sum[1] *= tauXprecD * tauXprec * tauTprec;;
+        sum[1] *= tauXprecD * tauXprec * tauTprec;
         sum[2] *= tauXprecD * tauTprec2;
         sum[3] *= sigmaXprecD;
         sum[4] *= sigmaXprecD;
