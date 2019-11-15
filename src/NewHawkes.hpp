@@ -218,30 +218,38 @@ public:
             gradientPtr->resize(length);
         }
 
+        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
+        const auto tauXprecD = pow(tauXprec, embeddingDimension);
+        const auto tauTprec2 = tauTprec * tauTprec;
+
         const auto grad =
-                accumulate(0, locationCount, RealTypePack<7>(0.0), [this](const int i) {
+                accumulate(0, locationCount, RealTypePack<7>(0.0), [this,
+                                                                    sigmaXprecD,
+                                                                    tauXprecD,
+                                                                    tauTprec2](const int i) {
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
-                    auto sumOfRates = innerLoop1<SimdType, SimdSize, 7>(i, 0, vectorCount);
+                    auto sumOfRates = innerLoop1<SimdType, SimdSize, 7>(i, 0, vectorCount,
+                            sigmaXprecD, tauXprecD, tauTprec2);
 
                     if (vectorCount < locationCount) { // Edge-cases
-                        sumOfRates += innerLoop1<RealType, 1, 7>(i, vectorCount, locationCount);
+                        sumOfRates += innerLoop1<RealType, 1, 7>(i, vectorCount, locationCount,
+                                sigmaXprecD, tauXprecD, tauTprec2);
                     }
 
                     sumOfRates[0] /= sumOfRates[6];
                     sumOfRates[1] /= sumOfRates[6];
-                    sumOfRates[2] = sumOfRates[2]/sumOfRates[6]+
-                                     pow(tauTprec,2)*
+                    sumOfRates[2] = sumOfRates[2]/sumOfRates[6] * tauXprecD +
                                      (math::pdf_new(tauTprec*(times[locationCount-1]-times[i]))*
                                       (times[locationCount-1]-times[i]) +
                                       math::pdf_new(tauTprec*times[i])*times[i]);
                     sumOfRates[3] = (1-(1+omega*(times[locationCount-1]-times[i])) *
                                     xsimd::exp(-omega*(times[locationCount-1]-times[i])))/(omega*omega) -
-                                    sumOfRates[3]/sumOfRates[6];
-                    sumOfRates[4] = sumOfRates[4]/sumOfRates[6] +
+                                    sumOfRates[3]/sumOfRates[6] * sigmaXprecD;
+                    sumOfRates[4] = sumOfRates[4]/sumOfRates[6] * sigmaXprecD +
                                     (xsimd::exp(-omega*(times[locationCount-1]-times[i]))-1)/omega;
-                    sumOfRates[5] = sumOfRates[5]/sumOfRates[6] -
+                    sumOfRates[5] = sumOfRates[5]/sumOfRates[6] * tauXprecD * tauTprec -
                                     (xsimd::exp(math::phi_new(tauTprec*(times[locationCount-1]-times[i]))) -
                                     xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
                     sumOfRates[6] = std::log(sumOfRates[6]);
@@ -250,12 +258,12 @@ public:
 
                 }, ParallelType());
 
-        (*gradientPtr)[0] = grad[0] * theta; //sigmaX
-        (*gradientPtr)[1] = grad[1] * mu0;   //tauX
-        (*gradientPtr)[2] = grad[2] * mu0;   //tauT
-        (*gradientPtr)[3] = grad[3] * theta; //omega
-        (*gradientPtr)[4] = grad[4];         //theta
-        (*gradientPtr)[5] = grad[5];         //mu0
+        (*gradientPtr)[0] = grad[0] * theta * sigmaXprecD * sigmaXprec;        //sigmaX
+        (*gradientPtr)[1] = grad[1] * mu0 * tauXprecD * tauXprec * tauTprec;   //tauX
+        (*gradientPtr)[2] = grad[2] * mu0 * tauTprec2;                         //tauT
+        (*gradientPtr)[3] = grad[3] * theta;                                   //omega
+        (*gradientPtr)[4] = grad[4];                                           //theta
+        (*gradientPtr)[5] = grad[5];                                           //mu0
 
         return grad[6]; // TODO log-likelihood
     }
@@ -447,13 +455,11 @@ public:
 	}
 
     template <typename SimdType, int SimdSize, int N>
-    RealTypePack<N> innerLoop1(const int i, const int begin, const int end) {
+    RealTypePack<N> innerLoop1(const int i, const int begin, const int end,
+            const RealType sigmaXprecD, const RealType tauXprecD, const RealType tauTprec2) {
 
         const auto sigmaXprec2 = sigmaXprec * sigmaXprec;
         const auto tauXprec2 = tauXprec * tauXprec;
-        const auto tauTprec2 = tauTprec * tauTprec;
-        const auto tauXprecD = pow(tauXprec, embeddingDimension);
-        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
         const auto mu0TauXprecDTauTprec = mu0 * tauXprecD * tauTprec;
         const auto sigmaXprecDTheta = sigmaXprecD * theta;
 
@@ -486,14 +492,6 @@ public:
             sum[5] += mu0Rate;
             sum[6] += totalRate;
 	    }
-
-        // TODO Maybe this re-scaling be done once after the outer-loop, or is this not possible / convenient?
-        sum[0] *= sigmaXprecD * sigmaXprec;
-        sum[1] *= tauXprecD * tauXprec * tauTprec;
-        sum[2] *= tauXprecD * tauTprec2;
-        sum[3] *= sigmaXprecD;
-        sum[4] *= sigmaXprecD;
-        sum[5] *= tauXprecD * tauTprec;
 
         return reduce<SimdType,N>(sum);
 	}
