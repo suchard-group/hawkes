@@ -238,20 +238,17 @@ public:
                                 sigmaXprecD, tauXprecD, tauTprec2);
                     }
 
+                    auto const timDiff = times[locationCount-1]-times[i];
+                    auto const expOmegaTimDiff = xsimd::exp(-omega*timDiff);
+
                     sumOfRates[0] /= sumOfRates[6];
                     sumOfRates[1] /= sumOfRates[6];
                     sumOfRates[2] = sumOfRates[2]/sumOfRates[6] * tauXprecD +
-                                     (math::pdf_new(tauTprec*(times[locationCount-1]-times[i]))*
-                                      (times[locationCount-1]-times[i]) +
-                                      math::pdf_new(tauTprec*times[i])*times[i]);
-                    sumOfRates[3] = (1-(1+omega*(times[locationCount-1]-times[i])) *
-                                    xsimd::exp(-omega*(times[locationCount-1]-times[i])))/(omega*omega) -
-                                    sumOfRates[3]/sumOfRates[6] * sigmaXprecD;
-                    sumOfRates[4] = sumOfRates[4]/sumOfRates[6] * sigmaXprecD +
-                                    (xsimd::exp(-omega*(times[locationCount-1]-times[i]))-1)/omega;
+                            math::pdf_new(tauTprec * timDiff) * timDiff + math::pdf_new(tauTprec*times[i])*times[i];
+                    sumOfRates[3] = (1-(1+omega*timDiff) * expOmegaTimDiff)/(omega*omega) - sumOfRates[3]/sumOfRates[6] * sigmaXprecD;
+                    sumOfRates[4] = sumOfRates[4]/sumOfRates[6] * sigmaXprecD + (expOmegaTimDiff-1)/omega;
                     sumOfRates[5] = sumOfRates[5]/sumOfRates[6] * tauXprecD * tauTprec -
-                                    (xsimd::exp(math::phi_new(tauTprec*(times[locationCount-1]-times[i]))) -
-                                    xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
+                            (xsimd::exp(math::phi_new(tauTprec*timDiff)) - xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
                     sumOfRates[6] = std::log(sumOfRates[6]);
 
                     return sumOfRates;

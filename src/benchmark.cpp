@@ -218,8 +218,9 @@ int main(int argc, char* argv[]) {
 
 		auto startTime1 = std::chrono::steady_clock::now();
 
-		double inc = instance->getSumOfLikContribs();
-		logLik += inc;
+		auto inc = instance->getSumOfLikContribs();
+
+        logLik += inc;
 		
 		auto duration1 = std::chrono::steady_clock::now() - startTime1;
 		timer += std::chrono::duration<double, std::milli>(duration1).count();
