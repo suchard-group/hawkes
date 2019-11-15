@@ -294,23 +294,31 @@ public:
         kernelLikContribsVector.set_arg(1, dTimDiffs);
         kernelLikContribsVector.set_arg(2, dTimes);
         kernelLikContribsVector.set_arg(3, dLikContribs);
-        kernelLikContribsVector.set_arg(4, sigmaXprec);
-        kernelLikContribsVector.set_arg(5, tauXprec);
-        kernelLikContribsVector.set_arg(6, tauTprec);
-        kernelLikContribsVector.set_arg(7, omega);
-        kernelLikContribsVector.set_arg(8, theta);
-        kernelLikContribsVector.set_arg(9, mu0);
+        kernelLikContribsVector.set_arg(4, static_cast<RealType>(sigmaXprec));
+        kernelLikContribsVector.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelLikContribsVector.set_arg(6, static_cast<RealType>(tauTprec));
+        kernelLikContribsVector.set_arg(7, static_cast<RealType>(omega));
+        kernelLikContribsVector.set_arg(8, static_cast<RealType>(theta));
+        kernelLikContribsVector.set_arg(9, static_cast<RealType>(mu0));
 //        kernelLikContribsVector.set_arg(10, boost::compute::uint_(embeddingDimension));
         kernelLikContribsVector.set_arg(10, boost::compute::uint_(locationCount));
 
-		const size_t local_work_size[2] = {TILE_DIM, TILE_DIM};
-		size_t work_groups = locationCount / TILE_DIM;
-		if (locationCount % TILE_DIM != 0) {
-			++work_groups;
-		}
-		const size_t global_work_size[2] = {work_groups * TILE_DIM, work_groups * TILE_DIM};
+//		const size_t local_work_size[2] = {TILE_DIM, TILE_DIM};
+//		size_t work_groups = locationCount / TILE_DIM;
+//		if (locationCount % TILE_DIM != 0) {
+//			++work_groups;
+//		}
+//		const size_t global_work_size[2] = {work_groups * TILE_DIM, work_groups * TILE_DIM};
 
-		queue.enqueue_nd_range_kernel(kernelLikContribsVector, 2, 0, global_work_size, local_work_size);
+        const size_t local_work_size = TILE_DIM;
+        size_t work_groups = locationCount / TILE_DIM;
+        if (locationCount % TILE_DIM != 0) {
+            ++work_groups;
+        }
+        const size_t global_work_size = work_groups * TILE_DIM;
+
+//		queue.enqueue_nd_range_kernel(kernelLikContribsVector, 2, 0, global_work_size, local_work_size);
+        queue.enqueue_1d_range_kernel(kernelLikContribsVector, 0, global_work_size, local_work_size);
 
 
 #else
@@ -331,7 +339,10 @@ public:
 
 		queue.finish();
 
-//        std::cout << dLikContribs[0] << std::endl;
+		for(int l = 0; l < locationCount; l++) {
+            std::cout << dLikContribs[l] << std::endl;
+        };
+
 
 //        kernelLikSum.set_arg(0, dLikContribs);
 //        kernelLikSum.set_arg(1, sumOfLikContribs);
