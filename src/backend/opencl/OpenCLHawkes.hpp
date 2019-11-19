@@ -510,10 +510,10 @@ public:
 	        static float safe_exp(float);
 
 	        static float safe_exp(float value) {
-	            if (value < -10.0f) {
+	            if (value < -103.0f) {
 	                return 0.0f;
-	            } else if (value > 10.0f) {
-	                return 100000.0f;
+	            } else if (value > 88.0f) {
+	                return MAXFLOAT;
 	            } else {
 	                return exp(value);
 	            }
@@ -521,16 +521,10 @@ public:
 	    );
 
         const char safeExpStringDouble[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
-                static float safe_exp(double);
+                static double safe_exp(double);
 
-                static float safe_exp(double value) {
-                    if (value < -10.0) {
-                        return 0.0;
-                    } else if (value > 10.0) {
-                        return 100000.0;
-                    } else {
-                        return exp(value);
-                    }
+                static double safe_exp(double value) {
+                    return exp(value);
                 }
         );
 
