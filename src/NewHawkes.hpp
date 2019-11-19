@@ -397,9 +397,9 @@ public:
             const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
-            const auto rate = mu0TauXprecDTauTprec *
+            const auto rate =  mu0TauXprecDTauTprec *
                     math::pdf_new(locDist * tauXprec) * math::pdf_new(timDiff * tauTprec) +
-                    sigmaXprecDTheta * mask(timDiff > zero,
+                    sigmaXprecDTheta *mask(timDiff > zero,
                          xsimd::exp(-omega * timDiff) * math::pdf_new(locDist * sigmaXprec));
 
             sum += rate;

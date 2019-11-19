@@ -259,7 +259,7 @@ public:
     }
 
     void setTimesData(double* data, size_t length) override {
-        assert(length == locationCount);
+        assert(length == times.size());
         mm::bufferedCopy(data, data + length, begin(times), buffer);
 
         // COMPUTE
@@ -300,25 +300,11 @@ public:
         kernelLikContribsVector.set_arg(7, static_cast<RealType>(omega));
         kernelLikContribsVector.set_arg(8, static_cast<RealType>(theta));
         kernelLikContribsVector.set_arg(9, static_cast<RealType>(mu0));
-//        kernelLikContribsVector.set_arg(10, boost::compute::uint_(embeddingDimension));
-        kernelLikContribsVector.set_arg(10, boost::compute::uint_(locationCount));
+        kernelLikContribsVector.set_arg(10, boost::compute::int_(embeddingDimension));
+        kernelLikContribsVector.set_arg(11, boost::compute::uint_(locationCount));
 
-//		const size_t local_work_size[2] = {TILE_DIM, TILE_DIM};
-//		size_t work_groups = locationCount / TILE_DIM;
-//		if (locationCount % TILE_DIM != 0) {
-//			++work_groups;
-//		}
-//		const size_t global_work_size[2] = {work_groups * TILE_DIM, work_groups * TILE_DIM};
-
-        const size_t local_work_size = TILE_DIM;
-        size_t work_groups = locationCount / TILE_DIM;
-        if (locationCount % TILE_DIM != 0) {
-            ++work_groups;
-        }
-        const size_t global_work_size = work_groups * TILE_DIM;
-
-//		queue.enqueue_nd_range_kernel(kernelLikContribsVector, 2, 0, global_work_size, local_work_size);
-        queue.enqueue_1d_range_kernel(kernelLikContribsVector, 0, global_work_size, local_work_size);
+        queue.enqueue_1d_range_kernel(kernelLikContribsVector, 0,
+                static_cast<unsigned int>(locationCount) * TPB, TPB);
 
 
 #else
@@ -343,17 +329,11 @@ public:
             std::cout << dLikContribs[l] << std::endl;
         };
 
-
-//        kernelLikSum.set_arg(0, dLikContribs);
-//        kernelLikSum.set_arg(1, sumOfLikContribs);
-//        kernelLikSum.set_arg(2, boost::compute::uint_(locationCount));
-		// now sum over likelihood contributions on GPU?
-
         RealType sum = RealType(0.0);
         boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
         queue.finish();
 
-        sumOfLikContribs = sum;
+        sumOfLikContribs = sum + locationCount*(embeddingDimension-1)*log(M_1_SQRT_2PI);
 
 	    count++;
 	}
@@ -532,13 +512,13 @@ public:
 		if (sizeof(RealType) == 8) { // 64-bit fp
 			code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
 			options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
-                    << " -DZERO=0.0 -DHALF=0.5";
+                    << " -DZERO=0.0 -DHALF=0.5 -DONE=1.0";
 			code << cdfString1Double;
 			code << pdfString1Double;
 
 		} else { // 32-bit fp
 			options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
-                    << " -DZERO=0.0f -DHALF=0.5f";
+                    << " -DZERO=0.0f -DHALF=0.5f -DONE=1.0f";
 			code << cdfString1Float;
 			code << pdfString1Float;
 		}
@@ -554,6 +534,7 @@ public:
 			"                                 const REAL omega,                       \n" <<
 			"                                 const REAL theta,                       \n" <<
 			"                                 const REAL mu0,                         \n" <<
+			"                                 const int dimX,                         \n" <<
 			"						          const uint locationCount) {             \n";
 
 		code <<
@@ -572,15 +553,16 @@ public:
             "     const REAL distance = locDists[i * locationCount + j];            \n";
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                    // TODO unsure whether I need to pown(tauXprec,dimX) pown(sigmaXprec,dimX) outside of pdf
-                    REAL innerContrib = mu0 * tauXprec * tauTprec * pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
-                            select(theta, ZERO, timDiff>0) * pdf(distance * sigmaXprec) * exp(-omega*timDiff);
+                    const REAL innerContrib = mu0 * pow(tauXprec,dimX) *
+                            tauTprec * pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
+                            select(ZERO, theta, timDiff>ZERO)  *
+                             pow(sigmaXprec,dimX) * pdf(distance * sigmaXprec) * exp(-omega * timDiff);
         );
 
         code <<
              "     sum += innerContrib;                                              \n" <<
              "     j += TPB;                                                         \n" <<
-             "  }                                                                    \n" <<
+             "     }                                                                 \n" <<
              "     scratch[lid] = sum;                                               \n";
 #ifdef USE_VECTOR
         code << reduce::ReduceBody1<RealType,false>::body();
@@ -592,7 +574,7 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code <<
-             "     likContribs[i] =  log(scratch[0]) + theta / omega *               \n" <<
+             "     likContribs[i] = log(scratch[0]) + theta / omega *               \n" <<
              "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) -            \n" <<
              "       mu0 * ( cdf((times[locationCount-1]-times[i])*tauTprec)-             \n" <<
              "               cdf(-times[i]*tauTprec) )   ;                               \n" <<

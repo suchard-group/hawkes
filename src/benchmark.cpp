@@ -156,9 +156,9 @@ int main(int argc, char* argv[]) {
     auto elementCount = locationCount * locationCount; // size of pairwise data
 
     std::vector<double> times(locationCount);
-	times[0] = 1;//expo(prng);
+	times[0] = expo(prng);
 	for (int i = 1; i < locationCount; ++i) {
-	    times[i] = times[i-1] + 1;//expo(prng);
+	    times[i] = times[i-1] + expo(prng);
 	}
     instance->setTimesData(&times[0], locationCount);
 
@@ -168,11 +168,11 @@ int main(int argc, char* argv[]) {
         for (int j = i + 1; j < locationCount; ++j) {
 
             const double draw = normalData(prng);
-            double distance = 1;
+            double distance = draw * draw;
 
-//            if(i==0 && j==1){ distance = 1.996679;}//draw * draw;
-//            if(i==0 && j==2){ distance = 1.956614;}//draw * draw;
-//            if(i==1 && j==2){ distance = 3.913225;}//draw * draw;
+//            if(i==0 && j==1){ distance = 1;}//draw * draw;
+//            if(i==0 && j==2){ distance = 1.5;}//draw * draw;
+//            if(i==1 && j==2){ distance = 1.5;}//draw * draw;
 
 
             data[i * locationCount + j] = distance;
@@ -184,15 +184,15 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < locationCount; ++i) { // pairwise times data
         data[i * locationCount + i] = 0.0;
         for (int j = i + 1; j < locationCount; ++j) {
-            data[i * locationCount + j] = times[j]-times[i];
-            data[j * locationCount + i] = times[i]-times[j];
+            data[i * locationCount + j] = times[i]-times[j]; //100% correct loadings
+            data[j * locationCount + i] = times[j]-times[i];
         }
     }
     instance->setTimDiffsData(&data[0], elementCount);
 
 	std::vector<double> parameters(6);
     for (int i = 0; i < 6; ++i) {
-        parameters[i] = i+1;//expo(prng2);
+        parameters[i] = expo(prng2);
     }
 	instance->setParameters(&parameters[0], 6);
 
@@ -212,7 +212,7 @@ int main(int argc, char* argv[]) {
 
 
         for (int i = 0; i < 6; ++i) {
-            parameters[i] = i+1;//expo(prng2);
+            parameters[i] = expo(prng2);
         }
         instance->setParameters(&parameters[0], 6);
 
