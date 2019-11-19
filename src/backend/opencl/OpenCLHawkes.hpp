@@ -99,6 +99,8 @@ public:
       dLocDists = mm::GPUMemoryManager<RealType>(locDists.size(), ctx);
       dTimDiffs = mm::GPUMemoryManager<RealType>(timDiffs.size(), ctx);
 
+      dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
+
       Rcpp::Rcout << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 
 #else //RBUILD
@@ -245,8 +247,7 @@ public:
 		mm::bufferedCopy(data, data + length, begin(locDists), buffer);
 
 		// COMPUTE
-		mm::bufferedCopyToDevice(data, data + length, dLocDists.begin(),
-			buffer, queue);
+		mm::bufferedCopyToDevice(data, data + length, dLocDists.begin(), buffer, queue);
     }
 
     void setTimDiffsData(double* data, size_t length) override {
@@ -254,8 +255,7 @@ public:
         mm::bufferedCopy(data, data + length, begin(timDiffs), buffer);
 
         // COMPUTE
-        mm::bufferedCopyToDevice(data, data + length, dTimDiffs.begin(),
-                                 buffer, queue);
+        mm::bufferedCopyToDevice(data, data + length, dTimDiffs.begin(), buffer, queue);
     }
 
     void setTimesData(double* data, size_t length) override {
@@ -325,9 +325,9 @@ public:
 
 		queue.finish();
 
-		for(int l = 0; l < locationCount; l++) {
-            std::cout << dLikContribs[l] << std::endl;
-        };
+//		for(int l = 0; l < locationCount; l++) {
+//            std::cout << dLikContribs[l] << std::endl;
+//        };
 
         RealType sum = RealType(0.0);
         boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
@@ -553,7 +553,7 @@ public:
             "     const REAL distance = locDists[i * locationCount + j];            \n";
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                    const REAL innerContrib = mu0 * pow(tauXprec,dimX) *
+                    const REAL innerContrib =  mu0 * pow(tauXprec,dimX) *
                             tauTprec * pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
                             select(ZERO, theta, timDiff>ZERO)  *
                              pow(sigmaXprec,dimX) * pdf(distance * sigmaXprec) * exp(-omega * timDiff);
