@@ -333,6 +333,8 @@ public:
         boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
         queue.finish();
 
+        std::cout << "sum = " << sum << std::endl;
+
         sumOfLikContribs = sum + locationCount*(embeddingDimension-1)*log(M_1_SQRT_2PI);
 
 	    count++;
@@ -504,6 +506,34 @@ public:
 	    	}
 		);
 
+		const char safeExpStringFloat[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+	        static float safe_exp(float);
+
+	        static float safe_exp(float value) {
+	            if (value < -10.0f) {
+	                return 0.0f;
+	            } else if (value > 10.0f) {
+	                return 100000.0f;
+	            } else {
+	                return exp(value);
+	            }
+	        }
+	    );
+
+        const char safeExpStringDouble[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float safe_exp(double);
+
+                static float safe_exp(double value) {
+                    if (value < -10.0) {
+                        return 0.0;
+                    } else if (value > 10.0) {
+                        return 100000.0;
+                    } else {
+                        return exp(value);
+                    }
+                }
+        );
+
 		std::stringstream code;
 		std::stringstream options;
 
@@ -515,12 +545,14 @@ public:
                     << " -DZERO=0.0 -DHALF=0.5 -DONE=1.0";
 			code << cdfString1Double;
 			code << pdfString1Double;
+			code << safeExpStringDouble;
 
 		} else { // 32-bit fp
 			options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
                     << " -DZERO=0.0f -DHALF=0.5f -DONE=1.0f";
 			code << cdfString1Float;
 			code << pdfString1Float;
+			code << safeExpStringFloat;
 		}
 
 		code <<
@@ -556,7 +588,7 @@ public:
                     const REAL innerContrib = mu0 * pow(tauXprec,dimX) *
                             tauTprec * pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
                             select(ZERO, theta, timDiff>ZERO)  *
-                             pow(sigmaXprec,dimX) * pdf(distance * sigmaXprec) * exp(-omega * timDiff);
+                            pow(sigmaXprec,dimX) * pdf(distance * sigmaXprec) * safe_exp(-omega * timDiff);
         );
 
         code <<
