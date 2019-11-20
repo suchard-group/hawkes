@@ -99,6 +99,8 @@ public:
       dLocDists = mm::GPUMemoryManager<RealType>(locDists.size(), ctx);
       dTimDiffs = mm::GPUMemoryManager<RealType>(timDiffs.size(), ctx);
 
+      dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
+
       Rcpp::Rcout << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 
 #else //RBUILD
@@ -245,8 +247,7 @@ public:
 		mm::bufferedCopy(data, data + length, begin(locDists), buffer);
 
 		// COMPUTE
-		mm::bufferedCopyToDevice(data, data + length, dLocDists.begin(),
-			buffer, queue);
+		mm::bufferedCopyToDevice(data, data + length, dLocDists.begin(), buffer, queue);
     }
 
     void setTimDiffsData(double* data, size_t length) override {
@@ -254,8 +255,7 @@ public:
         mm::bufferedCopy(data, data + length, begin(timDiffs), buffer);
 
         // COMPUTE
-        mm::bufferedCopyToDevice(data, data + length, dTimDiffs.begin(),
-                                 buffer, queue);
+        mm::bufferedCopyToDevice(data, data + length, dTimDiffs.begin(), buffer, queue);
     }
 
     void setTimesData(double* data, size_t length) override {
@@ -325,9 +325,9 @@ public:
 
 		queue.finish();
 
-		for(int l = 0; l < locationCount; l++) {
-            std::cout << dLikContribs[l] << std::endl;
-        };
+//		for(int l = 0; l < locationCount; l++) {
+//            std::cout << dLikContribs[l] << std::endl;
+//        };
 
         RealType sum = RealType(0.0);
         boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
@@ -382,90 +382,7 @@ public:
 		return sum;
 	}
 
-//	void createOpenCLSummationKernel() {
-//
-//        std::stringstream code;
-//        std::stringstream options;
-//
-//        options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
-//
-//        if (sizeof(RealType) == 8) { // 64-bit fp
-//            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
-//            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
-//                    << " -DZERO=0.0 -DHALF=0.5";
-//
-//        } else { // 32-bit fp
-//            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
-//                    << " -DZERO=0.0f -DHALF=0.5f";
-//        }
-//
-//        code <<
-//             " __kernel void computeSum(__global const REAL *summand,           \n" <<
-//             "                                 __global REAL *partialSum,              \n" <<
-//             "						           const uint locationCount) {             \n";
-//
-//        code <<
-//             "   const uint lid = get_local_id(0);                                   \n" <<
-//             "   uint j = get_local_id(0);                                           \n" <<
-//             "                                                                       \n" <<
-//             "   __local REAL scratch[TPB];                                   \n" <<
-//             "                                                                       \n" <<
-//             "   REAL sum = ZERO;                                                    \n" <<
-//             "                                                                       \n" <<
-//             "   while (j < locationCount) {                                         \n";
-//
-//
-//        code <<
-//             "     sum += summand[j];                                                \n" <<
-//             "     j += TPB;                                                         \n" <<
-//             "  }                                                                    \n" <<
-//             "     scratch[lid] = sum;                                               \n";
-//#ifdef USE_VECTOR
-//        code << reduce::ReduceBody1<RealType,false>::body();
-//#else
-//        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
-//#endif
-//        code <<
-//             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
-//             "   if (lid == 0) {                                                     \n";
-//
-//        code <<
-//             "     partialSum[0]    =  scratch[0];                                      \n" <<
-//             "   }                                                                   \n" <<
-//             " }                                                                     \n ";
-//
-//#ifdef DEBUG_KERNELS
-//        #ifdef RBUILD
-//		    Rcpp::Rcout << "Summation kernel\n" << code.str() << std::endl;
-//#else
-//        std::cerr << "Summation kernel\n" << options.str() << code.str() << std::endl;
-//#endif
-//#endif
-//
-//        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
-//        kernelLikSum = boost::compute::kernel(program, "computeSum");
-//
-//#ifdef DEBUG_KERNELS
-//        #ifdef RBUILD
-//        Rcpp:Rcout << "Successful build." << std::endl;
-//#else
-//        std::cerr << "Successful build." << std::endl;
-//#endif
-//#endif
-//
-//#ifdef DOUBLE_CHECK
-//        #ifdef RBUILD
-//        Rcpp::Rcout << kernelSumOfLikContribsVector.get_program().source() << std::endl;
-//#else
-//        std::cerr << kernelSumOfLikContribsVector.get_program().source() << std::endl;
-//#endif
-////        exit(-1);
-//#endif // DOUBLE_CHECK
-//
-//        kernelLikSum.set_arg(0, dLikContribs);
-//        kernelLikSum.set_arg(1, sumOfLikContribs);
-//        kernelLikSum.set_arg(2, boost::compute::uint_(locationCount));
-//	}
+
 
 	void createOpenCLLikContribsKernel() {
 
@@ -579,10 +496,10 @@ public:
             "     const REAL distance = locDists[i * locationCount + j];            \n";
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                    const REAL innerContrib = mu0 * pow(tauXprec,dimX) *
+                    const REAL innerContrib =  mu0 * pow(tauXprec,dimX) *
                             tauTprec * pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
-                            select(ZERO, theta, timDiff>ZERO)  *
-                            pow(sigmaXprec,dimX) * pdf(distance * sigmaXprec) * safe_exp(-omega * timDiff);
+                            select(ZERO, exp(-omega * timDiff), timDiff>ZERO)  * theta *
+                            pow(sigmaXprec,dimX) * pdf(distance * sigmaXprec);
         );
 
         code <<
@@ -625,19 +542,6 @@ public:
         std::cerr << "Successful build." << std::endl;
 #endif
 #endif
-
-//		size_t index = -1;
-//        kernelLikContribsVector.set_arg(index++, dLocDists);
-//		kernelLikContribsVector.set_arg(index++, dTimDiffs);
-//        kernelLikContribsVector.set_arg(index++, dTimes);
-//        kernelLikContribsVector.set_arg(index++, dLikContribs);
-//        kernelLikContribsVector.set_arg(index++, sigmaXprec);
-//        kernelLikContribsVector.set_arg(index++, tauXprec);
-//        kernelLikContribsVector.set_arg(index++, tauTprec);
-//        kernelLikContribsVector.set_arg(index++, omega);
-//        kernelLikContribsVector.set_arg(index++, theta);
-//        kernelLikContribsVector.set_arg(index++, mu0);
-//        kernelLikContribsVector.set_arg(index++, boost::compute::uint_(locationCount));
 
 	}
 
@@ -869,7 +773,6 @@ private:
     mm::MemoryManager<double> doubleBuffer;
 
     boost::compute::program program;
-//    boost::compute::kernel kernelLikSum;
 
 #ifdef USE_VECTORS
 	boost::compute::kernel kernelLikContribsVector;
