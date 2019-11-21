@@ -34,6 +34,9 @@
 
 #include <boost/compute/algorithm/accumulate.hpp>
 
+
+#define MICRO_BENCHMARK
+
 namespace hph {
 
 template <typename OpenCLRealType>
@@ -157,12 +160,30 @@ public:
 		dLikContribs = mm::GPUMemoryManager<RealType>(likContribs.size(), ctx);
 		dStoredLikContribs = mm::GPUMemoryManager<RealType>(storedLikContribs.size(), ctx);
 
+#ifdef MICRO_BENCHMARK
+	    timer.fill(0.0);
+#endif
+
 		createOpenCLKernels();
     }
+
+#ifdef MICRO_BENCHMARK
+    virtual ~OpenCLHawkes() {
+
+      std::cerr << "micro-benchmarks" << std::endl;
+      for (int i = 0; i < timer.size(); ++i) {
+          std::cerr << "\t" << timer[i] << std::endl;
+      }
+    }
+#endif
 
     int getInternalDimension() override { return OpenCLRealType::dim; }
 
     void getLogLikelihoodGradient(double* result, size_t length) override {
+
+#ifdef MICRO_BENCHMARK
+        auto startTime = std::chrono::steady_clock::now();
+#endif
 
         kernelGradientVector.set_arg(0, dLocDists);
         kernelGradientVector.set_arg(1, dTimDiffs);
@@ -186,21 +207,27 @@ public:
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
         queue.finish();
 
+#ifdef MICRO_BENCHMARK
+        timer[2] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+#endif
+
+#ifdef MICRO_BENCHMARK
+        startTime = std::chrono::steady_clock::now();
+#endif
+
         // TODO Start of extremely expensive part
         std::vector<RealType> sum(6);
         boost::compute::reduce(dSigmaXGradContribs.begin(), dSigmaXGradContribs.end(), &sum[0], queue);
-        queue.finish();
         boost::compute::reduce(dTauXGradContribs.begin(), dTauXGradContribs.end(), &sum[1], queue);
-        queue.finish();
         boost::compute::reduce(dTauTGradContribs.begin(), dTauTGradContribs.end(), &sum[2], queue);
-        queue.finish();
         boost::compute::reduce(dOmegaGradContribs.begin(), dOmegaGradContribs.end(), &sum[3], queue);
-        queue.finish();
         boost::compute::reduce(dThetaGradContribs.begin(), dThetaGradContribs.end(), &sum[4], queue);
-        queue.finish();
         boost::compute::reduce(dMu0GradContribs.begin(), dMu0GradContribs.end(), &sum[5], queue);
-        queue.finish();
         // TODO End of extremely expensive part
+
+#ifdef MICRO_BENCHMARK
+        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+#endif
 
         sum[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
         sum[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
@@ -342,6 +369,10 @@ public:
 
 		RealType lSumOfLikContribs = 0.0;
 
+#ifdef MICRO_BENCHMARK
+        auto startTime = std::chrono::steady_clock::now();
+#endif
+
 #ifdef USE_VECTORS
         kernelLikContribsVector.set_arg(0, dLocDists);
         kernelLikContribsVector.set_arg(1, dTimDiffs);
@@ -358,8 +389,6 @@ public:
 
         queue.enqueue_1d_range_kernel(kernelLikContribsVector, 0,
                 static_cast<unsigned int>(locationCount) * TPB, TPB);
-
-
 #else
         kernelLikContribs.set_arg(0, dLocDists);
         kernelLikContribs.set_arg(1, dTimDiffs);
@@ -378,13 +407,24 @@ public:
 
 		queue.finish();
 
+#ifdef MICRO_BENCHMARK
+        timer[0] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+#endif
+
 //		for(int l = 0; l < locationCount; l++) {
 //            std::cout << dLikContribs[l] << std::endl;
 //        };
 
+#ifdef MICRO_BENCHMARK
+        startTime = std::chrono::steady_clock::now();
+#endif
+
         RealType sum = RealType(0.0);
         boost::compute::reduce(dLikContribs.begin(), dLikContribs.end(), &sum, queue);
-        queue.finish();
+
+#ifdef MICRO_BENCHMARK
+        timer[1] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+#endif
 
         sumOfLikContribs = sum + locationCount*(embeddingDimension-1)*log(M_1_SQRT_2PI);
 
@@ -902,6 +942,10 @@ private:
 #else
     boost::compute::kernel kernelLikContribs;
 #endif // USE_VECTORS
+
+#ifdef MICRO_BENCHMARK
+    std::array<double,4> timer;
+#endif
 };
 
 } // namespace hph
