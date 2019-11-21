@@ -580,17 +580,19 @@ public:
 		    "   __local REAL scratch[TPB];                                          \n" <<
 		    "                                                                       \n" <<
 		    "   REAL        sum = ZERO;                                             \n" <<
+		    "   REAL mu0TauXprecDTauTprec = mu0 * pow(tauXprec,dimX) * tauTprec;    \n" <<
+		    "   REAL thetaSigmaXprecD = theta * pow(sigmaXprec,dimX);               \n" <<
 		    "                                                                       \n" <<
 		    "   while (j < locationCount) {                                         \n" << // originally j < locationCount
 		    "                                                                       \n" <<
 		    "     const REAL timDiff = timDiffs[i * locationCount + j];            \n" <<
-            "     const REAL distance = locDists[i * locationCount + j];            \n";
+		    "     const REAL distance = locDists[i * locationCount + j];            \n";
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                    const REAL innerContrib =  mu0 * pow(tauXprec,dimX) *
-                            tauTprec * pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
-                            select(ZERO, exp(-omega * timDiff), timDiff>ZERO)  * theta *
-                            pow(sigmaXprec,dimX) * pdf(distance * sigmaXprec);
+                const REAL innerContrib =  mu0TauXprecDTauTprec *
+                                           pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
+                                           thetaSigmaXprecD *
+                                           select(ZERO, exp(-omega * timDiff), timDiff>ZERO) * pdf(distance * sigmaXprec);
         );
 
         code <<
