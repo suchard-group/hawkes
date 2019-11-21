@@ -186,6 +186,7 @@ public:
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
         queue.finish();
 
+        // TODO Start of extremely expensive part
         std::vector<RealType> sum(6);
         boost::compute::reduce(dSigmaXGradContribs.begin(), dSigmaXGradContribs.end(), &sum[0], queue);
         queue.finish();
@@ -199,6 +200,7 @@ public:
         queue.finish();
         boost::compute::reduce(dMu0GradContribs.begin(), dMu0GradContribs.end(), &sum[5], queue);
         queue.finish();
+        // TODO End of extremely expensive part
 
         sum[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
         sum[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
@@ -681,6 +683,7 @@ public:
              " __kernel void computeGradient(__global const REAL *locDists,         \n" <<
              "  						          __global const REAL *timDiffs,          \n" <<
              "                                 __global const REAL *times,             \n" <<
+             // TODO Probably better to send a single buffer (not 6) for output -- then you can play with output format
              "						          __global REAL *sigmaXGradContribs,             \n" <<
              "						          __global REAL *tauXGradContribs,             \n" <<
              "						          __global REAL *tauTGradContribs,             \n" <<
@@ -788,6 +791,7 @@ public:
                 const REAL timDiff = times[locationCount-1]-times[i];
                 const REAL expOmegaTimDiff = exp(-omega*timDiff);
 
+                // TODO Almost surely better to ouput via a single coalesced write, then via 6 independent writes
                 sigmaXGradContribs[i] = sigmaXScratch[0] / totalRateScratch[0];
                 tauXGradContribs[i]   = tauXScratch[0]   / totalRateScratch[0];
                 tauTGradContribs[i]   = tauTScratch[0]   / totalRateScratch[0] * tauXprecD +
