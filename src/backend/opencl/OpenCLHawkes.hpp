@@ -160,6 +160,8 @@ public:
 		dLikContribs = mm::GPUMemoryManager<RealType>(likContribs.size(), ctx);
 		dStoredLikContribs = mm::GPUMemoryManager<RealType>(storedLikContribs.size(), ctx);
 
+		dGradient = mm::GPUMemoryManager<VectorType>(1, ctx);
+
 #ifdef MICRO_BENCHMARK
 	    timer.fill(0.0);
 #endif
@@ -188,21 +190,15 @@ public:
         kernelGradientVector.set_arg(0, dLocDists);
         kernelGradientVector.set_arg(1, dTimDiffs);
         kernelGradientVector.set_arg(2, dTimes);
-        kernelGradientVector.set_arg(3, dSigmaXGradContribs);
-        kernelGradientVector.set_arg(4, dTauXGradContribs);
-        kernelGradientVector.set_arg(5, dTauTGradContribs);
-        kernelGradientVector.set_arg(6, dOmegaGradContribs);
-        kernelGradientVector.set_arg(7, dThetaGradContribs);
-        kernelGradientVector.set_arg(8, dMu0GradContribs);
-        kernelGradientVector.set_arg(9, static_cast<RealType>(sigmaXprec));
-        kernelGradientVector.set_arg(10, static_cast<RealType>(tauXprec));
-        kernelGradientVector.set_arg(11, static_cast<RealType>(tauTprec));
-        kernelGradientVector.set_arg(12, static_cast<RealType>(omega));
-        kernelGradientVector.set_arg(13, static_cast<RealType>(theta));
-        kernelGradientVector.set_arg(14, static_cast<RealType>(mu0));
-        kernelGradientVector.set_arg(15, boost::compute::int_(embeddingDimension));
-        kernelGradientVector.set_arg(16, dGradContribs);
-        kernelGradientVector.set_arg(17, boost::compute::uint_(locationCount));
+        kernelGradientVector.set_arg(3, dGradContribs);
+        kernelGradientVector.set_arg(4, static_cast<RealType>(sigmaXprec));
+        kernelGradientVector.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelGradientVector.set_arg(6, static_cast<RealType>(tauTprec));
+        kernelGradientVector.set_arg(7, static_cast<RealType>(omega));
+        kernelGradientVector.set_arg(8, static_cast<RealType>(theta));
+        kernelGradientVector.set_arg(9, static_cast<RealType>(mu0));
+        kernelGradientVector.set_arg(10, boost::compute::int_(embeddingDimension));
+        kernelGradientVector.set_arg(11, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -212,32 +208,57 @@ public:
         timer[2] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
 #endif
 
+//#ifdef MICRO_BENCHMARK
+//        startTime = std::chrono::steady_clock::now();
+//#endif
+//
+//        // TODO Start of extremely expensive part
+//        std::vector<RealType> sum(6);
+//        boost::compute::reduce(dSigmaXGradContribs.begin(), dSigmaXGradContribs.end(), &sum[0], queue);
+//        boost::compute::reduce(dTauXGradContribs.begin(), dTauXGradContribs.end(), &sum[1], queue);
+//        boost::compute::reduce(dTauTGradContribs.begin(), dTauTGradContribs.end(), &sum[2], queue);
+//        boost::compute::reduce(dOmegaGradContribs.begin(), dOmegaGradContribs.end(), &sum[3], queue);
+//        boost::compute::reduce(dThetaGradContribs.begin(), dThetaGradContribs.end(), &sum[4], queue);
+//        boost::compute::reduce(dMu0GradContribs.begin(), dMu0GradContribs.end(), &sum[5], queue);
+//        // TODO End of extremely expensive part
+//
+//#ifdef MICRO_BENCHMARK
+//        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+//#endif
+
+//        sum[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
+//        sum[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
+//        sum[2] *= mu0 * tauTprec * tauTprec;
+//        sum[3] *= theta;
+
+//        gradient = sum;
+
+//        mm::bufferedCopy(std::begin(sum), std::end(sum), result, buffer);
+
 #ifdef MICRO_BENCHMARK
         startTime = std::chrono::steady_clock::now();
 #endif
 
-        // TODO Start of extremely expensive part
-        std::vector<RealType> sum(6);
-        boost::compute::reduce(dSigmaXGradContribs.begin(), dSigmaXGradContribs.end(), &sum[0], queue);
-        boost::compute::reduce(dTauXGradContribs.begin(), dTauXGradContribs.end(), &sum[1], queue);
-        boost::compute::reduce(dTauTGradContribs.begin(), dTauTGradContribs.end(), &sum[2], queue);
-        boost::compute::reduce(dOmegaGradContribs.begin(), dOmegaGradContribs.end(), &sum[3], queue);
-        boost::compute::reduce(dThetaGradContribs.begin(), dThetaGradContribs.end(), &sum[4], queue);
-        boost::compute::reduce(dMu0GradContribs.begin(), dMu0GradContribs.end(), &sum[5], queue);
-        // TODO End of extremely expensive part
+        kernelLikSum.set_arg(0,dGradContribs);
+        kernelLikSum.set_arg(1,dGradient);
+        kernelLikSum.set_arg(2,boost::compute::uint_(locationCount));
+
+        queue.enqueue_1d_range_kernel(kernelLikSum, 0,
+                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+        queue.finish();
 
 #ifdef MICRO_BENCHMARK
         timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
 #endif
 
-        sum[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
-        sum[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
-        sum[2] *= mu0 * tauTprec * tauTprec;
-        sum[3] *= theta;
+        mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
+                                                   result, buffer, queue);
+        queue.finish();
 
-//        gradient = sum;
-
-        mm::bufferedCopy(std::begin(sum), std::end(sum), result, buffer);
+        result[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
+        result[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
+        result[2] *= mu0 * tauTprec * tauTprec;
+        result[3] *= theta;
 
     }
 //	void getLogLikelihoodGradient(double* result, size_t length) override {
@@ -474,7 +495,77 @@ public:
 		return sum;
 	}
 
+    void createOpenCLSummationKernel() {
 
+        std::stringstream code;
+        std::stringstream options;
+
+        options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
+
+        if (sizeof(RealType) == 8) { // 64-bit fp
+            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+            options << " -DREAL=double -DREAL_VECTOR=double8" << " -DCAST=long"
+                    << " -DZERO=0.0 -DHALF=0.5";
+
+        } else { // 32-bit fp
+            options << " -DREAL=float -DREAL_VECTOR=float8" << " -DCAST=int"
+                    << " -DZERO=0.0f -DHALF=0.5f";
+        }
+
+        code <<
+             " __kernel void computeSum(__global const REAL_VECTOR *summand,           \n" <<
+             "                          __global REAL_VECTOR *outputSum,               \n" <<
+             "						    const uint locationCount) {                    \n";
+
+        code <<
+             "   const uint lid = get_local_id(0);                                   \n" <<
+             "   uint j = get_local_id(0);                                           \n" <<
+             "                                                                       \n" <<
+             "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
+             "                                                                       \n" <<
+             "   REAL_VECTOR sum = ZERO;                                             \n" <<
+             "                                                                       \n" <<
+             "   while (j < locationCount) {                                         \n";
+
+        code <<
+             "     sum += summand[j];                                                \n" <<
+             "     j += TPB;                                                        \n" <<
+             "      }                                                               \n" <<
+             "     scratch[lid] = sum;                                               \n";
+#ifdef USE_VECTOR
+        code << reduce::ReduceBody1<RealType,false>::body();
+#else
+        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
+#endif
+        code <<
+             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+             "   if (lid == 0) {                                                     \n";
+
+        code <<
+             "     outputSum[0] = scratch[0];                                      \n" <<
+             "   }                                                                   \n" <<
+             " }                                                                     \n ";
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+		    Rcpp::Rcout << "Summation kernel\n" << code.str() << std::endl;
+#else
+        std::cerr << "Summation kernel\n" << options.str() << code.str() << std::endl;
+#endif
+#endif
+
+        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+        kernelLikSum = boost::compute::kernel(program, "computeSum");
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+        Rcpp:Rcout << "Successful build." << std::endl;
+#else
+        std::cerr << "Successful build." << std::endl;
+#endif
+#endif
+
+    }
 
 	void createOpenCLLikContribsKernel() {
 
@@ -726,12 +817,7 @@ public:
              " __kernel void computeGradient(__global const REAL *locDists,         \n" <<
              "  						          __global const REAL *timDiffs,          \n" <<
              "                                 __global const REAL *times,             \n" <<
-             "						          __global REAL *sigmaXGradContribs,             \n" <<
-             "						          __global REAL *tauXGradContribs,             \n" <<
-             "						          __global REAL *tauTGradContribs,             \n" <<
-             "						          __global REAL *omegaGradContribs,             \n" <<
-             "						          __global REAL *thetaGradContribs,             \n" <<
-             "						          __global REAL *mu0GradContribs,             \n" <<
+             "						          __global REAL_VECTOR *gradContribs,      \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
              "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL tauTprec,                    \n" <<
@@ -739,7 +825,6 @@ public:
              "                                 const REAL theta,                       \n" <<
              "                                 const REAL mu0,                         \n" <<
              "                                 const int dimX,                         \n" <<
-             "						          __global REAL_VECTOR *gradContribs,      \n" <<
              "						          const uint locationCount) {             \n";
 
         code <<
@@ -834,16 +919,6 @@ public:
                 const REAL timDiff = times[locationCount-1]-times[i];
                 const REAL expOmegaTimDiff = exp(-omega*timDiff);
 
-                sigmaXGradContribs[i] = sigmaXScratch[0] / totalRateScratch[0];
-                tauXGradContribs[i]   = tauXScratch[0]   / totalRateScratch[0];
-                tauTGradContribs[i]   = tauTScratch[0]   / totalRateScratch[0] * tauXprecD +
-                        pdf(tauTprec * timDiff) * timDiff + pdf(tauTprec*times[i])*times[i];
-                omegaGradContribs[i]  = (1-(1+omega*timDiff) * expOmegaTimDiff)/(omega*omega) -
-                        omegaScratch[0]/totalRateScratch[0] * sigmaXprecD;
-                thetaGradContribs[i]  = thetaScratch[0] / totalRateScratch[0] * sigmaXprecD + (expOmegaTimDiff-1)/omega;
-                mu0GradContribs[i]    = mu0Scratch[0] / totalRateScratch[0] * tauXprecD * tauTprec -
-                        ( cdf(tauTprec*timDiff) - cdf(tauTprec*(-times[i])) );
-
                 gradContribs[i].s0 = sigmaXScratch[0] / totalRateScratch[0];
                 gradContribs[i].s1 = tauXScratch[0]   / totalRateScratch[0];
                 gradContribs[i].s2 = tauTScratch[0]   / totalRateScratch[0] * tauXprecD +
@@ -855,10 +930,6 @@ public:
                                      ( cdf(tauTprec*timDiff) - cdf(tauTprec*(-times[i])) );
 
                 );
-//        "     likContribs[i] = log(scratch[0]) + theta / omega *               \n" <<
-//             "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) -            \n" <<
-//             "       mu0 * ( cdf((times[locationCount-1]-times[i])*tauTprec)-             \n" <<
-//             "               cdf(-times[i]*tauTprec) )   ;                               \n";
 
         code <<
              "   }                                                                   \n" <<
@@ -890,6 +961,7 @@ public:
 
         createOpenCLLikContribsKernel();
 		createOpenCLGradientKernel();
+		createOpenCLSummationKernel();
 
 	}
 
@@ -937,6 +1009,7 @@ private:
     mm::GPUMemoryManager<RealType> dThetaGradContribs;
     mm::GPUMemoryManager<RealType> dMu0GradContribs;
     mm::GPUMemoryManager<VectorType> dGradContribs;
+    mm::GPUMemoryManager<VectorType> dGradient;
 
 
     mm::GPUMemoryManager<RealType> dLikContribs;
@@ -952,6 +1025,8 @@ private:
 #ifdef USE_VECTORS
 	boost::compute::kernel kernelLikContribsVector;
 	boost::compute::kernel kernelGradientVector;
+    boost::compute::kernel kernelLikSum;
+
 #else
     boost::compute::kernel kernelLikContribs;
 #endif // USE_VECTORS
