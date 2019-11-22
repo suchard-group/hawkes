@@ -155,7 +155,7 @@ public:
         dOmegaGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
         dThetaGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
         dMu0GradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
-
+        dGradContribs = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 
 		dLikContribs = mm::GPUMemoryManager<RealType>(likContribs.size(), ctx);
 		dStoredLikContribs = mm::GPUMemoryManager<RealType>(storedLikContribs.size(), ctx);
@@ -201,7 +201,8 @@ public:
         kernelGradientVector.set_arg(13, static_cast<RealType>(theta));
         kernelGradientVector.set_arg(14, static_cast<RealType>(mu0));
         kernelGradientVector.set_arg(15, boost::compute::int_(embeddingDimension));
-        kernelGradientVector.set_arg(16, boost::compute::uint_(locationCount));
+        kernelGradientVector.set_arg(16, dGradContribs);
+        kernelGradientVector.set_arg(17, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -542,7 +543,7 @@ public:
 		options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
 
 		if (sizeof(RealType) == 8) { // 64-bit fp
-			code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+			code << " #pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
 			options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
                     << " -DZERO=0.0 -DHALF=0.5 -DONE=1.0";
 			code << cdfString1Double;
@@ -589,10 +590,10 @@ public:
 		    "     const REAL distance = locDists[i * locationCount + j];            \n";
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                const REAL innerContrib =  mu0TauXprecDTauTprec *
+                const REAL innerContrib = mu0TauXprecDTauTprec *
                                            pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
                                            thetaSigmaXprecD *
-                                           select(ZERO, exp(-omega * timDiff), timDiff>ZERO) * pdf(distance * sigmaXprec);
+                                           select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
         );
 
         code <<
@@ -707,14 +708,14 @@ public:
 
         if (sizeof(RealType) == 8) { // 64-bit fp
             code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
-            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
+            options << " -DREAL=double -DREAL_VECTOR=double8" << " -DCAST=long"
                     << " -DZERO=0.0 -DHALF=0.5 -DONE=1.0";
             code << cdfString1Double;
             code << pdfString1Double;
             code << safeExpStringDouble;
 
         } else { // 32-bit fp
-            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
+            options << " -DREAL=float -DREAL_VECTOR=float8" << " -DCAST=int"
                     << " -DZERO=0.0f -DHALF=0.5f -DONE=1.0f";
             code << cdfString1Float;
             code << pdfString1Float;
@@ -725,7 +726,6 @@ public:
              " __kernel void computeGradient(__global const REAL *locDists,         \n" <<
              "  						          __global const REAL *timDiffs,          \n" <<
              "                                 __global const REAL *times,             \n" <<
-             // TODO Probably better to send a single buffer (not 6) for output -- then you can play with output format
              "						          __global REAL *sigmaXGradContribs,             \n" <<
              "						          __global REAL *tauXGradContribs,             \n" <<
              "						          __global REAL *tauTGradContribs,             \n" <<
@@ -739,6 +739,7 @@ public:
              "                                 const REAL theta,                       \n" <<
              "                                 const REAL mu0,                         \n" <<
              "                                 const int dimX,                         \n" <<
+             "						          __global REAL_VECTOR *gradContribs,      \n" <<
              "						          const uint locationCount) {             \n";
 
         code <<
@@ -780,7 +781,7 @@ public:
                 const REAL pdfLocDistSigmaXPrec = pdf(locDist * sigmaXprec);
                 const REAL pdfLocDistTauXPrec = pdf(locDist * tauXprec);
                 const REAL pdfTimDiffTauTPrec = pdf(timDiff * tauTprec);
-                const REAL expOmegaTimDiff = select(ZERO, exp(-omega * timDiff), timDiff>ZERO);
+                const REAL expOmegaTimDiff = select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO));
 
                 const REAL mu0Rate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
                 const REAL thetaRate = expOmegaTimDiff * pdfLocDistSigmaXPrec;
@@ -833,7 +834,6 @@ public:
                 const REAL timDiff = times[locationCount-1]-times[i];
                 const REAL expOmegaTimDiff = exp(-omega*timDiff);
 
-                // TODO Almost surely better to ouput via a single coalesced write, then via 6 independent writes
                 sigmaXGradContribs[i] = sigmaXScratch[0] / totalRateScratch[0];
                 tauXGradContribs[i]   = tauXScratch[0]   / totalRateScratch[0];
                 tauTGradContribs[i]   = tauTScratch[0]   / totalRateScratch[0] * tauXprecD +
@@ -843,6 +843,16 @@ public:
                 thetaGradContribs[i]  = thetaScratch[0] / totalRateScratch[0] * sigmaXprecD + (expOmegaTimDiff-1)/omega;
                 mu0GradContribs[i]    = mu0Scratch[0] / totalRateScratch[0] * tauXprecD * tauTprec -
                         ( cdf(tauTprec*timDiff) - cdf(tauTprec*(-times[i])) );
+
+                gradContribs[i].s0 = sigmaXScratch[0] / totalRateScratch[0];
+                gradContribs[i].s1 = tauXScratch[0]   / totalRateScratch[0];
+                gradContribs[i].s2 = tauTScratch[0]   / totalRateScratch[0] * tauXprecD +
+                                     pdf(tauTprec * timDiff) * timDiff + pdf(tauTprec*times[i])*times[i];
+                gradContribs[i].s3 = (1-(1+omega*timDiff) * expOmegaTimDiff)/(omega*omega) -
+                                     omegaScratch[0]/totalRateScratch[0] * sigmaXprecD;
+                gradContribs[i].s4 = thetaScratch[0] / totalRateScratch[0] * sigmaXprecD + (expOmegaTimDiff-1)/omega;
+                gradContribs[i].s5 = mu0Scratch[0] / totalRateScratch[0] * tauXprecD * tauTprec -
+                                     ( cdf(tauTprec*timDiff) - cdf(tauTprec*(-times[i])) );
 
                 );
 //        "     likContribs[i] = log(scratch[0]) + theta / omega *               \n" <<
@@ -926,6 +936,7 @@ private:
     mm::GPUMemoryManager<RealType> dOmegaGradContribs;
     mm::GPUMemoryManager<RealType> dThetaGradContribs;
     mm::GPUMemoryManager<RealType> dMu0GradContribs;
+    mm::GPUMemoryManager<VectorType> dGradContribs;
 
 
     mm::GPUMemoryManager<RealType> dLikContribs;
