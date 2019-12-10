@@ -251,14 +251,18 @@ public:
         timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
 #endif
 
+        std::vector<double> middleMan(8);
+
         mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
-                                                   result, buffer, queue);
+                                                   middleMan.data(), buffer, queue);
         queue.finish();
 
-        result[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
-        result[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
-        result[2] *= mu0 * tauTprec * tauTprec;
-        result[3] *= theta;
+        middleMan[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
+        middleMan[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
+        middleMan[2] *= mu0 * tauTprec * tauTprec;
+        middleMan[3] *= theta;
+
+        memcpy(result,middleMan.data(), 48);
 
     }
 //	void getLogLikelihoodGradient(double* result, size_t length) override {
