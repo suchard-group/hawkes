@@ -276,7 +276,7 @@ public:
         auto startTime = std::chrono::steady_clock::now();
 #endif
 
-        kernelGradientVector.set_arg(0, dLocDists);
+        kernelGradientVector.set_arg(0, dLocations0);
         kernelGradientVector.set_arg(1, dTimDiffs);
         kernelGradientVector.set_arg(2, dTimes);
         kernelGradientVector.set_arg(3, dGradContribs);
@@ -935,7 +935,7 @@ public:
         }
 
         code <<
-             " __kernel void computeGradient(__global const REAL *locDists,         \n" <<
+             " __kernel void computeGradient(__global const REAL_VECTOR *locations,         \n" <<
              "  						          __global const REAL *timDiffs,          \n" <<
              "                                 __global const REAL *times,             \n" <<
              "						          __global REAL_VECTOR *gradContribs,      \n" <<
@@ -953,6 +953,7 @@ public:
              "                                                                       \n" <<
              "   const uint lid = get_local_id(0);                                   \n" <<
              "   uint j = get_local_id(0);                                           \n" <<
+             "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
              "                                                                       \n" <<
              "   __local REAL sigmaXScratch[TPB];                                          \n" <<
              "   __local REAL tauXScratch[TPB];                                          \n" <<
@@ -981,8 +982,18 @@ public:
              "   while (j < locationCount) {                                         \n" << // originally j < locationCount
              "                                                                       \n" <<
              "     const REAL timDiff = timDiffs[i * locationCount + j];            \n" <<
-             "     const REAL locDist = locDists[i * locationCount + j];            \n";
+             "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
+             "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
 
+        if (OpenCLRealType::dim == 8) {
+            code << "     const REAL locDist = sqrt(                                \n" <<
+                 "              dot(difference.lo, difference.lo) +               \n" <<
+                 "              dot(difference.hi, difference.hi)                 \n" <<
+                 "      );                                                        \n";
+
+        } else {
+            code << "     const REAL locDist = length(difference);                  \n";
+        }
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL pdfLocDistSigmaXPrec = pdf(locDist * sigmaXprec);
                 const REAL pdfLocDistTauXPrec = pdf(locDist * tauXprec);
