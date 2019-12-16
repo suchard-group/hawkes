@@ -280,11 +280,13 @@ public:
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
-                    auto sumOfRates = innerLoop1<SimdType, SimdSize, 7>(i, 0, vectorCount,
+                    DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+                    auto sumOfRates = innerLoop1<SimdType, SimdSize, 7>(dispatch, i, 0, vectorCount,
                             sigmaXprecD, tauXprecD, tauTprec2);
 
                     if (vectorCount < locationCount) { // Edge-cases
-                        sumOfRates += innerLoop1<RealType, 1, 7>(i, vectorCount, locationCount,
+                        DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+                        sumOfRates += innerLoop1<RealType, 1, 7>(dispatch, i, vectorCount, locationCount,
                                 sigmaXprecD, tauXprecD, tauTprec2);
                     }
 
@@ -501,8 +503,8 @@ public:
 	    return pack;
 	}
 
-    template <typename SimdType, int SimdSize, int N>
-    RealTypePack<N> innerLoop1(const int i, const int begin, const int end,
+    template <typename SimdType, int SimdSize, int N, typename DispatchType>
+    RealTypePack<N> innerLoop1(const DispatchType& dispatch, const int i, const int begin, const int end,
             const RealType sigmaXprecD, const RealType tauXprecD, const RealType tauTprec2) {
 
         const auto sigmaXprec2 = sigmaXprec * sigmaXprec;
@@ -514,7 +516,7 @@ public:
 		std::array<SimdType, N> sum = {zero, zero, zero, zero, zero, zero, zero};
 
         for (int j = begin; j < end; j += SimdSize) {
-            const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto locDist = dispatch.calculate(j);//SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
             const auto pdfLocDistSigmaXPrec = math::pdf_new(locDist * sigmaXprec);
