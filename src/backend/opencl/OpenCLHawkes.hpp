@@ -58,6 +58,11 @@ public:
           locDists(locationCount * locationCount),
           timDiffs(locationCount * locationCount),
 
+          locations0(locationCount * OpenCLRealType::dim),
+          locations1(locationCount * OpenCLRealType::dim),
+          locationsPtr(&locations0),
+          storedLocationsPtr(&locations1),
+
           times(locationCount),
 
           gradient(6),
@@ -148,6 +153,18 @@ public:
         std::cerr << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 #endif //RBUILD
 
+#ifdef USE_VECTORS
+        dLocations0 = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+        dLocations1 = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+        dGradient   = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+#else
+        dLocations0 = mm::GPUMemoryManager<RealType>(locations0.size(), ctx);
+		dLocations1 = mm::GPUMemoryManager<RealType>(locations1.size(), ctx);
+#endif // USE_VECTORS
+
+        dLocationsPtr = &dLocations0;
+        dStoredLocationsPtr = &dLocations1;
+
 
         dSigmaXGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
         dTauXGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
@@ -178,6 +195,78 @@ public:
       }
     }
 #endif
+
+    void updateLocations(int locationIndex, double* location, size_t length) override {
+
+        size_t offset{0};
+        size_t deviceOffset{0};
+
+        if (locationIndex == -1) {
+            // Update all locations
+            assert(length == OpenCLRealType::dim * locationCount ||
+                   length == embeddingDimension * locationCount);
+
+//            incrementsKnown = false;
+//            isStoredSquaredResidualsEmpty = true;
+//            isStoredTruncationsEmpty = true;
+
+        } else {
+            // Update a single location
+            assert(length == OpenCLRealType::dim ||
+                   length == embeddingDimension);
+
+            if (updatedLocation != - 1) {
+                // more than one location updated -- do a full recomputation
+//                incrementsKnown = false;
+//                isStoredSquaredResidualsEmpty = true;
+//                isStoredTruncationsEmpty = true;
+            }
+
+            updatedLocation = locationIndex;
+
+            offset = locationIndex * OpenCLRealType::dim;
+#ifdef USE_VECTORS
+            deviceOffset = static_cast<size_t>(locationIndex);
+#else
+            deviceOffset = locationIndex * embeddingDimension;
+#endif
+        }
+
+        // If requires padding
+        if (embeddingDimension != OpenCLRealType::dim) {
+            if (locationIndex == -1) {
+
+                mm::paddedBufferedCopy(location, embeddingDimension, embeddingDimension,
+                                       begin(*locationsPtr) + offset, OpenCLRealType::dim,
+                                       locationCount, buffer);
+
+                length = OpenCLRealType::dim * locationCount; // New padded length
+
+            } else {
+
+                mm::bufferedCopy(location, location + length,
+                                 begin(*locationsPtr) + offset,
+                                 buffer);
+
+                length = OpenCLRealType::dim;
+            }
+        } else {
+            // Without padding
+            mm::bufferedCopy(location, location + length,
+                             begin(*locationsPtr) + offset,
+                             buffer
+            );
+        }
+
+        // COMPUTE
+        mm::copyToDevice<OpenCLRealType>(begin(*locationsPtr) + offset,
+                                         begin(*locationsPtr) + offset + length,
+                                         dLocationsPtr->begin() + deviceOffset,
+                                         queue
+        );
+
+//        sumOfIncrementsKnown = false;
+    }
 
     int getInternalDimension() override { return OpenCLRealType::dim; }
 
@@ -311,6 +400,13 @@ public:
         storedMu0 = mu0;
 
         storedLikContribs = likContribs;
+
+        std::copy(begin(*locationsPtr), end(*locationsPtr),
+                  begin(*storedLocationsPtr));
+
+        // COMPUTE
+        boost::compute::copy(dLocationsPtr->begin(), dLocationsPtr->end(),
+                             dStoredLocationsPtr->begin(), queue);
     }
 
     void acceptState() override {
@@ -345,6 +441,15 @@ public:
         omega = storedOmega;
         theta = storedTheta;
         mu0 = storedMu0;
+
+        auto tmp1 = storedLocationsPtr;
+        storedLocationsPtr = locationsPtr;
+        locationsPtr = tmp1;
+
+        // COMPUTE
+        auto tmp2 = dStoredLocationsPtr;
+        dStoredLocationsPtr = dLocationsPtr;
+        dLocationsPtr = tmp2;
 
     }
 
@@ -1014,6 +1119,26 @@ private:
     mm::GPUMemoryManager<RealType> dMu0GradContribs;
     mm::GPUMemoryManager<VectorType> dGradContribs;
     mm::GPUMemoryManager<VectorType> dGradient;
+
+    mm::MemoryManager<RealType> locations0;
+    mm::MemoryManager<RealType> locations1;
+
+    mm::MemoryManager<RealType>* locationsPtr;
+    mm::MemoryManager<RealType>* storedLocationsPtr;
+
+#ifdef USE_VECTORS
+    mm::GPUMemoryManager<VectorType> dLocations0;
+    mm::GPUMemoryManager<VectorType> dLocations1;
+
+    mm::GPUMemoryManager<VectorType>* dLocationsPtr;
+    mm::GPUMemoryManager<VectorType>* dStoredLocationsPtr;
+    #else
+    mm::GPUMemoryManager<RealType> dLocations0;
+    mm::GPUMemoryManager<RealType> dLocations1;
+
+    mm::GPUMemoryManager<RealType>* dLocationsPtr;
+    mm::GPUMemoryManager<RealType>* dStoredLocationsPtr;
+#endif // USE_VECTORS
 
 
     mm::GPUMemoryManager<RealType> dLikContribs;

@@ -112,6 +112,11 @@ public:
 
           times(locationCount),
 
+          locations0(locationCount * embeddingDimension),
+          locations1(locationCount * embeddingDimension),
+          locationsPtr(&locations0),
+          storedLocationsPtr(&locations1),
+
           sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
 
           likContribs(locationCount),
@@ -144,6 +149,40 @@ public:
 
 	int getInternalDimension() { return embeddingDimension; }
 
+    void updateLocations(int locationIndex, double* location, size_t length) {
+
+        size_t offset{0};
+
+        if (locationIndex == -1) {
+            // Update all locations
+            assert(length == embeddingDimension * locationCount);
+
+//            incrementsKnown = false;
+//            isStoredIncrementsEmpty = true;
+
+            // TODO Do anything with updatedLocation?
+        } else {
+            // Update a single location
+            assert(length == embeddingDimension);
+
+            if (updatedLocation != - 1) {
+                // more than one location updated -- do a full recomputation
+//                incrementsKnown = false;
+//                isStoredIncrementsEmpty = true;
+            }
+
+            updatedLocation = locationIndex;
+            offset = locationIndex * embeddingDimension;
+        }
+
+        mm::bufferedCopy(location, location + length,
+                         begin(*locationsPtr) + offset,
+                         buffer
+        );
+
+//        sumOfIncrementsKnown = false;
+    }
+
     double getSumOfLikContribs() {
         // TODO do lazy computation (i.e., check if changed)
         sumOfLikContribs = computeSumOfLikContribsGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
@@ -158,6 +197,9 @@ public:
         omega = storedOmega;
         theta = storedTheta;
         mu0 = storedMu0;
+
+        std::copy(begin(*locationsPtr), end(*locationsPtr),
+                  begin(*storedLocationsPtr));
     }
 
     void acceptState() {
@@ -177,6 +219,10 @@ public:
         omega = storedOmega;
         theta = storedTheta;
         mu0 = storedMu0;
+
+        auto tmp1 = storedLocationsPtr;
+        storedLocationsPtr = locationsPtr;
+        locationsPtr = tmp1;
     }
 
     // TODO This could be very problematic when/if some/all locations are random
@@ -670,6 +716,12 @@ private:
     mm::MemoryManager<RealType> timDiffs;
 
     mm::MemoryManager<RealType> times;
+
+    mm::MemoryManager<RealType> locations0;
+    mm::MemoryManager<RealType> locations1;
+
+    mm::MemoryManager<RealType>* locationsPtr;
+    mm::MemoryManager<RealType>* storedLocationsPtr;
 
 
     mm::MemoryManager<RealType> likContribs;

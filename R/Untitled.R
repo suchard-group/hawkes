@@ -251,12 +251,12 @@ hmcsampler <- function(n_iter,
     }
   }
 
-  set.seed(666)
+  #set.seed(666)
 
   # Set up the parameters
   NumOfIterations = n_iter
   NumOfLeapfrog = 20
-  StepSize = trajectory/NumOfLeapfrog
+  StepSize = trajectory/NumOfLeapfrog #* c(1,1/100,1/100,1/10,1/10,1)
 
   # Allocate output space
   ParametersSaved = matrix(0,6,NumOfIterations)
@@ -271,7 +271,6 @@ hmcsampler <- function(n_iter,
     stop("No times found.")
   }
   N <- dim(locDists)[1]
-
 
   # Build reusable object to compute Loglikelihood (gradient)
   engine <- engineInitial(locDists,N,P,times,params,threads,simd,gpu,single)
