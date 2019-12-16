@@ -43,6 +43,10 @@ createEngine <- function(embeddingDimension, locationCount, tbb, simd, gpu, sing
     .Call('_hpHawkes_getLogLikelihoodGradient', PACKAGE = 'hpHawkes', sexp, len)
 }
 
+.updateLocations <- function(sexp, locations) {
+    invisible(.Call('_hpHawkes_updateLocations', PACKAGE = 'hpHawkes', sexp, locations))
+}
+
 .getSumOfLikContribs <- function(sexp) {
     .Call('_hpHawkes_getSumOfLikContribs', PACKAGE = 'hpHawkes', sexp)
 }

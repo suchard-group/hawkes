@@ -144,6 +144,13 @@ std::vector<double> getLogLikelihoodGradient(SEXP sexp, size_t len) {
   return result;
 }
 
+// [[Rcpp::export(.updateLocations)]]
+void updateLocations(SEXP sexp,
+                     std::vector<double>& locations) {
+  auto ptr = parsePtr(sexp);
+  ptr->updateLocations(-1, &locations[0], locations.size());
+}
+
 // [[Rcpp::export(.getSumOfLikContribs)]]
 double getSumOfLikContribs(SEXP sexp) {
   auto ptr = parsePtr(sexp);

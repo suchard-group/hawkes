@@ -3,7 +3,6 @@
 \docType{package}
 \name{hpHawkes}
 \alias{hpHawkes}
-\alias{hpHawkes-package}
 \title{hpHawkes}
 \description{
 hpHawkes facilitates fast Bayesian inference for Hawkes processes through GPU, multi-core CPU, and SIMD vectorization powered implementations of the Hamiltonian Monte Carlo algorithm.

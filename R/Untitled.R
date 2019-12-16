@@ -63,6 +63,7 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
 
   engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
   engine <- hpHawkes::setLocDistsData(engine, locDists)
+  engine <- hpHawkes::updateLocations(engine, locations)
   engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
   engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
   engine <- hpHawkes::setTimesData(engine, times)

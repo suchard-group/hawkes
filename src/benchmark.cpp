@@ -15,10 +15,10 @@
 template <typename T, typename PRNG, typename D>
 void generateLocation(T& locations, D& d, PRNG& prng) {
     //int i = cnt++;
-	for (auto& location : locations) {
-		location = d(prng);
+    for (auto& location : locations) {
+        location = d(prng);
 //        location = i++;
-	}
+    }
 }
 
 //double getGradient
@@ -180,6 +180,14 @@ int main(int argc, char* argv[]) {
         }
     }
 	instance->setLocDistsData(&data[0], elementCount);
+
+    int dataDimension = internalDimension ? instance->getInternalDimension() : embeddingDimension;
+
+    std::vector<double> location(dataDimension);
+    for (int i = 0; i < locationCount; ++i) {
+        generateLocation(location, normal, prng);
+        instance->updateLocations(i, &location[0], dataDimension);
+    }
 
     for (int i = 0; i < locationCount; ++i) { // pairwise times data
         data[i * locationCount + i] = 0.0;

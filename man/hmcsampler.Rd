@@ -4,9 +4,19 @@
 \alias{hmcsampler}
 \title{HMC for Bayesian inference of Hawkes model parameters}
 \usage{
-hmcsampler(n_iter, burnIn = 0, locDists = NULL, times = NULL,
-  params = rep(1, 6), latentDimension = 2, trajectory = 0.2,
-  threads = 1, simd = 0, gpu = 0, single = 0)
+hmcsampler(
+  n_iter,
+  burnIn = 0,
+  locDists = NULL,
+  times = NULL,
+  params = rep(1, 6),
+  latentDimension = 2,
+  trajectory = 0.05,
+  threads = 1,
+  simd = 0,
+  gpu = 0,
+  single = 0
+)
 }
 \arguments{
 \item{n_iter}{Number of MCMC iterations.}

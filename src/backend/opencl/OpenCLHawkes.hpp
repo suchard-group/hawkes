@@ -505,7 +505,7 @@ public:
 #endif
 
 #ifdef USE_VECTORS
-        kernelLikContribsVector.set_arg(0, dLocDists);
+        kernelLikContribsVector.set_arg(0, dLocations0);
         kernelLikContribsVector.set_arg(1, dTimDiffs);
         kernelLikContribsVector.set_arg(2, dTimes);
         kernelLikContribsVector.set_arg(3, dLikContribs);
@@ -757,9 +757,9 @@ public:
 			code << pdfString1Float;
 			code << safeExpStringFloat;
 		}
-
+        //TODO: possible speedup from smaller vector size to match embedding dimension (right now always 8)
 		code <<
-			" __kernel void computeLikContribs(__global const REAL *locDists,         \n" <<
+			" __kernel void computeLikContribs(__global const REAL_VECTOR *locations, \n" <<
 			"  						          __global const REAL *timDiffs,          \n" <<
 			"                                 __global const REAL *times,             \n" <<
 			"						          __global REAL *likContribs,             \n" <<
@@ -779,6 +779,7 @@ public:
 		    "   uint j = get_local_id(0);                                           \n" <<
 		    "                                                                       \n" <<
 		    "   __local REAL scratch[TPB];                                          \n" <<
+		    "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
 		    "                                                                       \n" <<
 		    "   REAL        sum = ZERO;                                             \n" <<
 		    "   REAL mu0TauXprecDTauTprec = mu0 * pow(tauXprec,dimX) * tauTprec;    \n" <<
@@ -787,7 +788,18 @@ public:
 		    "   while (j < locationCount) {                                         \n" << // originally j < locationCount
 		    "                                                                       \n" <<
 		    "     const REAL timDiff = timDiffs[i * locationCount + j];            \n" <<
-		    "     const REAL distance = locDists[i * locationCount + j];            \n";
+		    "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
+		    "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
+
+        if (OpenCLRealType::dim == 8) {
+            code << "     const REAL distance = sqrt(                                \n" <<
+                 "              dot(difference.lo, difference.lo) +               \n" <<
+                 "              dot(difference.hi, difference.hi)                 \n" <<
+                 "      );                                                        \n";
+
+        } else {
+            code << "     const REAL distance = length(difference);                  \n";
+        }
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL innerContrib = mu0TauXprecDTauTprec *

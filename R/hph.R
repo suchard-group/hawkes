@@ -137,21 +137,21 @@ setTimesData <- function(engine, data) {
   return(engine)
 }
 
-#' #' Deliver latent locations matrix to MDS engine object
-#' #'
-#' #' Helper function delivers latent locations matrix to MDS engine object.
-#' #'
-#' #' @param engine MDS engine object.
-#' #' @param locations N by P matrix of N P-dimensional latent locations.
-#' #' @return MDS engine object.
-#' #'
-#' #' @export
-#' updateLocations <- function(engine, locations) {
-#'   locations <- as.vector(t(locations)) # C++ code assumes row-major
-#'   if (length(locations) != engine$locationCount * engine$embeddingDimension) {
-#'     stop("Invalid data size")
-#'   }
-#'   .updateLocations(engine$engine, locations)
-#'   engine$locationsInitialized <- TRUE
-#'   return(engine)
-#' }
+#' Deliver latent locations matrix to MDS engine object
+#'
+#' Helper function delivers latent locations matrix to MDS engine object.
+#'
+#' @param engine MDS engine object.
+#' @param locations N by P matrix of N P-dimensional latent locations.
+#' @return MDS engine object.
+#'
+#' @export
+updateLocations <- function(engine, locations) {
+  locations <- as.vector(t(locations)) # C++ code assumes row-major
+  if (length(locations) != engine$locationCount * engine$embeddingDimension) {
+    stop("Invalid data size")
+  }
+  .updateLocations(engine$engine, locations)
+  engine$locationsInitialized <- TRUE
+  return(engine)
+}

@@ -4,8 +4,17 @@
 \alias{engineInitial}
 \title{Initialize HPH engine object}
 \usage{
-engineInitial(locDists, N, P, times, parameters = c(1, 6), threads, simd,
-  gpu, single)
+engineInitial(
+  locDists,
+  N,
+  P,
+  times,
+  parameters = c(1, 6),
+  threads,
+  simd,
+  gpu,
+  single
+)
 }
 \arguments{
 \item{locDists}{N by N locations distances matrix.}

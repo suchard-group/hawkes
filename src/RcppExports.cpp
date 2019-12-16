@@ -87,6 +87,17 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// updateLocations
+void updateLocations(SEXP sexp, std::vector<double>& locations);
+RcppExport SEXP _hpHawkes_updateLocations(SEXP sexpSEXP, SEXP locationsSEXP) {
+BEGIN_RCPP
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type sexp(sexpSEXP);
+    Rcpp::traits::input_parameter< std::vector<double>& >::type locations(locationsSEXP);
+    updateLocations(sexp, locations);
+    return R_NilValue;
+END_RCPP
+}
 // getSumOfLikContribs
 double getSumOfLikContribs(SEXP sexp);
 RcppExport SEXP _hpHawkes_getSumOfLikContribs(SEXP sexpSEXP) {
@@ -107,6 +118,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpHawkes_setTimesData", (DL_FUNC) &_hpHawkes_setTimesData, 2},
     {"_hpHawkes_setParameters", (DL_FUNC) &_hpHawkes_setParameters, 2},
     {"_hpHawkes_getLogLikelihoodGradient", (DL_FUNC) &_hpHawkes_getLogLikelihoodGradient, 2},
+    {"_hpHawkes_updateLocations", (DL_FUNC) &_hpHawkes_updateLocations, 2},
     {"_hpHawkes_getSumOfLikContribs", (DL_FUNC) &_hpHawkes_getSumOfLikContribs, 1},
     {NULL, NULL, 0}
 };
