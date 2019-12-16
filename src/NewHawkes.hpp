@@ -431,8 +431,8 @@ public:
 	}
 #endif
 
-    template <typename SimdType, int SimdSize>
-    RealType ratesLoop(const int i, const int begin, const int end) {
+    template <typename SimdType, int SimdSize, typename DispatchType>
+    RealType ratesLoop(const DispatchType& dispatch, const int i, const int begin, const int end) {
 
         auto sum = SimdType(RealType(0));
         const auto zero = SimdType(RealType(0));
@@ -444,7 +444,7 @@ public:
 
         for (int j = begin; j < end; j += SimdSize) {
 
-            const auto locDist = SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
 
             const auto rate =  mu0TauXprecDTauTprec *
@@ -551,10 +551,12 @@ public:
 
                     const int vectorCount = locationCount - locationCount % SimdSize;
 
-					RealType sumOfRates = ratesLoop<SimdType, SimdSize>(i, 0, vectorCount);
+                    DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+					RealType sumOfRates = ratesLoop<SimdType, SimdSize>(dispatch, i, 0, vectorCount);
 
                     if (vectorCount < locationCount) { // Edge-cases
-                        sumOfRates += ratesLoop<RealType, 1>(i, vectorCount, locationCount);
+                        DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+                        sumOfRates += ratesLoop<RealType, 1>(dispatch, i, vectorCount, locationCount);
                     }
 
                     return xsimd::log(sumOfRates) +
