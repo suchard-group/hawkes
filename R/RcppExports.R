@@ -23,10 +23,6 @@ createEngine <- function(embeddingDimension, locationCount, tbb, simd, gpu, sing
     .Call('_hpHawkes_createEngine', PACKAGE = 'hpHawkes', embeddingDimension, locationCount, tbb, simd, gpu, single)
 }
 
-.setTimDiffsData <- function(sexp, data) {
-    invisible(.Call('_hpHawkes_setTimDiffsData', PACKAGE = 'hpHawkes', sexp, data))
-}
-
 .setTimesData <- function(sexp, data) {
     invisible(.Call('_hpHawkes_setTimesData', PACKAGE = 'hpHawkes', sexp, data))
 }

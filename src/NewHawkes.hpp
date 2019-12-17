@@ -107,9 +107,6 @@ public:
           theta(0.0), storedTheta(0.0),
           mu0(0.0), storedMu0(0.0),
 
-          locDists(locationCount * locationCount),
-          timDiffs(locationCount * locationCount),
-
           times(locationCount),
 
           locations0(locationCount * embeddingDimension),
@@ -223,15 +220,6 @@ public:
         auto tmp1 = storedLocationsPtr;
         storedLocationsPtr = locationsPtr;
         locationsPtr = tmp1;
-    }
-
-
-
-    // TODO This could be very problematic when/if some/all times are random
-    // Then library should (1) lazy-compute time-differences and (2) return gradient w.r.t. times
-    void setTimDiffsData(double* data, size_t length) {
-        assert(length == timDiffs.size());
-        mm::bufferedCopy(data, data + length, begin(timDiffs), buffer);
     }
 
     void setTimesData(double* data, size_t length) {
@@ -714,9 +702,6 @@ private:
 
     double sumOfLikContribs;
     double storedSumOfLikContribs;
-
-    mm::MemoryManager<RealType> locDists;
-    mm::MemoryManager<RealType> timDiffs;
 
     mm::MemoryManager<RealType> times;
 

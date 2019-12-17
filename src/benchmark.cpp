@@ -170,16 +170,6 @@ int main(int argc, char* argv[]) {
         instance->updateLocations(i, &location[0], dataDimension);
     }
 
-    std::vector<double> data(elementCount); // pairwise distance data
-    for (int i = 0; i < locationCount; ++i) { // pairwise times data
-        data[i * locationCount + i] = 0.0;
-        for (int j = i + 1; j < locationCount; ++j) {
-            data[i * locationCount + j] = times[i]-times[j]; //100% correct loadings
-            data[j * locationCount + i] = times[j]-times[i];
-        }
-    }
-    instance->setTimDiffsData(&data[0], elementCount);
-
 	std::vector<double> parameters(6);
     for (int i = 0; i < 6; ++i) {
         parameters[i] = expo(prng2);

@@ -66,16 +66,16 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_acceptState
 //    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
 //}
 
-extern "C"
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimDiffsData
-        (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
-    jsize len = env->GetArrayLength(xArray);
-    jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
-
-    instances[instance]->setTimDiffsData(x, len);
-
-    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
-}
+//extern "C"
+//JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimDiffsData
+//        (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
+//    jsize len = env->GetArrayLength(xArray);
+//    jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
+//
+//    instances[instance]->setTimDiffsData(x, len);
+//
+//    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
+//}
 
 //extern "C"
 //JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient

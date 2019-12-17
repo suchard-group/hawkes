@@ -55,9 +55,6 @@ public:
           theta(0.0), storedTheta(0.0),
           mu0(0.0), storedMu0(0.0),
 
-          locDists(locationCount * locationCount),
-          timDiffs(locationCount * locationCount),
-
           locations0(locationCount * OpenCLRealType::dim),
           locations1(locationCount * OpenCLRealType::dim),
           locationsPtr(&locations0),
@@ -108,9 +105,6 @@ public:
         , boost::compute::command_queue::enable_profiling
       };
 
-      dLocDists = mm::GPUMemoryManager<RealType>(locDists.size(), ctx);
-      dTimDiffs = mm::GPUMemoryManager<RealType>(timDiffs.size(), ctx);
-
       dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
 
       Rcpp::Rcout << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
@@ -144,9 +138,6 @@ public:
       queue = boost::compute::command_queue{ctx, device
         , boost::compute::command_queue::enable_profiling
       };
-
-      dLocDists = mm::GPUMemoryManager<RealType>(locDists.size(), ctx);
-      dTimDiffs = mm::GPUMemoryManager<RealType>(timDiffs.size(), ctx);
 
       dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
 
@@ -452,14 +443,6 @@ public:
 
     }
 
-    void setTimDiffsData(double* data, size_t length) override {
-        assert(length == timDiffs.size());
-        mm::bufferedCopy(data, data + length, begin(timDiffs), buffer);
-
-        // COMPUTE
-        mm::bufferedCopyToDevice(data, data + length, dTimDiffs.begin(), buffer, queue);
-    }
-
     void setTimesData(double* data, size_t length) override {
         assert(length == times.size());
         mm::bufferedCopy(data, data + length, begin(times), buffer);
@@ -511,8 +494,6 @@ public:
         queue.enqueue_1d_range_kernel(kernelLikContribsVector, 0,
                 static_cast<unsigned int>(locationCount) * TPB, TPB);
 #else
-        kernelLikContribs.set_arg(0, dLocDists);
-        kernelLikContribs.set_arg(1, dTimDiffs);
         kernelLikContribs.set_arg(2, dTimes);
         kernelLikContribs.set_arg(3, dLikContribs);
         kernelLikContribs.set_arg(4, sigmaXprec);
@@ -1108,19 +1089,13 @@ private:
     boost::compute::context ctx;
     boost::compute::command_queue queue;
 
-    mm::MemoryManager<RealType> locDists;
-    mm::MemoryManager<RealType> timDiffs;
-
     mm::MemoryManager<RealType> times;
-
 
     mm::MemoryManager<RealType> likContribs;
     mm::MemoryManager<RealType> storedLikContribs;
 
     mm::MemoryManager<RealType> gradient;
     mm::MemoryManager<RealType>* gradientPtr;
-    mm::GPUMemoryManager<RealType> dLocDists;
-    mm::GPUMemoryManager<RealType> dTimDiffs;
 
     mm::GPUMemoryManager<RealType> dTimes;
 

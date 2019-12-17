@@ -31,17 +31,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// setTimDiffsData
-void setTimDiffsData(SEXP sexp, std::vector<double>& data);
-RcppExport SEXP _hpHawkes_setTimDiffsData(SEXP sexpSEXP, SEXP dataSEXP) {
-BEGIN_RCPP
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type sexp(sexpSEXP);
-    Rcpp::traits::input_parameter< std::vector<double>& >::type data(dataSEXP);
-    setTimDiffsData(sexp, data);
-    return R_NilValue;
-END_RCPP
-}
 // setTimesData
 void setTimesData(SEXP sexp, std::vector<double>& data);
 RcppExport SEXP _hpHawkes_setTimesData(SEXP sexpSEXP, SEXP dataSEXP) {
@@ -102,7 +91,6 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_hpHawkes_rcpp_hello", (DL_FUNC) &_hpHawkes_rcpp_hello, 0},
     {"_hpHawkes_createEngine", (DL_FUNC) &_hpHawkes_createEngine, 6},
-    {"_hpHawkes_setTimDiffsData", (DL_FUNC) &_hpHawkes_setTimDiffsData, 2},
     {"_hpHawkes_setTimesData", (DL_FUNC) &_hpHawkes_setTimesData, 2},
     {"_hpHawkes_setParameters", (DL_FUNC) &_hpHawkes_setParameters, 2},
     {"_hpHawkes_getLogLikelihoodGradient", (DL_FUNC) &_hpHawkes_getLogLikelihoodGradient, 2},

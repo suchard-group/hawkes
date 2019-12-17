@@ -53,18 +53,10 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
   times <- seq(from=1, to=locationCount, by=1)
 
   locDists <- as.matrix(dist(locations))
-  timDiffs <- matrix(0,locationCount,locationCount)
-  for(i in 1:locationCount){
-    for(j in 1:locationCount){
-      timDiffs[i,j] <- times[j]-times[i]
-    }
-  }
   params <- rexp(6)
 
   engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
   engine <- hpHawkes::updateLocations(engine, locations)
-  engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
-  engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
   engine <- hpHawkes::setTimesData(engine, times)
   engine <- hpHawkes::setParameters(engine, params)
   params2 <- list()
@@ -159,16 +151,6 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 
   # Set locDists data
   engine <- hpHawkes::updateLocations(engine, locations)
-
-  timDiffs <- matrix(0,N,N)
-  for(i in 1:N){
-    for(j in 1:N){
-      timDiffs[i,j] <- times[j]-times[i]
-    }
-  }
-
-  # Set Time Diffs Data
-  engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
 
   # Set Times Data
   engine <- hpHawkes::setTimesData(engine, times)

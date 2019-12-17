@@ -9,8 +9,8 @@
 #' @export
 getLogLikelihood <- function(engine) {
 
-  if (!engine$timDiffsInitialized) {
-    stop("times difference matrix not set")
+  if (!engine$locationsInitialized) {
+    stop("locations not set")
   }
 
   if (!engine$timesInitialized) {
@@ -40,9 +40,8 @@ getLogLikelihood <- function(engine) {
 #' @export
 getGradient <- function(engine) {
 
-
-  if (!engine$timDiffsInitialized) {
-    stop("times difference matrix not set")
+  if (!engine$locationsInitialized) {
+    stop("locations not set")
   }
 
   if (!engine$timesInitialized) {
@@ -70,26 +69,6 @@ setParameters <- function(engine, parameters) {
   engine$parameters <- parameters
   return(engine)
 }
-
-#' Deliver times difference matrix to HPH engine object
-#'
-#' Helper function delivers times difference matrix to HPH engine object.
-#'
-#' @param engine HPH engine object.
-#' @param data times difference matrix.
-#' @return HPH engine object.
-#'
-#' @export
-setTimDiffsData <- function(engine, data) {
-  data <- as.vector(data)
-  if (length(data) != engine$locationCount * engine$locationCount) {
-    stop("Invalid data size")
-  }
-  .setTimDiffsData(engine$engine, data)
-  engine$timDiffsInitialized <- TRUE
-  return(engine)
-}
-
 
 #' Deliver times vector to HPH engine object
 #'
