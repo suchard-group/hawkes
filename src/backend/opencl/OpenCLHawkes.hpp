@@ -277,17 +277,16 @@ public:
 #endif
 
         kernelGradientVector.set_arg(0, dLocations0);
-        kernelGradientVector.set_arg(1, dTimDiffs);
-        kernelGradientVector.set_arg(2, dTimes);
-        kernelGradientVector.set_arg(3, dGradContribs);
-        kernelGradientVector.set_arg(4, static_cast<RealType>(sigmaXprec));
-        kernelGradientVector.set_arg(5, static_cast<RealType>(tauXprec));
-        kernelGradientVector.set_arg(6, static_cast<RealType>(tauTprec));
-        kernelGradientVector.set_arg(7, static_cast<RealType>(omega));
-        kernelGradientVector.set_arg(8, static_cast<RealType>(theta));
-        kernelGradientVector.set_arg(9, static_cast<RealType>(mu0));
-        kernelGradientVector.set_arg(10, boost::compute::int_(embeddingDimension));
-        kernelGradientVector.set_arg(11, boost::compute::uint_(locationCount));
+        kernelGradientVector.set_arg(1, dTimes);
+        kernelGradientVector.set_arg(2, dGradContribs);
+        kernelGradientVector.set_arg(3, static_cast<RealType>(sigmaXprec));
+        kernelGradientVector.set_arg(4, static_cast<RealType>(tauXprec));
+        kernelGradientVector.set_arg(5, static_cast<RealType>(tauTprec));
+        kernelGradientVector.set_arg(6, static_cast<RealType>(omega));
+        kernelGradientVector.set_arg(7, static_cast<RealType>(theta));
+        kernelGradientVector.set_arg(8, static_cast<RealType>(mu0));
+        kernelGradientVector.set_arg(9, boost::compute::int_(embeddingDimension));
+        kernelGradientVector.set_arg(10, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -498,17 +497,16 @@ public:
 
 #ifdef USE_VECTORS
         kernelLikContribsVector.set_arg(0, dLocations0);
-        kernelLikContribsVector.set_arg(1, dTimDiffs);
-        kernelLikContribsVector.set_arg(2, dTimes);
-        kernelLikContribsVector.set_arg(3, dLikContribs);
-        kernelLikContribsVector.set_arg(4, static_cast<RealType>(sigmaXprec));
-        kernelLikContribsVector.set_arg(5, static_cast<RealType>(tauXprec));
-        kernelLikContribsVector.set_arg(6, static_cast<RealType>(tauTprec));
-        kernelLikContribsVector.set_arg(7, static_cast<RealType>(omega));
-        kernelLikContribsVector.set_arg(8, static_cast<RealType>(theta));
-        kernelLikContribsVector.set_arg(9, static_cast<RealType>(mu0));
-        kernelLikContribsVector.set_arg(10, boost::compute::int_(embeddingDimension));
-        kernelLikContribsVector.set_arg(11, boost::compute::uint_(locationCount));
+        kernelLikContribsVector.set_arg(1, dTimes);
+        kernelLikContribsVector.set_arg(2, dLikContribs);
+        kernelLikContribsVector.set_arg(3, static_cast<RealType>(sigmaXprec));
+        kernelLikContribsVector.set_arg(4, static_cast<RealType>(tauXprec));
+        kernelLikContribsVector.set_arg(5, static_cast<RealType>(tauTprec));
+        kernelLikContribsVector.set_arg(6, static_cast<RealType>(omega));
+        kernelLikContribsVector.set_arg(7, static_cast<RealType>(theta));
+        kernelLikContribsVector.set_arg(8, static_cast<RealType>(mu0));
+        kernelLikContribsVector.set_arg(9, boost::compute::int_(embeddingDimension));
+        kernelLikContribsVector.set_arg(10, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelLikContribsVector, 0,
                 static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -752,7 +750,6 @@ public:
         //TODO: possible speedup from smaller vector size to match embedding dimension (right now always 8)
 		code <<
 			" __kernel void computeLikContribs(__global const REAL_VECTOR *locations, \n" <<
-			"  						          __global const REAL *timDiffs,          \n" <<
 			"                                 __global const REAL *times,             \n" <<
 			"						          __global REAL *likContribs,             \n" <<
             "                                 const REAL sigmaXprec,                  \n" <<
@@ -772,6 +769,7 @@ public:
 		    "                                                                       \n" <<
 		    "   __local REAL scratch[TPB];                                          \n" <<
 		    "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
+		    "   const REAL timeI = times[i];                                        \n" <<
 		    "                                                                       \n" <<
 		    "   REAL        sum = ZERO;                                             \n" <<
 		    "   REAL mu0TauXprecDTauTprec = mu0 * pow(tauXprec,dimX) * tauTprec;    \n" <<
@@ -779,7 +777,7 @@ public:
 		    "                                                                       \n" <<
 		    "   while (j < locationCount) {                                         \n" << // originally j < locationCount
 		    "                                                                       \n" <<
-		    "     const REAL timDiff = timDiffs[i * locationCount + j];            \n" <<
+		    "     const REAL timDiff = timeI - times[j];                            \n" << // timDiffs[i * locationCount + j];
 		    "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
 		    "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
 
@@ -928,7 +926,6 @@ public:
 
         code <<
              " __kernel void computeGradient(__global const REAL_VECTOR *locations,         \n" <<
-             "  						          __global const REAL *timDiffs,          \n" <<
              "                                 __global const REAL *times,             \n" <<
              "						          __global REAL_VECTOR *gradContribs,      \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
@@ -946,6 +943,7 @@ public:
              "   const uint lid = get_local_id(0);                                   \n" <<
              "   uint j = get_local_id(0);                                           \n" <<
              "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
+             "   const REAL timeI = times[i];                                        \n" <<
              "                                                                       \n" <<
              "   __local REAL sigmaXScratch[TPB];                                          \n" <<
              "   __local REAL tauXScratch[TPB];                                          \n" <<
@@ -973,7 +971,7 @@ public:
              "                                                                       \n" <<
              "   while (j < locationCount) {                                         \n" << // originally j < locationCount
              "                                                                       \n" <<
-             "     const REAL timDiff = timDiffs[i * locationCount + j];            \n" <<
+             "     const REAL timDiff = timeI - times[j];                            \n" << // timDiffs[i * locationCount + j];
              "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
              "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
 
