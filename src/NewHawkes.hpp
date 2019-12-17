@@ -439,10 +439,12 @@ public:
         const auto mu0TauXprecDTauTprec = mu0 * tauXprecD * tauTprec;
         const auto sigmaXprecDTheta = sigmaXprecD * theta;
 
+        const auto timeI = SimdType(RealType(times[i]));
+
         for (int j = begin; j < end; j += SimdSize) {
 
             const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
-            const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
+            const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
 
             const auto rate =  mu0TauXprecDTauTprec *
                     math::pdf_new(locDist * tauXprec) * math::pdf_new(timDiff * tauTprec) +
@@ -510,9 +512,11 @@ public:
 		const auto zero = SimdType(RealType(0));
 		std::array<SimdType, N> sum = {zero, zero, zero, zero, zero, zero, zero};
 
+        const auto timeI = SimdType(RealType(times[i]));
+
         for (int j = begin; j < end; j += SimdSize) {
             const auto locDist = dispatch.calculate(j);//SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
-            const auto timDiff = SimdHelper<SimdType, RealType>::get(&timDiffs[i * locationCount + j]);
+            const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
 
             const auto pdfLocDistSigmaXPrec = math::pdf_new(locDist * sigmaXprec);
             const auto pdfLocDistTauXPrec = math::pdf_new(locDist * tauXprec);
