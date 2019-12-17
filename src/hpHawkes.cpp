@@ -109,12 +109,12 @@ Rcpp::List createEngine(int embeddingDimension, int locationCount, int tbb, int 
   return list;
 }
 
-// [[Rcpp::export(.setLocDistsData)]]
-void setLocDistsData(SEXP sexp,
-                    std::vector<double>& data) {
-  auto ptr = parsePtr(sexp);
-  ptr->setLocDistsData(&data[0], data.size());
-}
+//// [[Rcpp::export(.setLocDistsData)]]
+//void setLocDistsData(SEXP sexp,
+//                    std::vector<double>& data) {
+//  auto ptr = parsePtr(sexp);
+//  ptr->setLocDistsData(&data[0], data.size());
+//}
 
 // [[Rcpp::export(.setTimDiffsData)]]
 void setTimDiffsData(SEXP sexp,

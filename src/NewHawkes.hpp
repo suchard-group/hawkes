@@ -225,12 +225,7 @@ public:
         locationsPtr = tmp1;
     }
 
-    // TODO This could be very problematic when/if some/all locations are random
-    // Then library should (1) lazy-compute pair-wise distances and (2) return gradient w.r.t. locations
-    void setLocDistsData(double* data, size_t length) {
-		assert(length == locDists.size());
-		mm::bufferedCopy(data, data + length, begin(locDists), buffer);
-    }
+
 
     // TODO This could be very problematic when/if some/all times are random
     // Then library should (1) lazy-compute time-differences and (2) return gradient w.r.t. times

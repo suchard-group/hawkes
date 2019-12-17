@@ -5,7 +5,7 @@
 \title{Initialize HPH engine object}
 \usage{
 engineInitial(
-  locDists,
+  locations,
   N,
   P,
   times,
@@ -17,7 +17,7 @@ engineInitial(
 )
 }
 \arguments{
-\item{locDists}{N by N locations distances matrix.}
+\item{locations}{N by P locations matrix.}
 
 \item{N}{Number of locations and size of distance matrix.}
 

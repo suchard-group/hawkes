@@ -9,10 +9,6 @@
 #' @export
 getLogLikelihood <- function(engine) {
 
-  if (!engine$locDistsInitialized) {
-    stop("locations distance matrix not set")
-  }
-
   if (!engine$timDiffsInitialized) {
     stop("times difference matrix not set")
   }
@@ -44,9 +40,6 @@ getLogLikelihood <- function(engine) {
 #' @export
 getGradient <- function(engine) {
 
-  if (!engine$locDistsInitialized) {
-    stop("locations distance matrix not set")
-  }
 
   if (!engine$timDiffsInitialized) {
     stop("times difference matrix not set")
@@ -75,26 +68,6 @@ getGradient <- function(engine) {
 setParameters <- function(engine, parameters) {
   .setParameters(engine$engine, parameters)
   engine$parameters <- parameters
-  return(engine)
-}
-
-
-#' Deliver distance matrix to HPH engine object
-#'
-#' Helper function delivers distance matrix to HPH engine object.
-#'
-#' @param engine HPH engine object.
-#' @param data Distance matrix.
-#' @return HPH engine object.
-#'
-#' @export
-setLocDistsData <- function(engine, data) {
-  data <- as.vector(data)
-  if (length(data) != engine$locationCount * engine$locationCount) {
-    stop("Invalid data size")
-  }
-  .setLocDistsData(engine$engine, data)
-  engine$locDistsInitialized <- TRUE
   return(engine)
 }
 

@@ -7,7 +7,7 @@
 hmcsampler(
   n_iter,
   burnIn = 0,
-  locDists = NULL,
+  locations = NULL,
   times = NULL,
   params = rep(1, 6),
   latentDimension = 2,
@@ -23,7 +23,7 @@ hmcsampler(
 
 \item{burnIn}{Number of initial samples to throw away.}
 
-\item{locDists}{Locations distance matrix.}
+\item{locations}{N x P locations matrix.}
 
 \item{times}{Observation times.}
 

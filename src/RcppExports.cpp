@@ -31,17 +31,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// setLocDistsData
-void setLocDistsData(SEXP sexp, std::vector<double>& data);
-RcppExport SEXP _hpHawkes_setLocDistsData(SEXP sexpSEXP, SEXP dataSEXP) {
-BEGIN_RCPP
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type sexp(sexpSEXP);
-    Rcpp::traits::input_parameter< std::vector<double>& >::type data(dataSEXP);
-    setLocDistsData(sexp, data);
-    return R_NilValue;
-END_RCPP
-}
 // setTimDiffsData
 void setTimDiffsData(SEXP sexp, std::vector<double>& data);
 RcppExport SEXP _hpHawkes_setTimDiffsData(SEXP sexpSEXP, SEXP dataSEXP) {
@@ -113,7 +102,6 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_hpHawkes_rcpp_hello", (DL_FUNC) &_hpHawkes_rcpp_hello, 0},
     {"_hpHawkes_createEngine", (DL_FUNC) &_hpHawkes_createEngine, 6},
-    {"_hpHawkes_setLocDistsData", (DL_FUNC) &_hpHawkes_setLocDistsData, 2},
     {"_hpHawkes_setTimDiffsData", (DL_FUNC) &_hpHawkes_setTimDiffsData, 2},
     {"_hpHawkes_setTimesData", (DL_FUNC) &_hpHawkes_setTimesData, 2},
     {"_hpHawkes_setParameters", (DL_FUNC) &_hpHawkes_setParameters, 2},

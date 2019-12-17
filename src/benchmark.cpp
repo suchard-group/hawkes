@@ -162,25 +162,6 @@ int main(int argc, char* argv[]) {
 	}
     instance->setTimesData(&times[0], locationCount);
 
-    std::vector<double> data(elementCount); // pairwise distance data
-    for (int i = 0; i < locationCount; ++i) {
-        data[i * locationCount + i] = 0.0;
-        for (int j = i + 1; j < locationCount; ++j) {
-
-            const double draw = normalData(prng);
-            double distance = draw * draw;
-
-//            if(i==0 && j==1){ distance = 1;}//draw * draw;
-//            if(i==0 && j==2){ distance = 1.5;}//draw * draw;
-//            if(i==1 && j==2){ distance = 1.5;}//draw * draw;
-
-
-            data[i * locationCount + j] = distance;
-            data[j * locationCount + i] = distance;
-        }
-    }
-	instance->setLocDistsData(&data[0], elementCount);
-
     int dataDimension = internalDimension ? instance->getInternalDimension() : embeddingDimension;
 
     std::vector<double> location(dataDimension);
@@ -189,6 +170,7 @@ int main(int argc, char* argv[]) {
         instance->updateLocations(i, &location[0], dataDimension);
     }
 
+    std::vector<double> data(elementCount); // pairwise distance data
     for (int i = 0; i < locationCount; ++i) { // pairwise times data
         data[i * locationCount + i] = 0.0;
         for (int j = i + 1; j < locationCount; ++j) {

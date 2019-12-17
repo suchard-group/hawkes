@@ -62,7 +62,6 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
   params <- rexp(6)
 
   engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
-  engine <- hpHawkes::setLocDistsData(engine, locDists)
   engine <- hpHawkes::updateLocations(engine, locations)
   engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
   engine <- hpHawkes::setTimDiffsData(engine, timDiffs)
@@ -137,7 +136,7 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
 #' Takes data, parameters and implementation details and returns HPH engine object. Used within
 #' \code{hpHawkes::hmcsampler()}.
 #'
-#' @param locDists N by N locations distances matrix.
+#' @param locations N by P locations matrix.
 #' @param N Number of locations and size of distance matrix.
 #' @param P Dimension of locations.
 #' @param times    Vector of times.
@@ -149,7 +148,7 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
 #' @return MDS engine object.
 #'
 #' @export
-engineInitial <- function(locDists,N,P,times,parameters=c(1,6),
+engineInitial <- function(locations,N,P,times,parameters=c(1,6),
                           threads,simd,gpu,single) {
 
   # Build reusable object
@@ -159,7 +158,7 @@ engineInitial <- function(locDists,N,P,times,parameters=c(1,6),
                                    gpu=gpu, single=single)
 
   # Set locDists data
-  engine <- hpHawkes::setLocDistsData(engine, as.matrix(locDists))
+  engine <- hpHawkes::updateLocations(engine, locations)
 
   timDiffs <- matrix(0,N,N)
   for(i in 1:N){
@@ -215,7 +214,7 @@ Potential <- function(engine,parameters,gradient=FALSE) {
 #'
 #' @param n_iter Number of MCMC iterations.
 #' @param burnIn Number of initial samples to throw away.
-#' @param locDists Locations distance matrix.
+#' @param locations N x P locations matrix.
 #' @param times Observation times.
 #' @param params Length 6, default 1.
 #' @param latentDimension Dimension of latent space. Integer ranging from 2 to 8.
@@ -231,7 +230,7 @@ Potential <- function(engine,parameters,gradient=FALSE) {
 #' @export
 hmcsampler <- function(n_iter,
                        burnIn=0,
-                       locDists=NULL,
+                       locations=NULL,
                        times=NULL,
                        params=rep(1,6),
                        latentDimension=2,
@@ -274,7 +273,7 @@ hmcsampler <- function(n_iter,
   N <- dim(locDists)[1]
 
   # Build reusable object to compute Loglikelihood (gradient)
-  engine <- engineInitial(locDists,N,P,times,params,threads,simd,gpu,single)
+  engine <- engineInitial(locations,N,P,times,params,threads,simd,gpu,single)
 
   Accepted = 0;
   Proposed = 0;

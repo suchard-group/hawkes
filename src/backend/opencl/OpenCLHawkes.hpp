@@ -453,14 +453,6 @@ public:
 
     }
 
-    void setLocDistsData(double* data, size_t length) override {
-		assert(length == locDists.size());
-		mm::bufferedCopy(data, data + length, begin(locDists), buffer);
-
-		// COMPUTE
-		mm::bufferedCopyToDevice(data, data + length, dLocDists.begin(), buffer, queue);
-    }
-
     void setTimDiffsData(double* data, size_t length) override {
         assert(length == timDiffs.size());
         mm::bufferedCopy(data, data + length, begin(timDiffs), buffer);
