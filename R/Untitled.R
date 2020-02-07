@@ -52,7 +52,6 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
                  ncol = embeddingDimension, nrow = locationCount)
   times <- seq(from=1, to=locationCount, by=1)
 
-  locDists <- as.matrix(dist(locations))
   params <- rexp(6)
 
   engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
@@ -149,7 +148,7 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
                                    tbb = threads, simd=simd,
                                    gpu=gpu, single=single)
 
-  # Set locDists data
+  # Set locations data
   engine <- hpHawkes::updateLocations(engine, locations)
 
   # Set Times Data
@@ -165,7 +164,7 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 #'
 #' Takes HPH engine object and model parameters. Returns
 #' potential (proportional to log posterior) function or its gradient. Using
-#' lognormal(0,1) prior.
+#' lognormal(0,1/2) prior.
 #'
 #' @param engine HPH engine object.
 #' @param parameters (Exponentiated) spatio-temporal Hawkes process parameters (d=6).
@@ -176,17 +175,50 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 Potential <- function(engine,parameters,gradient=FALSE) {
     # HMC potential (log posterior) and gradient
     if (gradient) {
-    logPriorGrad <- -log(parameters)
+    logPriorGrad <- -log(parameters)*4
     logLikelihoodGrad <- hpHawkes::getGradient(engine) * parameters
 
     return(-logLikelihoodGrad-logPriorGrad)
   }
   else {
-    logPrior <- sum(dlnorm(parameters,log=TRUE))
+    logPrior <- sum(dnorm(log(parameters),sd=0.5,log=TRUE))
     logLikelihood <- hpHawkes::getLogLikelihood(engine)
 
     return(-logLikelihood-logPrior)
   }
+}
+
+#' Newton-Raphson for spatio-temporal Hawkes model
+#'
+#' Takes locations, times and initial parameters and outputs MLE.
+#'
+#' @param engine
+#' @param params
+#' @param stepsize
+#' @param tol
+#' @return engine
+#'
+#' @importFrom RcppXsimd supportsSSE supportsAVX supportsAVX512
+#'
+#' @export
+gradascent <- function(engine,params,stepsize=0.001, tol=0.00001, maxsteps=5000){
+
+  for(i in 1:maxsteps){
+    CurrentU       <- Potential(engine,params)
+    ProposedParams <- exp(log(params) - stepsize %*% Potential(engine,params, gradient=T))
+    engine         <- hpHawkes::setParameters(engine, ProposedParams)
+    ProposedU      <- Potential(engine,ProposedParams)
+
+    if( abs(CurrentU-ProposedU)<tol ){
+      cat(i, " Gradient ascent steps total\n", "Initial position: ", ProposedParams)
+      return(ProposedParams)
+    }
+
+    params <- ProposedParams
+  }
+
+  cat(i, " Gradient ascent steps total\n", "Initial position: ", params)
+  return(params)
 }
 
 #' HMC for Bayesian inference of Hawkes model parameters
@@ -238,7 +270,7 @@ hmcsampler <- function(n_iter,
   # Set up the parameters
   NumOfIterations = n_iter
   NumOfLeapfrog = 20
-  StepSize = trajectory/NumOfLeapfrog #* c(1,1/100,1/100,1/10,1/10,1)
+  StepSize = trajectory/NumOfLeapfrog
 
   # Allocate output space
   ParametersSaved = matrix(0,6,NumOfIterations)
@@ -246,23 +278,34 @@ hmcsampler <- function(n_iter,
   savedLikEvals <- rep(0,n_iter)
   P <- latentDimension
 
-  if(is.null(locDists)){
-      stop("No locDists found.")
+  if(is.null(locations)){
+      stop("No locations found.")
   }
   if(is.null(times)){
     stop("No times found.")
   }
-  N <- dim(locDists)[1]
+  N <- dim(locations)[1]
 
   # Build reusable object to compute Loglikelihood (gradient)
   engine <- engineInitial(locations,N,P,times,params,threads,simd,gpu,single)
+
+  params <- gradascent(engine = engine, params=params)
+  engine <- hpHawkes::setParameters(engine,params)
+
 
   Accepted = 0;
   Proposed = 0;
   likEvals = 0;
 
+  # Initialize sample mean covariance for gradients
+  SampCov  <- diag(6)
+  SampC    <- SampCov
+  SampMean <- rep(0,6)
+  SampM    <- SampMean
+  Counter <- 1
+
   # Initialize the location
-  CurrentParams = params;
+  CurrentParams = as.vector(params);
 
   CurrentU = Potential(engine,params)
 
@@ -278,31 +321,63 @@ hmcsampler <- function(n_iter,
     engine <- hpHawkes::setParameters(engine, ProposedParams)
 
     # Sample the marginal momentum
-    CurrentMomentum = rnorm(6)
+    R <- chol(SampCov)
+    M <- chol2inv(R)
+    CurrentMomentum = as.vector( t(R) %*% rnorm(6) )
     ProposedMomentum = CurrentMomentum
 
     Proposed = Proposed + 1
 
     # Simulate the Hamiltonian Dynamics
     for (StepNum in 1:NumOfLeapfrog) {
-      ProposedMomentum = ProposedMomentum - StepSize/2 * Potential(engine,ProposedParams, gradient=T)
+      ProposedMomentum = ProposedMomentum - StepSize/2 * as.vector( Potential(engine,ProposedParams, gradient=T) )
       likEvals = likEvals + 1;
 
-      ProposedParams = exp(log(ProposedParams) + StepSize * ProposedMomentum)
+      ProposedParams = exp(log(ProposedParams) + StepSize * M %*% ProposedMomentum)
       engine <- hpHawkes::setParameters(engine, ProposedParams)
-      ProposedMomentum = ProposedMomentum - StepSize/2 * Potential(engine,ProposedParams, gradient=T)
+
+      ProposedMomentum = ProposedMomentum - StepSize/2 * as.vector( Potential(engine,ProposedParams, gradient=T) )
+
       likEvals = likEvals + 1;
     }
 
-    ProposedMomentum = - ProposedMomentum
+    # update sample mean and sample cov
+    u <- rbinom(n=1,size = 1,prob = 0.02)
+    if(Counter > 200){
+      if (u) {
+        SampMean <- (SampMean * (Counter-1) + ProposedMomentum) / Counter
+        Deviation <- ProposedMomentum - SampMean
+        SampCov  <- (SampCov * Counter + Deviation %*% t(Deviation) ) / (Counter + 1)
+        Counter <- Counter + 1
+      }
+    } else if (Counter < 200) {
+      if (u) {
+        SampM <- (SampM * (Counter-1) + ProposedMomentum) / Counter
+        Deviation <- ProposedMomentum - SampM
+        SampC  <- (SampC * Counter + Deviation %*% t(Deviation) ) / (Counter + 1)
+        Counter <- Counter + 1
+      }
+    } else {
+      SampMean <- SampM
+      SampCov  <- SampC
+    }
+
+
+    # if (u) {
+    #   SampM <- (SampMean * (Counter-1) + ProposedMomentum) / Counter
+    #   Deviation <- ProposedMomentum - SampMean
+    #   SampC  <- (SampCov * Counter + Deviation %*% t(Deviation) ) / (Counter + 1)
+    #   Counter <- Counter + 1
+    # }
+
 
     # Compute the Potential
     ProposedU = Potential(engine,ProposedParams)
     likEvals = likEvals + 1;
 
     # Compute the Hamiltonian
-    CurrentH = CurrentU + sum(CurrentMomentum^2)/2
-    ProposedH = ProposedU + sum(ProposedMomentum^2)/2
+    CurrentH = CurrentU + 0.5 * t(CurrentMomentum) %*% M %*% CurrentMomentum #sum(CurrentMomentum^2)/2
+    ProposedH = ProposedU + 0.5 * t(ProposedMomentum) %*% M %*% ProposedMomentum # sum(ProposedMomentum^2)/2
 
     # Accept according to ratio
     Ratio = - ProposedH + CurrentH
@@ -320,7 +395,7 @@ hmcsampler <- function(n_iter,
     }
 
     # Show acceptance rate every 20 iterations
-    if (Iteration %% 20 == 0) {
+    if (Iteration %% 100 == 0) {
       cat(Iteration, "iterations completed. HMC acceptance rate: ",Accepted/Proposed,"\n")
 
       Proposed = 0
@@ -346,3 +421,6 @@ hmcsampler <- function(n_iter,
 
    # end iterations for loop
 } # end HMC function
+
+
+
