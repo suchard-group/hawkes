@@ -98,20 +98,24 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
   # threads is number of CPU cores used
   # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
   embeddingDimension <- 2
-  truncation <- TRUE
 
-  data <- matrix(rnorm(n = locationCount * locationCount, sd = 2),
-                 ncol = locationCount, nrow = locationCount)
-  data <- data * data    # Make positive
-  data <- data + t(data) # Make symmetric
-  diag(data) <- 0        # Make pairwise distance
-
-  locations <- matrix(rnorm(n = embeddingDimension * locationCount, sd = 1),
+  locations <- matrix(rnorm(n = locationCount * embeddingDimension),
                       ncol = embeddingDimension, nrow = locationCount)
-  engine <- hpHawkes::createEngine(embeddingDimension, locationCount, truncation, threads, simd, gpu, single)
-  engine <- hpHawkes::setPairwiseData(engine, data)
+  times <- seq(from=1, to=locationCount, by=1)
+
+  params <- rexp(6)
+
+  engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
   engine <- hpHawkes::updateLocations(engine, locations)
-  engine <- hpHawkes::setPrecision(engine, 2.0)
+  engine <- hpHawkes::setTimesData(engine, times)
+  engine <- hpHawkes::setParameters(engine, params)
+  params2 <- list()
+  params2$h     <- 1/params[1]
+  params2$tau_x <- 1/params[2]
+  params2$tau_t <- 1/params[3]
+  params2$omega <- params[4]
+  params2$theta <- params[5]
+  params2$mu_0  <- params[6]
 
   ptm <- proc.time()
   for(i in 1:maxIts){
@@ -294,6 +298,7 @@ hmcsampler <- function(n_iter,
 
 
   Accepted = 0;
+  Accepted2 = 0
   Proposed = 0;
   likEvals = 0;
 
@@ -385,6 +390,7 @@ hmcsampler <- function(n_iter,
       CurrentParams = ProposedParams
       CurrentU = ProposedU
       Accepted = Accepted + 1
+      Accepted2 = Accepted2 + 1 # for stepsize adaptation
     }
 
     # Save if sample is required
@@ -394,12 +400,23 @@ hmcsampler <- function(n_iter,
       savedLikEvals[Iteration-burnIn] = likEvals
     }
 
-    # Show acceptance rate every 20 iterations
+    # Show acceptance rate every 100 iterations
     if (Iteration %% 100 == 0) {
       cat(Iteration, "iterations completed. HMC acceptance rate: ",Accepted/Proposed,"\n")
+      cat("Stepsize: ",StepSize,"\n")
 
       Proposed = 0
       Accepted = 0
+    }
+
+    if (Iteration %% 5 == 0) { # stepsize adjustment
+      AcceptRate = Accepted2 / 5
+      Ratio = AcceptRate / 0.8
+      if (Ratio > 2) Ratio = 2
+      if (Ratio < 0.5) Ratio = 0.5
+
+      StepSize = StepSize * Ratio
+      Accepted2 = 0
     }
 
     # Start timer after burn-in
@@ -421,6 +438,3 @@ hmcsampler <- function(n_iter,
 
    # end iterations for loop
 } # end HMC function
-
-
-
