@@ -179,13 +179,14 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 Potential <- function(engine,parameters,gradient=FALSE) {
     # HMC potential (log posterior) and gradient
     if (gradient) {
-    logPriorGrad <- -log(parameters)*4
-    logLikelihoodGrad <- hpHawkes::getGradient(engine) * parameters
+   # logPriorGrad <- -log(parameters)*4
+  #  logLikelihoodGrad <- hpHawkes::getGradient(engine) * parameters
 
     return(-logLikelihoodGrad-logPriorGrad)
   }
   else {
-    logPrior <- sum(dnorm(log(parameters),sd=0.5,log=TRUE))
+    logPrior <- sum(log(truncnorm::dtruncnorm(x=parameters[1:5],sd=10,a=0))) +
+                log(truncnorm::dtruncnorm(x=parameters[6],sd=1,a=0))
     logLikelihood <- hpHawkes::getLogLikelihood(engine)
 
     return(-logLikelihood-logPrior)
@@ -438,3 +439,190 @@ hmcsampler <- function(n_iter,
 
    # end iterations for loop
 } # end HMC function
+
+
+#' M-H for Bayesian inference of Hawkes model parameters
+#'
+#' Takes a number of settings and returns posterior samples of parameters
+#' for spatio-temporal Hawkes process model.
+#'
+#' @param n_iter Number of MCMC iterations.
+#' @param burnIn Number of initial samples to throw away.
+#' @param locations N x P locations matrix.
+#' @param times Observation times.
+#' @param params Length 6, default 1.
+#' @param latentDimension Dimension of latent space. Integer ranging from 2 to 8.
+#' @param threads Number of CPU cores to be used.
+#' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
+#' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
+#' @param single Set \code{single=1} if your GPU does not accommodate doubles.
+#' @return List containing posterior samples, negative log likelihood values (\code{target}) and time to compute (\code{Time}).
+#'
+#' @importFrom RcppXsimd supportsSSE supportsAVX supportsAVX512
+#'
+#' @export
+mhsampler <- function(n_iter,
+                       burnIn=0,
+                       locations=NULL,
+                       times=NULL,
+                       radius = 0.01,                 # radius for uniform proposals
+                       params=rep(1,6),
+                       latentDimension=2,
+                       threads=1,                     # number of CPU cores
+                       simd=0,                        # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
+                       gpu=0,
+                       single=0) {
+
+  # Check availability of SIMD  TODO Move into hidden function
+  if (simd > 0) {
+    if (simd == 1 && !RcppXsimd::supportsSSE()) {
+      stop("CPU does not support SSE")
+    } else if (simd == 2 && !RcppXsimd::supportsAVX()) {
+      stop("CPU does not support AVX")
+    } else if (simd == 3 && !RcppXsimd::supportsAVX512()) {
+      stop("CPU does not support AVX512")
+    }
+  }
+
+  #set.seed(666)
+
+  # Set up the parameters
+  NumOfIterations = n_iter
+
+  # Allocate output space
+  ParametersSaved = matrix(0,6,NumOfIterations-burnIn)
+  Target = vector()
+  savedLikEvals <- rep(0,n_iter)
+  P <- latentDimension
+
+  if(is.null(locations)){
+    stop("No locations found.")
+  }
+  if(is.null(times)){
+    stop("No times found.")
+  }
+  N <- dim(locations)[1]
+
+  # Build reusable object to compute Loglikelihood (gradient)
+  engine <- engineInitial(locations,N,P,times,params,threads,simd,gpu,single)
+
+  #params <- gradascent(engine = engine, params=params)
+  engine <- hpHawkes::setParameters(engine,params)
+
+
+  Accepted = 0;
+  Acceptances = rep(0,6) # total acceptances within adaptation run (<= SampBound)
+  SampBound = rep(5,6)   # current total samples before adapting radius
+  SampCount = rep(0,6)   # number of samples collected (adapt when = SampBound)
+  Radii  = rep(radius,6)
+  Proposed = 0;
+
+  # Initialize the location
+  CurrentParams = as.vector(params);
+
+  CurrentU = Potential(engine,params)
+
+  cat(paste0('Initial log-likelihood: ', hpHawkes::getLogLikelihood(engine), '\n'))
+
+  # Perform Hamiltonian Monte Carlo
+  for (Iteration in 1:NumOfIterations) {
+
+    ProposedParams = CurrentParams
+    engine <- hpHawkes::setParameters(engine, ProposedParams)
+
+    Proposed = Proposed + 1
+
+    #propose new parameters with UNIVARIATE M-H proposal
+    index <- sample(c(1,4:6),size = 1) # random scan of only 1, 4:6 parameters
+
+    if (ProposedParams[index]<Radii[index]) {
+      Former <- ProposedParams[index]
+      ProposedParams[index] <- ProposedParams[index] + # make proposal
+        runif(1,min = -ProposedParams[index], max=Radii[index])
+
+      # get proposed log post
+      engine <- hpHawkes::setParameters(engine, ProposedParams)
+      ProposedU = Potential(engine,ProposedParams)
+
+      # Compute the terms of accept/reject step
+      CurrentH = CurrentU + log(Former+Radii[index])
+      ProposedH = ProposedU + log(ProposedParams[index]+Radii[index]) -
+        log(as.numeric(Former<ProposedParams[index]+Radii[index]))
+
+    } else {
+      ProposedParams[index] <- ProposedParams[index] + runif(1,min = -Radii[index], max=Radii[index])
+
+      # get proposed log post
+      engine <- hpHawkes::setParameters(engine, ProposedParams)
+      ProposedU = Potential(engine,ProposedParams)
+
+      # Compute the Hamiltonian
+      CurrentH = CurrentU
+      ProposedH = ProposedU
+    }
+
+    Ratio = - ProposedH + CurrentH
+    if (Ratio > min(0,log(runif(1)))) {
+      CurrentParams = ProposedParams
+      CurrentU = ProposedU
+      Accepted = Accepted + 1
+      Acceptances[index] = Acceptances[index] + 1
+    }
+    SampCount[index] <- SampCount[index] + 1
+
+    if (SampCount[index] == SampBound[index]) {
+
+      AcceptRatio <- Acceptances[index] / SampBound[index]
+      AdaptRatio  <- AcceptRatio / 0.5
+      if (AdaptRatio>2) AdaptRatio <- 2
+      if (AdaptRatio<0.5) AdaptRatio <- 0.5
+      Radii[index] <- Radii[index] * AdaptRatio
+
+      SampCount[index] <- 0
+      SampBound[index] <- SampBound[index] + 1
+      Acceptances[index] <- 0
+    }
+
+    # Save if sample is required
+    if (Iteration > burnIn) {
+      ParametersSaved[,Iteration-burnIn] = CurrentParams
+      Target[Iteration-burnIn] = CurrentU
+    }
+
+    # Show acceptance rate every 100 iterations
+    if (Iteration %% 100 == 0) {
+      cat(Iteration, "iterations completed. HMC acceptance rate: ",Accepted/Proposed,"\n")
+      cat("Radii ",Radii,"\n")
+
+      Proposed = 0
+      Accepted = 0
+    }
+#
+#     if (Iteration %% 5 == 0) { # stepsize adjustment
+#       AcceptRate = Accepted2 / 5
+#       Ratio = AcceptRate / 0.8
+#       if (Ratio > 2) Ratio = 2
+#       if (Ratio < 0.5) Ratio = 0.5
+#
+#       StepSize = StepSize * Ratio
+#     }
+
+    # Start timer after burn-in
+    if (Iteration == burnIn) { # If burnIn > 0
+      cat("burn-in complete, now drawing samples ...\n")
+      timer = proc.time()
+    }
+    if (burnIn==0 & Iteration==1) { # If burnIn = 0
+      cat("burn-in complete, now drawing samples ...\n")
+      timer = proc.time()
+    }
+  }   # end iterations for loop
+
+  time = proc.time() - timer
+
+  # only HMC, return ...
+  return(list(samples = ParametersSaved, target = Target, Time = time))
+
+  # end iterations for loop
+} # end M-H function
+

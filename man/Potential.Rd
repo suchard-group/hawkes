@@ -19,5 +19,5 @@ Potential or its gradient.
 \description{
 Takes HPH engine object and model parameters. Returns
 potential (proportional to log posterior) function or its gradient. Using
-lognormal(0,1) prior.
+lognormal(0,1/2) prior.
 }
