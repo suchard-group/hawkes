@@ -4,14 +4,12 @@
 \alias{Potential}
 \title{Potential function and gradient for HMC}
 \usage{
-Potential(engine, parameters, gradient = FALSE)
+Potential(engine, parameters)
 }
 \arguments{
 \item{engine}{HPH engine object.}
 
 \item{parameters}{(Exponentiated) spatio-temporal Hawkes process parameters (d=6).}
-
-\item{gradient}{Return gradient (instead of potential)? Defaults \code{FALSE}.}
 }
 \value{
 Potential or its gradient.
@@ -19,5 +17,5 @@ Potential or its gradient.
 \description{
 Takes HPH engine object and model parameters. Returns
 potential (proportional to log posterior) function or its gradient. Using
-lognormal(0,1/2) prior.
+truncated normal priors.
 }
