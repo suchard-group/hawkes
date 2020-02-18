@@ -535,31 +535,36 @@ mhsampler <- function(n_iter,
     #propose new parameters with UNIVARIATE M-H proposal
     index <- sample(c(1,4:6),size = 1) # random scan of only 1, 4:6 parameters
 
-    if (ProposedParams[index]<Radii[index]) {
+    #if (ProposedParams[index]<Radii[index]) {
       Former <- ProposedParams[index]
-      ProposedParams[index] <- ProposedParams[index] + # make proposal
-        runif(1,min = -ProposedParams[index], max=Radii[index])
+      ProposedParams[index] <- truncnorm::rtruncnorm(1,a=0,mean=ProposedParams[index],sd=Radii[index])
+
+        #ProposedParams[index] + # make proposal
+        #runif(1,min = -ProposedParams[index], max=Radii[index])
+
 
       # get proposed log post
       engine <- hpHawkes::setParameters(engine, ProposedParams)
       ProposedU = Potential(engine,ProposedParams)
 
       # Compute the terms of accept/reject step
-      CurrentH = CurrentU + log(Former+Radii[index])
-      ProposedH = ProposedU + log(ProposedParams[index]+Radii[index]) -
-        log(as.numeric(Former<ProposedParams[index]+Radii[index]))
+      CurrentH = CurrentU -
+        log( truncnorm::dtruncnorm(x=ProposedParams[index], a=0, mean=Former, sd=Radii[index]) ) #log(Former+Radii[index])
+      ProposedH = ProposedU - # log(ProposedParams[index]+Radii[index]) -
+        #log(as.numeric(Former<ProposedParams[index]+Radii[index]))
+        log( truncnorm::dtruncnorm(x=Former, a=0, mean=ProposedParams[index], sd=Radii[index]) )
 
-    } else {
-      ProposedParams[index] <- ProposedParams[index] + runif(1,min = -Radii[index], max=Radii[index])
-
-      # get proposed log post
-      engine <- hpHawkes::setParameters(engine, ProposedParams)
-      ProposedU = Potential(engine,ProposedParams)
-
-      # Compute the Hamiltonian
-      CurrentH = CurrentU
-      ProposedH = ProposedU
-    }
+    # } else {
+    #   ProposedParams[index] <- ProposedParams[index] + runif(1,min = -Radii[index], max=Radii[index])
+    #
+    #   # get proposed log post
+    #   engine <- hpHawkes::setParameters(engine, ProposedParams)
+    #   ProposedU = Potential(engine,ProposedParams)
+    #
+    #   # Compute the Hamiltonian
+    #   CurrentH = CurrentU
+    #   ProposedH = ProposedU
+    # }
 
     Ratio = - ProposedH + CurrentH
     if (Ratio > min(0,log(runif(1)))) {
@@ -573,7 +578,7 @@ mhsampler <- function(n_iter,
     if (SampCount[index] == SampBound[index]) {
 
       AcceptRatio <- Acceptances[index] / SampBound[index]
-      AdaptRatio  <- AcceptRatio / 0.5
+      AdaptRatio  <- AcceptRatio / 0.44
       if (AdaptRatio>2) AdaptRatio <- 2
       if (AdaptRatio<0.5) AdaptRatio <- 0.5
       Radii[index] <- Radii[index] * AdaptRatio
