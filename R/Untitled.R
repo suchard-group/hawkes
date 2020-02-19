@@ -326,7 +326,7 @@ mhsampler <- function(n_iter,
       Radii[index] <- Radii[index] * AdaptRatio
 
       SampCount[index] <- 0
-      SampBound[index] <- SampBound[index] + 1
+      SampBound[index] <- ceiling(SampBound[index]^1.1)
       Acceptances[index] <- 0
     }
 
