@@ -176,10 +176,10 @@ int main(int argc, char* argv[]) {
     }
 	instance->setParameters(&parameters[0], 6);
 
-	auto logLik = instance->getSumOfLikContribs();
+	auto logLik = 0; //instance->getSumOfLikContribs();
 
-    std::vector<double> gradient(6);
-	instance->getLogLikelihoodGradient(gradient.data(),6);
+    std::vector<double> gradient(6,0.0);
+	//instance->getLogLikelihoodGradient(gradient.data(),6);
     auto sumGradient = gradient;
 
 	std::cout << "Starting HPH benchmark" << std::endl;
