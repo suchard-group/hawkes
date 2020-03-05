@@ -20,6 +20,22 @@
 #include "AbstractHawkes.hpp"
 #include "Distance.hpp"
 
+namespace xxsimd {
+
+	
+
+	template <typename T>
+	T exp(T t) {
+	return	xsimd::exp(t);
+	}
+
+	double exp(double t) {
+		//xsimd::batch<double, 2> x(t);
+		//return xsimd::exp(x)[0];
+		return std::exp(t);
+	}
+}
+
 namespace hph {
 
     struct DefaultOut {
@@ -437,7 +453,7 @@ public:
             const auto rate =  mu0TauXprecDTauTprec *
                     math::pdf_new(locDist * tauXprec) * math::pdf_new(timDiff * tauTprec) +
                     sigmaXprecDTheta *mask(timDiff > zero,
-                         xsimd::exp(-omega * timDiff) * math::pdf_new(locDist * sigmaXprec));
+                         xxsimd::exp(-omega * timDiff) * math::pdf_new(locDist * sigmaXprec));
 
             sum += rate;
         }
