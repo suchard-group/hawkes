@@ -20,26 +20,26 @@
 #include "AbstractHawkes.hpp"
 #include "Distance.hpp"
 
-namespace adhoc {
-
-	
-
-	template <typename T>
-	T exp(T t) {
-	return	xsimd::exp(t);
-	}
-
-	double exp(double t) {
-		xsimd::batch<double, 2> x(t);
-		return xsimd::exp(x)[0];
-		//return std::exp(t);
-	}
-
-    template <typename T>
-    T pdf_new(T value) {
-        return M_1_SQRT_2PI * adhoc::exp(-0.5 * value * value);
-    }
-}
+//namespace adhoc {
+//
+//
+//
+//	template <typename T>
+//	T exp(T t) {
+//	return	xsimd::exp(t);
+//	}
+//
+//	double exp(double t) {
+//		xsimd::batch<double, 2> x(t);
+//		return xsimd::exp(x)[0];
+//		//return std::exp(t);
+//	}
+//
+//    template <typename T>
+//    T pdf_new(T value) {
+//        return M_1_SQRT_2PI * xsimd::exp(-0.5 * value * value);
+//    }
+//}
 
 namespace hph {
 
@@ -295,16 +295,16 @@ public:
                     }
 
                     auto const timDiff = times[locationCount-1]-times[i];
-                    auto const expOmegaTimDiff = adhoc::exp(-omega*timDiff);
+                    auto const expOmegaTimDiff = xsimd::exp(-omega*timDiff);
 
                     sumOfRates[0] /= sumOfRates[6];
                     sumOfRates[1] /= sumOfRates[6];
                     sumOfRates[2] = sumOfRates[2]/sumOfRates[6] * tauXprecD +
-                            adhoc::pdf_new(tauTprec * timDiff) * timDiff + adhoc::pdf_new(tauTprec*times[i])*times[i];
+                            math::pdf_new(tauTprec * timDiff) * timDiff + math::pdf_new(tauTprec*times[i])*times[i];
                     sumOfRates[3] = (1-(1+omega*timDiff) * expOmegaTimDiff)/(omega*omega) - sumOfRates[3]/sumOfRates[6] * sigmaXprecD;
                     sumOfRates[4] = sumOfRates[4]/sumOfRates[6] * sigmaXprecD + (expOmegaTimDiff-1)/omega;
                     sumOfRates[5] = sumOfRates[5]/sumOfRates[6] * tauXprecD * tauTprec -
-                            (adhoc::exp(math::phi_new(tauTprec*timDiff)) - adhoc::exp(math::phi_new(tauTprec*(-times[i]))));
+                            (xsimd::exp(math::phi_new(tauTprec*timDiff)) - xsimd::exp(math::phi_new(tauTprec*(-times[i]))));
                     sumOfRates[6] = std::log(sumOfRates[6]);
 
                     return sumOfRates;
@@ -456,9 +456,9 @@ public:
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
 
             const auto rate =  mu0TauXprecDTauTprec *
-                    adhoc::pdf_new(locDist * tauXprec) * adhoc::pdf_new(timDiff * tauTprec) +
+                    math::pdf_new(locDist * tauXprec) * math::pdf_new(timDiff * tauTprec) +
                     sigmaXprecDTheta *mask(timDiff > zero,
-                         adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
+                         xsimd::exp(-omega * timDiff) * math::pdf_new(locDist * sigmaXprec));
 
             sum += rate;
         }
@@ -527,10 +527,10 @@ public:
             const auto locDist = dispatch.calculate(j);//SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
 
-            const auto pdfLocDistSigmaXPrec = adhoc::pdf_new(locDist * sigmaXprec);
-            const auto pdfLocDistTauXPrec = adhoc::pdf_new(locDist * tauXprec);
-            const auto pdfTimDiffTauTPrec = adhoc::pdf_new(timDiff * tauTprec);
-            const auto expOmegaTimDiff = adhoc::exp(-omega*timDiff);
+            const auto pdfLocDistSigmaXPrec = math::pdf_new(locDist * sigmaXprec);
+            const auto pdfLocDistTauXPrec = math::pdf_new(locDist * tauXprec);
+            const auto pdfTimDiffTauTPrec = math::pdf_new(timDiff * tauTprec);
+            const auto expOmegaTimDiff = xsimd::exp(-omega*timDiff);
 
             const auto mu0Rate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
             const auto thetaRate = mask(timDiff > zero, expOmegaTimDiff * pdfLocDistSigmaXPrec);
@@ -570,9 +570,9 @@ public:
                     }
 
                     return xsimd::log(sumOfRates) +
-                           theta / omega * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1) -
-                           mu0 * (adhoc::exp(math::phi_new(tauTprec * (times[locationCount - 1] - times[i]))) -
-                                adhoc::exp(math::phi_new(tauTprec * (-times[i]))));
+                           theta / omega * (xsimd::exp(-omega * (times[locationCount - 1] - times[i])) - 1) -
+                           mu0 * (xsimd::exp(math::phi_new(tauTprec * (times[locationCount - 1] - times[i]))) -
+                                xsimd::exp(math::phi_new(tauTprec * (-times[i]))));
 
                 }, ParallelType());
 
