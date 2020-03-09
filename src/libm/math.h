@@ -17,7 +17,7 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 #include <limits.h>
-//#define __pure2
+#define __pure2
 /*
  * ANSI/POSIX
  */
