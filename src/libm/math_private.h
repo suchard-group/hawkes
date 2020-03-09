@@ -14,8 +14,16 @@
  */
 #ifndef _MATH_PRIVATE_H_
 #define	_MATH_PRIVATE_H_
+
 #include <sys/types.h>
-#include <endian.h>
+
+
+#define        __LITTLE_ENDIAN        1234
+#define        __BIG_ENDIAN        4321
+
+//TODO: get byte order
+#define        __BYTE_ORDER        1234
+
 /*
  * The original fdlibm code used statements like:
  *	n0 = ((*(int*)&one)>>29)^1;		* index of high word *
@@ -43,7 +51,7 @@ typedef union
   } parts;
 } ieee_double_shape_type;
 #endif
-#if __BYTE_ORDER == __LITTLE_ENDIAN  && !(defined(__arm__) && !defined(__VFP_FP__))
+#if __BYTE_ORDER == __LITTLE_ENDIAN && !(defined(__arm__) && !defined(__VFP_FP__))
 typedef union
 {
   double value;

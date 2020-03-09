@@ -17,7 +17,7 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 #include <limits.h>
-#define __pure2
+//#define __pure2
 /*
  * ANSI/POSIX
  */
@@ -91,10 +91,10 @@ extern const union __nan_un {
     ((sizeof (x) == sizeof (float)) ? __isinff(x)	\
     : (sizeof (x) == sizeof (double)) ? __isinf(x)	\
     : __isinfl(x))
-#define	isnan(x)					\
-    ((sizeof (x) == sizeof (float)) ? isnanf(x)		\
-    : (sizeof (x) == sizeof (double)) ? isnan(x)	\
-    : __isnanl(x))
+//#define	isnan(x)					\
+//    ((sizeof (x) == sizeof (float)) ? isnanf(x)		\
+//    : (sizeof (x) == sizeof (double)) ? isnan(x)	\
+//    : __isnanl(x))
 #define	isnormal(x)					\
     ((sizeof (x) == sizeof (float)) ? __isnormalf(x)	\
     : (sizeof (x) == sizeof (double)) ? __isnormal(x)	\
