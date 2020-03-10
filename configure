@@ -592,6 +592,7 @@ RCPPPAR_LIB
 SIMD_FLAGS
 OPENCL_FLAGS
 OPENCL_LIB
+APPLE_FLAGS
 OBJEXT
 EXEEXT
 ac_ct_CC
@@ -1806,6 +1807,7 @@ SIMD_FLAGS="-DUSE_SIMD"
 case $RHOST in
   Darwin* )
         # Do something specific for Mac OS X
+        APPLE_FLAGS="-DAPPLE_COMP"
         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for /System/Library/Frameworks/OpenCL.framework" >&5
 $as_echo_n "checking for /System/Library/Frameworks/OpenCL.framework... " >&6; }
 if ${ac_cv_file__System_Library_Frameworks_OpenCL_framework+:} false; then :
@@ -2670,6 +2672,7 @@ fi
         as_fn_error $? "Your platform is not currently supported" "$LINENO" 5
         ;;
 esac
+
 
 
 

@@ -28,6 +28,7 @@ SIMD_FLAGS="-DUSE_SIMD"
 case $RHOST in
   Darwin* )
         # Do something specific for Mac OS X
+        APPLE_FLAGS="-DAPPLE_COMP"
         AC_CHECK_FILE(/System/Library/Frameworks/OpenCL.framework,
         	[	OPENCL_LIB="-framework OpenCL";
         		OPENCL_FLAGS="-DHAVE_OPENCL"	],
@@ -50,6 +51,7 @@ case $RHOST in
         ;;
 esac
 
+AC_SUBST(APPLE_FLAGS)
 AC_SUBST(OPENCL_LIB)
 AC_SUBST(OPENCL_FLAGS)
 AC_SUBST(SIMD_FLAGS)
