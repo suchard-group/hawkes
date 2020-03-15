@@ -754,7 +754,7 @@ public:
 		    "                                                                       \n" <<
 		    "   REAL        sum = ZERO;                                             \n" <<
 		    "   REAL mu0TauXprecDTauTprec = mu0 * pow(tauXprec,dimX) * tauTprec;    \n" <<
-		    "   REAL thetaSigmaXprecD = theta * pow(sigmaXprec,dimX);               \n" <<
+		    "   REAL thetaSigmaXprecDOmega = theta * pow(sigmaXprec,dimX) * omega;  \n" <<
 		    "                                                                       \n" <<
 		    "   while (j < locationCount) {                                         \n" << // originally j < locationCount
 		    "                                                                       \n" <<
@@ -775,7 +775,7 @@ public:
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL innerContrib = mu0TauXprecDTauTprec *
                                            pdf(distance * tauXprec) * pdf(timDiff*tauTprec) +
-                                           thetaSigmaXprecD *
+                                           thetaSigmaXprecDOmega *
                                            select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
         );
 
@@ -794,7 +794,7 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code <<
-             "     likContribs[i] = log(scratch[0]) + theta / omega *               \n" <<
+             "     likContribs[i] = log(scratch[0]) + theta *               \n" <<
              "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) -            \n" <<
              "       mu0 * ( cdf((times[locationCount-1]-times[i])*tauTprec)-             \n" <<
              "               cdf(-times[i]*tauTprec) )   ;                               \n" <<

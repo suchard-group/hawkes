@@ -516,7 +516,7 @@ public:
         const auto tauXprecD = pow(tauXprec, embeddingDimension);
         const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
         const auto mu0TauXprecDTauTprec = mu0 * tauXprecD * tauTprec;
-        const auto sigmaXprecDTheta = sigmaXprecD * theta;
+        const auto sigmaXprecDThetaOmega = sigmaXprecD * theta * omega;
 
         const auto timeI = SimdType(RealType(times[i]));
 
@@ -527,7 +527,7 @@ public:
 
             const auto rate =  mu0TauXprecDTauTprec *
                     adhoc::pdf_new(locDist * tauXprec) * adhoc::pdf_new(timDiff * tauTprec) +
-                    sigmaXprecDTheta *mask(timDiff > zero,
+                    sigmaXprecDThetaOmega * mask(timDiff > zero,
                          adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
 
             sum += rate;
@@ -640,7 +640,7 @@ public:
                     }
 
                     return xsimd::log(sumOfRates) +
-                           theta / omega * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1) -
+                           theta * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1) -
                            mu0 * (adhoc::exp(math::phi_new(tauTprec * (times[locationCount - 1] - times[i]))) -
                                 adhoc::exp(math::phi_new(tauTprec * (-times[i]))));
 
