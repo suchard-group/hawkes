@@ -98,9 +98,8 @@ Rcpp::List createEngine(int embeddingDimension, int locationCount, int tbb, int 
     Rcpp::Named("engine") = engine,
     Rcpp::Named("embeddingDimension") = embeddingDimension,
     Rcpp::Named("locationCount") = locationCount,
-    Rcpp::Named("timesInitialzied") = false,
-    Rcpp::Named("timDiffsInitialized") = false,
-    Rcpp::Named("locDistsInitialized") = false,
+    Rcpp::Named("timesInitialized") = false,
+    Rcpp::Named("locationsInitialized") = false,
     Rcpp::Named("threads") = threads,
     Rcpp::Named("deviceNumber") = deviceNumber,
     Rcpp::Named("flags") = flags
@@ -127,6 +126,14 @@ std::vector<double> getLogLikelihoodGradient(SEXP sexp, size_t len) {
   auto ptr = parsePtr(sexp);
   std::vector<double> result(len);
   ptr->getLogLikelihoodGradient(&result[0], len);
+  return result;
+}
+
+// [[Rcpp::export(.getProbsSelfExcite)]]
+std::vector<double> getProbsSelfExcite(SEXP sexp, size_t len) {
+  auto ptr = parsePtr(sexp);
+  std::vector<double> result(len);
+  ptr->getProbsSelfExcite(&result[0], len);
   return result;
 }
 

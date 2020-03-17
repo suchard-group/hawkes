@@ -64,14 +64,15 @@ using GPUMemoryManager = boost::compute::vector<T>;
 //								double *destination,
 //								Buffer& buffer, Queue& queue);
 
-	template <typename Buffer, typename Queue>
-	void bufferedCopyFromDevice(mm::GPUMemoryManager<double>::iterator begin,
-								mm::GPUMemoryManager<double>::iterator end,
+	template <typename OpenCLRealType,typename Buffer, typename Queue>
+	void bufferedCopyFromDevice(typename mm::GPUMemoryManager<typename OpenCLRealType::BaseType>::iterator begin,
+								typename mm::GPUMemoryManager<typename OpenCLRealType::BaseType>::iterator end,
 								double *destination,
 							    Buffer&, Queue& queue) {
 
 		boost::compute::copy(begin, end, destination, queue);
 	}
+
 
         template <typename OpenCLVectorType, typename Buffer, typename Queue>
         void bufferedCopyFromDevice(typename mm::GPUMemoryManager<typename OpenCLVectorType::VectorType>::iterator begin,

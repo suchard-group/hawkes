@@ -30,6 +30,31 @@ getLogLikelihood <- function(engine) {
   return(logLikelihood)
 }
 
+#' Helper Hawkes process probability self-excitatory function
+#'
+#' Takes HPH engine object and returns log likelihood.
+#'
+#' @param engine An HPH engine object.
+#' @return vector of probabilities each event is self-excitatory in origin
+#'
+#' @export
+getProbsSelfExcite <- function(engine) {
+
+  if (!engine$locationsInitialized) {
+    stop("locations not set")
+  }
+
+  if (!engine$timesInitialized) {
+    stop("times not set")
+  }
+
+  if (is.null(engine$parameters)) {
+    stop("parameters not set")
+  }
+
+  .getProbsSelfExcite(engine$engine,engine$locationCount)
+}
+
 #' Helper HPH log likelihood gradient function
 #'
 #' Takes HPH engine object and returns log likelihood gradient.

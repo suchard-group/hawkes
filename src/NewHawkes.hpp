@@ -318,6 +318,10 @@ public:
         mm::bufferedCopy(data, data + length, begin(times), buffer);
     }
 
+    void getProbsSelfExcite(double* data, size_t length) {
+        defaultOut << "What are you doing down here?" << std::endl;
+    }
+
     void setParameters(double* data, size_t length) {
         assert(length == 6);
         sigmaXprec = data[0];

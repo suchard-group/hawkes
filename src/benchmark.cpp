@@ -178,9 +178,9 @@ int main(int argc, char* argv[]) {
 
 	auto logLik = 0; //instance->getSumOfLikContribs();
 
-    std::vector<double> gradient(6,0.0);
+    std::vector<double> probSEs(locationCount,0.0);
 	//instance->getLogLikelihoodGradient(gradient.data(),6);
-    auto sumGradient = gradient;
+    auto sumProbSEs = probSEs;
 
 	std::cout << "Starting HPH benchmark" << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
@@ -208,25 +208,25 @@ int main(int argc, char* argv[]) {
 
         auto startTime2 = std::chrono::steady_clock::now();
 
-        instance->getLogLikelihoodGradient(gradient.data(),6);
+        instance->getProbsSelfExcite(probSEs.data(),locationCount);
 
         auto duration2 = std::chrono::steady_clock::now() - startTime2;
         timer2 += std::chrono::duration<double, std::milli>(duration2).count();
 
-        std::transform(sumGradient.begin(),sumGradient.end(),
-                gradient.begin(),sumGradient.begin(),std::plus<double>());
+        std::transform(sumProbSEs.begin(),sumProbSEs.end(),
+                probSEs.begin(),sumProbSEs.begin(),std::plus<double>());
 
 	}
-	logLik /= iterations + 1;
- //   sumGradient /= iterations + 1;
+	logLik /= iterations;
 
 	auto endTime = std::chrono::steady_clock::now();
 	auto duration = endTime - startTime;
 
 	std::cout << "End HPH benchmark" << std::endl;
 	std::cout << "AvgLogLik = " << logLik << std::endl;
-    std::cout << "AvgGradient = " << "(" << sumGradient[0] << ", " << sumGradient[1] << ", " <<  sumGradient[2] << ", " <<
-    sumGradient[3] << ", " <<  sumGradient[4] << ", " <<  sumGradient[5] << ")" <<  std::endl;
+    std::cout << "AvgProbSE = " << std::accumulate(sumProbSEs.begin(), sumProbSEs.end(), 0.0) / iterations / locationCount << std::endl;
+//    std::cout << "AvgGradient = " << "(" << sumGradient[0] << ", " << sumGradient[1] << ", " <<  sumGradient[2] << ", " <<
+//    sumGradient[3] << ", " <<  sumGradient[4] << ", " <<  sumGradient[5] << ")" <<  std::endl;
 	std::cout << timer  << " ms" << std::endl;
     std::cout << timer2 << " ms" << std::endl;
 

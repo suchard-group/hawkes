@@ -29,6 +29,59 @@ computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE)
   }
 }
 
+#' Get event specific probabilities self-excitatory
+#'
+#' Takes locations, times and parameters and returns the probability
+#' that each event is a parent (backround) or a child (self-excitatory).
+#'
+#' @param locations Matrix of spatial locations (nxp).
+#' @param times    Vector of times.
+#' @param params Hawkes process parameters (length=6).
+#' @param threads Number of CPU cores to be used.
+#' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
+#' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
+#' @param single Set \code{single=1} if your GPU does not accommodate doubles.
+#' @param naive Just use naive R implementation (very very slow).
+#' @return n vector of probabilities.
+#'
+#' @export
+probability_se <- function(locations, times, params,
+                           threads=0, simd=0, gpu=0, single=0,
+                           naive=FALSE) {
+
+  if (naive) {
+
+    params2 <- list()
+    params2$h     <- 1/params[1]
+    params2$tau_x <- 1/params[2]
+    params2$tau_t <- 1/params[3]
+    params2$omega <- params[4]
+    params2$theta <- params[5]
+    params2$mu_0  <- params[6]
+    n <- dim(locations)[1]
+    output <- rep(0,n)
+    for (i in 1:n) {
+      output[i] <- prob_se(x=locations[i,],
+                           t=times[i],
+                           params=params2,
+                           obs_x=locations, obs_t=times)
+    }
+    return(out)
+
+  } else {
+
+    embeddingDimension <- 2
+    locationCount <- dim(locations)[1]
+    engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
+    engine <- hpHawkes::updateLocations(engine, locations)
+    engine <- hpHawkes::setTimesData(engine, times)
+    engine <- hpHawkes::setParameters(engine, params)
+    return( hpHawkes::getProbsSelfExcite(engine) )
+
+  }
+
+}
+
 
 #' Compare serially and parallel-ly computed log likelihoods and gradients
 #'

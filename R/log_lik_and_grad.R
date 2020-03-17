@@ -40,12 +40,18 @@ se_rate <- function (x,t,params,obs_x,obs_t) {
   kerns_x <- dmvnorm(x=obs_x, mean=x, sigma=diag(dim_x)*(h^2))
 
   omega   <- params$omega
-  kerns_t <- exp( -omega*(t-obs_t) )
+  kerns_t <- exp( -omega*(t-obs_t) ) * omega
 
   lam_xt <- sum( less_than_t*kerns_x*kerns_t )
 
   rate <- theta*lam_xt
   return(rate)
+}
+
+prob_se <- function(x,t,params,obs_x,obs_t) {
+  SeRate <- se_rate(x,t,params,obs_x,obs_t)
+  out <- SeRate / (bg_rate(x,t,params,obs_x,obs_t) + SeRate)
+  return(out)
 }
 
 rate <- function (x,t,params,obs_x,obs_t) {
@@ -65,7 +71,7 @@ integral <- function (params,obs_x,obs_t) {
   # self-excitatory integral
   theta  <- params$theta
   omega  <- params$omega
-  se_int <- -(theta/omega)*sum( exp(-omega*(obs_t[n]-obs_t))-1 )
+  se_int <- - theta * sum( exp(-omega*(obs_t[n]-obs_t))-1 )
 
   return( bg_int+se_int )
 }

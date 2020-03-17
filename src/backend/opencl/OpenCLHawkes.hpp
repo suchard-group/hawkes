@@ -65,6 +65,7 @@ public:
           gradient(6),
           gradientPtr(&gradient),
 
+          probsSelfExcite(locationCount),
 
           sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
 
@@ -168,7 +169,9 @@ public:
 		dLikContribs = mm::GPUMemoryManager<RealType>(likContribs.size(), ctx);
 		dStoredLikContribs = mm::GPUMemoryManager<RealType>(storedLikContribs.size(), ctx);
 
-		dGradient = mm::GPUMemoryManager<VectorType>(1, ctx);
+        dProbsSelfExcite = mm::GPUMemoryManager<RealType>(probsSelfExcite.size(), ctx);
+
+        dGradient = mm::GPUMemoryManager<VectorType>(1, ctx);
 
 #ifdef MICRO_BENCHMARK
 	    timer.fill(0.0);
@@ -344,36 +347,31 @@ public:
         memcpy(result,middleMan.data(), 48);
 
     }
-//	void getLogLikelihoodGradient(double* result, size_t length) override {
-//
-//		kernelGradientVector.set_arg(0, *dLocationsPtr);
-//		kernelGradientVector.set_arg(3, static_cast<RealType>(precision));
-//
-//		queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
-//                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
-//		queue.finish();
-//
-//        if (length == locationCount * OpenCLRealType::dim) {
-//
-//            mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
-//                                       result, buffer, queue);
-//            queue.finish();
-//
-//        } else {
-//
-//            if (doubleBuffer.size() != locationCount * OpenCLRealType::dim) {
-//                doubleBuffer.resize(locationCount * OpenCLRealType::dim);
-//            }
-//
-//            mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
-//                                       doubleBuffer.data(), buffer, queue);
-//            queue.finish();
-//
-//            mm::paddedBufferedCopy(begin(doubleBuffer), OpenCLRealType::dim, embeddingDimension,
-//                                   result, embeddingDimension,
-//                                   locationCount, buffer);
-//        }
-// 	}
+
+	void getProbsSelfExcite(double* result, size_t length) override {
+
+        assert(length == locationCount);
+
+        kernelProbsSelfExcite.set_arg(0, dLocations0);
+        kernelProbsSelfExcite.set_arg(1, dTimes);
+        kernelProbsSelfExcite.set_arg(2, dProbsSelfExcite);
+        kernelProbsSelfExcite.set_arg(3, static_cast<RealType>(sigmaXprec));
+        kernelProbsSelfExcite.set_arg(4, static_cast<RealType>(tauXprec));
+        kernelProbsSelfExcite.set_arg(5, static_cast<RealType>(tauTprec));
+        kernelProbsSelfExcite.set_arg(6, static_cast<RealType>(omega));
+        kernelProbsSelfExcite.set_arg(7, static_cast<RealType>(theta));
+        kernelProbsSelfExcite.set_arg(8, static_cast<RealType>(mu0));
+        kernelProbsSelfExcite.set_arg(9, boost::compute::int_(embeddingDimension));
+        kernelProbsSelfExcite.set_arg(10, boost::compute::uint_(locationCount));
+
+        queue.enqueue_1d_range_kernel(kernelProbsSelfExcite, 0,
+                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+        queue.finish();
+
+        mm::bufferedCopyFromDevice<OpenCLRealType>(dProbsSelfExcite.begin(), dProbsSelfExcite.end(),
+                                       result, buffer, queue);
+        queue.finish();
+ 	}
 
     double getSumOfLikContribs() override {
         computeSumOfLikContribs();
@@ -823,6 +821,192 @@ public:
 	}
 
 
+    void createOpenCLProbsSelfExciteKernel() {
+
+        const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double pdf(double);
+
+                static double pdf(double value) {
+                    return 0.5 * M_SQRT1_2 * M_2_SQRTPI * exp( - pow(value,2.0) * 0.5);
+                }
+        );
+
+        const char pdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float pdf(float);
+
+                static float pdf(float value) {
+
+                    const float rSqrt2f = 0.70710678118655f;
+                    const float rSqrtPif = 0.56418958354775f;
+                    return rSqrt2f * rSqrtPif * exp( - pow(value,2.0f) * 0.5f);
+                }
+        );
+
+        const char cdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double cdf(double);
+
+                static double cdf(double value) {
+                    return 0.5 * erfc(-value * M_SQRT1_2);
+                }
+        );
+
+        const char cdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float cdf(float);
+
+                static float cdf(float value) {
+
+                    const float rSqrt2f = 0.70710678118655f;
+                    return 0.5f * erfc(-value * rSqrt2f);
+                }
+        );
+
+        const char safeExpStringFloat[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float safe_exp(float);
+
+                static float safe_exp(float value) {
+                    if (value < -103.0f) {
+                        return 0.0f;
+                    } else if (value > 88.0f) {
+                        return MAXFLOAT;
+                    } else {
+                        return exp(value);
+                    }
+                }
+        );
+
+        const char safeExpStringDouble[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double safe_exp(double);
+
+                static double safe_exp(double value) {
+                    return exp(value);
+                }
+        );
+
+        std::stringstream code;
+        std::stringstream options;
+
+        options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
+
+        if (sizeof(RealType) == 8) { // 64-bit fp
+            code << " #pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
+                    << " -DZERO=0.0 -DHALF=0.5 -DONE=1.0";
+            code << cdfString1Double;
+            code << pdfString1Double;
+            code << safeExpStringDouble;
+
+        } else { // 32-bit fp
+            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
+                    << " -DZERO=0.0f -DHALF=0.5f -DONE=1.0f";
+            code << cdfString1Float;
+            code << pdfString1Float;
+            code << safeExpStringFloat;
+        }
+        //TODO: possible speedup from smaller vector size to match embedding dimension (right now always 8)
+        code <<
+             " __kernel void computeProbsSelfExcite(__global const REAL_VECTOR *locations, \n" <<
+             "                                 __global const REAL *times,             \n" <<
+             "						          __global REAL *probsSelfExcite,             \n" <<
+             "                                 const REAL sigmaXprec,                  \n" <<
+             "                                 const REAL tauXprec,                    \n" <<
+             "                                 const REAL tauTprec,                    \n" <<
+             "                                 const REAL omega,                       \n" <<
+             "                                 const REAL theta,                       \n" <<
+             "                                 const REAL mu0,                         \n" <<
+             "                                 const int dimX,                         \n" <<
+             "						          const uint locationCount) {             \n";
+
+        code <<
+             "   const uint i = get_group_id(0);                                     \n" <<
+             "                                                                       \n" <<
+             "   const uint lid = get_local_id(0);                                   \n" <<
+             "   uint j = get_local_id(0);                                           \n" <<
+             "                                                                       \n" <<
+             "   __local REAL scratch1[TPB];                                          \n" <<
+             "   __local REAL scratch2[TPB];                                          \n" <<
+             "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
+             "   const REAL timeI = times[i];                                        \n" <<
+             "                                                                       \n" <<
+             "   REAL        sum1 = ZERO;                                             \n" <<
+             "   REAL        sum2 = ZERO;                                             \n" <<
+             "   REAL mu0TauXprecDTauTprec = mu0 * pow(tauXprec,dimX) * tauTprec;    \n" <<
+             "   REAL thetaSigmaXprecDOmega = theta * pow(sigmaXprec,dimX) * omega;  \n" <<
+             "                                                                       \n" <<
+             "   while (j < locationCount) {                                         \n" << // originally j < locationCount
+             "                                                                       \n" <<
+             "     const REAL timDiff = timeI - times[j];                            \n" << // timDiffs[i * locationCount + j];
+             "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
+             "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
+
+        if (OpenCLRealType::dim == 8) {
+            code << "     const REAL distance = sqrt(                                \n" <<
+                 "              dot(difference.lo, difference.lo) +               \n" <<
+                 "              dot(difference.hi, difference.hi)                 \n" <<
+                 "      );                                                        \n";
+
+        } else {
+            code << "     const REAL distance = length(difference);                  \n";
+        }
+
+        code << BOOST_COMPUTE_STRINGIZE_SOURCE(
+                const REAL background = mu0TauXprecDTauTprec *
+                                          pdf(distance * tauXprec) * pdf(timDiff*tauTprec);
+        );
+
+        code << BOOST_COMPUTE_STRINGIZE_SOURCE(
+                const REAL selfexcite = thetaSigmaXprecDOmega *
+                                          select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
+        );
+
+        code <<
+             "     sum1 += background;                                              \n" <<
+             "     sum2 += selfexcite;                                              \n" <<
+             "     j += TPB;                                                         \n" <<
+             "     }                                                                 \n" <<
+             "     scratch1[lid] = sum1;                                             \n" <<
+             "     scratch2[lid] = sum2;                                               \n";
+
+        code <<
+             "     for(int k = 1; k < TPB; k <<= 1) {                                 \n" <<
+             "       barrier(CLK_LOCAL_MEM_FENCE);                                    \n" <<
+             "       uint mask = (k << 1) - 1;                                        \n" <<
+             "       if ((lid & mask) == 0) {                                         \n" <<
+             "           scratch1[lid] += scratch1[lid + k];                  \n" <<
+             "           scratch2[lid] += scratch2[lid + k];                  \n" <<
+             "       }                                                                \n" <<
+             "   }                                                                    \n";
+
+        code <<
+             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+             "   if (lid == 0) {                                                     \n";
+
+        code <<
+             "     probsSelfExcite[i] = scratch2[0] / (scratch1[0] + scratch2[0]);   \n" <<
+             "   }                                                                   \n" <<
+             " }                                                                     \n ";
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+        Rcpp::Rcout << "ProbsSelfExcite contributions kernel\n" << code.str() << std::endl;
+#else
+        std::cerr << "ProbsSelfExcite contributions kernel\n" << options.str() << code.str() << std::endl;
+#endif
+#endif
+
+        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+        kernelProbsSelfExcite = boost::compute::kernel(program, "computeProbsSelfExcite");
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+        Rcpp:Rcout << "Successful build." << std::endl;
+#else
+        std::cerr << "Successful build." << std::endl;
+#endif
+#endif
+
+    }
+
+
     void createOpenCLGradientKernel() {
 
         const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
@@ -1065,6 +1249,7 @@ public:
         createOpenCLLikContribsKernel();
 		createOpenCLGradientKernel();
 		createOpenCLSummationKernel();
+        createOpenCLProbsSelfExciteKernel();
 
 	}
 
@@ -1093,6 +1278,8 @@ private:
 
     mm::MemoryManager<RealType> likContribs;
     mm::MemoryManager<RealType> storedLikContribs;
+
+    mm::MemoryManager<RealType> probsSelfExcite;
 
     mm::MemoryManager<RealType> gradient;
     mm::MemoryManager<RealType>* gradientPtr;
@@ -1132,6 +1319,8 @@ private:
     mm::GPUMemoryManager<RealType> dLikContribs;
     mm::GPUMemoryManager<RealType> dStoredLikContribs;
 
+    mm::GPUMemoryManager<RealType> dProbsSelfExcite;
+
     bool isStoredLikContribsEmpty;
 
     mm::MemoryManager<RealType> buffer;
@@ -1143,6 +1332,7 @@ private:
 	boost::compute::kernel kernelLikContribsVector;
 	boost::compute::kernel kernelGradientVector;
     boost::compute::kernel kernelLikSum;
+    boost::compute::kernel kernelProbsSelfExcite;
 
 #else
     boost::compute::kernel kernelLikContribs;
