@@ -52,7 +52,8 @@ getProbsSelfExcite <- function(engine) {
     stop("parameters not set")
   }
 
-  .getProbsSelfExcite(engine$engine,engine$locationCount)
+  probsSE <- .getProbsSelfExcite(engine$engine,engine$locationCount)
+  return(probsSE)
 }
 
 #' Helper HPH log likelihood gradient function

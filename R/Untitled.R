@@ -66,10 +66,9 @@ probability_se <- function(locations, times, params,
                            params=params2,
                            obs_x=locations, obs_t=times)
     }
-    return(out)
+    return(output)
 
   } else {
-
     embeddingDimension <- 2
     locationCount <- dim(locations)[1]
     engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)

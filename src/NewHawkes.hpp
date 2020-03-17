@@ -210,6 +210,9 @@ public:
           likContribs(locationCount),
           storedLikContribs(locationCount),
 
+          probsSelfExcite(locationCount),
+          probsSelfExcitePtr(&probsSelfExcite),
+
           gradientPtr(&gradient),
           ratesVectorPtr(&ratesVector),
 
@@ -318,8 +321,10 @@ public:
         mm::bufferedCopy(data, data + length, begin(times), buffer);
     }
 
-    void getProbsSelfExcite(double* data, size_t length) {
-        defaultOut << "What are you doing down here?" << std::endl;
+    void getProbsSelfExcite(double* result, size_t length) {
+        assert (length == locationCount);
+        computeProbsSelfExcite<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+        mm::bufferedCopy(std::begin(*probsSelfExcitePtr), std::end(*probsSelfExcitePtr), result, buffer);
     }
 
     void setParameters(double* data, size_t length) {
@@ -653,6 +658,66 @@ public:
         return delta + locationCount * (embeddingDimension - 1) * log(M_1_SQRT_2PI);
     }
 
+    template <typename SimdType, int SimdSize, typename Algorithm>
+    void computeProbsSelfExcite() {
+
+        const auto length = locationCount;
+        if (length != probsSelfExcitePtr->size()) {
+            probsSelfExcitePtr->resize(length);
+        }
+
+        std::fill(std::begin(*probsSelfExcitePtr), std::end(*probsSelfExcitePtr),
+                  static_cast<RealType>(0.0));
+
+        for_each(0, locationCount, [this](const int i) {
+
+            const int vectorCount = locationCount - locationCount % SimdSize;
+
+            DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+            auto sumOfRates = innerProbsSelfExciteLoop<SimdType, SimdSize>(dispatch, i, 0, vectorCount);
+
+            if (vectorCount < locationCount) { // Edge-cases
+                DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+                sumOfRates += innerProbsSelfExciteLoop<RealType, 1>(dispatch, i, vectorCount, locationCount);
+            }
+
+            (*probsSelfExcitePtr)[i] += sumOfRates[1] / (sumOfRates[0] + sumOfRates[1]);
+        }, ParallelType());
+    }
+
+    template <typename SimdType, int SimdSize, typename DispatchType>
+    RealTypePack<2> innerProbsSelfExciteLoop(const DispatchType& dispatch, const int i, const int begin, const int end) {
+
+        const auto zero = SimdType(RealType(0));
+        std::array<SimdType, 2> sum = {zero, zero};
+
+        const auto tauXprecD = pow(tauXprec, embeddingDimension);
+        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
+        const auto mu0TauXprecDTauTprec = mu0 * tauXprecD * tauTprec;
+        const auto sigmaXprecDThetaOmega = sigmaXprecD * theta * omega;
+
+        const auto timeI = SimdType(RealType(times[i]));
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+            const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
+
+            const auto background =  mu0TauXprecDTauTprec *
+                               adhoc::pdf_new(locDist * tauXprec) * adhoc::pdf_new(timDiff * tauTprec);
+
+            const auto selfexcite = sigmaXprecDThetaOmega * mask(timDiff > zero,
+                                                                 adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
+
+            sum[0] += background;
+            sum[1] += selfexcite;
+        }
+
+        return reduce<SimdType,2>(sum);
+        ;
+    }
+
+
 // Parallelization helper functions
 
 	template <typename Integer, typename Function>
@@ -806,6 +871,8 @@ private:
     mm::MemoryManager<RealType>* locationsPtr;
     mm::MemoryManager<RealType>* storedLocationsPtr;
 
+    mm::MemoryManager<RealType> probsSelfExcite;
+    mm::MemoryManager<RealType>* probsSelfExcitePtr;
 
     mm::MemoryManager<RealType> likContribs;
     mm::MemoryManager<RealType> storedLikContribs;
