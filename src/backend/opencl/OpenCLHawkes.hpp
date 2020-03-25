@@ -35,7 +35,7 @@
 #include <boost/compute/algorithm/accumulate.hpp>
 
 
-#define MICRO_BENCHMARK
+//#define MICRO_BENCHMARK
 
 namespace hph {
 
@@ -55,22 +55,22 @@ public:
           theta(0.0), storedTheta(0.0),
           mu0(0.0), storedMu0(0.0),
 
-          locations0(locationCount * OpenCLRealType::dim),
-          locations1(locationCount * OpenCLRealType::dim),
-          locationsPtr(&locations0),
-          storedLocationsPtr(&locations1),
+          sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
 
           times(locationCount),
+
+          likContribs(locationCount),
+          storedLikContribs(locationCount),
+
+          probsSelfExcite(locationCount),
 
           gradient(6),
           gradientPtr(&gradient),
 
-          probsSelfExcite(locationCount),
-
-          sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
-
-          likContribs(locationCount),
-          storedLikContribs(locationCount),
+          locations0(locationCount * OpenCLRealType::dim),
+          locations1(locationCount * OpenCLRealType::dim),
+          locationsPtr(&locations0),
+          storedLocationsPtr(&locations1),
 
           isStoredLikContribsEmpty(false)
 
@@ -183,10 +183,10 @@ public:
 #ifdef MICRO_BENCHMARK
     virtual ~OpenCLHawkes() {
 
-      std::cerr << "micro-benchmarks" << std::endl;
-      for (int i = 0; i < timer.size(); ++i) {
-          std::cerr << "\t" << timer[i] << std::endl;
-      }
+//      std::cerr << "micro-benchmarks" << std::endl;
+//      for (int i = 0; i < timer.size(); ++i) {
+//          std::cerr << "\t" << timer[i] << std::endl;
+//      }
     }
 #endif
 

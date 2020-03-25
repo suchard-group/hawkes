@@ -198,23 +198,24 @@ public:
           theta(0.0), storedTheta(0.0),
           mu0(0.0), storedMu0(0.0),
 
+          sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
+
           times(locationCount),
 
           locations0(locationCount * embeddingDimension),
           locations1(locationCount * embeddingDimension),
+
           locationsPtr(&locations0),
           storedLocationsPtr(&locations1),
-
-          sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
-
-          likContribs(locationCount),
-          storedLikContribs(locationCount),
 
           probsSelfExcite(locationCount),
           probsSelfExcitePtr(&probsSelfExcite),
 
-          gradientPtr(&gradient),
+          likContribs(locationCount),
+          storedLikContribs(locationCount),
+
           ratesVectorPtr(&ratesVector),
+          gradientPtr(&gradient),
 
           isStoredLikContribsEmpty(false),
 
