@@ -133,9 +133,9 @@ print(computeLoglikelihood(locations=locations,
 }
 
 
-#' Time log likelihood and gradient calculations
+#' Time log likelihood calculations
 #'
-#' Time log likelihood and gradient calculations for serial and parallel implementations.
+#' Time log likelihood calculations for serial and parallel implementations.
 #'
 #' @param locationCount Size of distance matrix or number of latent locations.
 #' @param maxIts Number of times to compute the log likelihood and gradient.
@@ -147,7 +147,7 @@ print(computeLoglikelihood(locations=locations,
 #'
 #' @export
 timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,single=0) {
-  # function returns length of time to compute log likelihood and gradient
+  # function returns length of time to compute log likelihood
   # threads is number of CPU cores used
   # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
   embeddingDimension <- 2
@@ -173,7 +173,7 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
   ptm <- proc.time()
   for(i in 1:maxIts){
     hpHawkes::getLogLikelihood(engine)
-    hpHawkes::getGradient(engine)
+    #hpHawkes::getGradient(engine)
   }
   proc.time() - ptm
 }
@@ -257,12 +257,12 @@ Potential <- function(engine,parameters) {
 #' @importFrom RcppXsimd supportsSSE supportsAVX supportsAVX512
 #'
 #' @export
-mhsampler <- function(n_iter,
+sampler <- function(n_iter,
                        burnIn=0,
                        locations=NULL,
                        times=NULL,
-                       radius = 0.01,                 # radius for uniform proposals
-                       params=rep(1,6),
+                       radius = 2,                 # radius for uniform proposals
+                       params=c(1, 1/1.6, 1/(14*24),1,1,1),
                        latentDimension=2,
                        threads=1,                     # number of CPU cores
                        simd=0,                        # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively

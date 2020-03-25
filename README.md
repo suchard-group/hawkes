@@ -1,9 +1,8 @@
 
-MassiveMDS: massively parallel multidimensional scaling library
+hpHawkes: high performance Hawkes process library
 ===
 
-MassiveMDS facilitates fast Bayesian MDS through GPU, multi-core CPU, and SIMD vectorization powered implementations of the Hamiltonian Monte Carlo algorithm. 
-The package may be built either as a standalone library or as an R package relying on Rcpp.
+hpHawkes facilitates fast Bayesian inference for the Hawkes process through GPU, multi-core CPU, and SIMD vectorization powered implementations of an adaptive Metropolis-Hastings algorithm. 
 
 GPU capabilities for either build require installation of OpenCL computing framework. See section **Configurations** below.
 
@@ -13,17 +12,9 @@ GPU capabilities for either build require installation of OpenCL computing frame
 
 [![Build status](https://ci.appveyor.com/api/projects/status/7cr6rmeqdwmo5unx?svg=true)](https://ci.appveyor.com/project/andrewjholbrook/massivemds)
 
-### Compilation
-
-Open the MassiveMDS project located in `mds/src` and build the package.
-
-```
-devtools::load_all(".")
-```
-
 ### Testing
 
-We use the `timeTest` function to time the different implementations of the MDS log likelihood and gradient calculations for `maxIts` iterations.  First check the serial implementation for 1000 locations.
+We use the `timeTest` function to time the different implementations of the spatio-temporal Hawkes process log likelihood calculations for `maxIts` iterations.  First check the serial implementation for 1000 locations.
 
 ```
 timeTest(locationCount=1000)
@@ -48,66 +39,30 @@ timeTest(locationCount=1000, gpu=1)
 
 Not all GPUs have double precision capabilities. You might need to set `single=1` to use your GPU. If you have an eGPU connected, try fixing `gpu=2`. 
 
-Speed computing the log likelihood and its gradient should translate directly to faster HMC times. Compare these implementations of HMC:
+Speed computing the log likelihood should translate directly to faster MCMC times. Compare these MCMC implementations:
 
 ```
-# generate high dimensional data
-x       <- matrix(rnorm(5000),500,10)
-data    <- as.matrix(dist(x))
+# load 2010 Washington D.C. gunfire data
+load('data/dcData.Rdata')
+is.unsorted(dcData$Time) # check that Time is ordered correctly
 
-hmc_1_0 <- hmcsampler(n_iter=100, data=data, learnPrec=FALSE, learnTraitPrec=FALSE)
+one_thread_no_simd <- sampler(n_iter=10, locations=cbind(dcData$X,dcData$Y), times=dcData$Time)
 
-hmc_3_2 <- hmcsampler(n_iter=100, data=data, learnPrec=FALSE, learnTraitPrec=FALSE, threads=3, simd=2)
+two_threads_avx <- sampler(n_iter=10, locations=cbind(dcData$X,dcData$Y), times=dcData$Time, threads=2, simd=2)
 
-hmc_gpu <- hmcsampler(n_iter=100, data=data, learnPrec=FALSE, learnTraitPrec=FALSE, gpu=1)
+gpu <- sampler(n_iter=10, locations=cbind(dcData$X,dcData$Y), times=dcData$Time, gpu=2)
 
-hmc_1_0$Time
-hmc_3_2$Time
-hmc_gpu$Time
+one_thread_no_simd$Time
+two_threads_avx$Time
+gpu$Time
 ```
 Again, you might need to set `single=1` to get the GPU implementation working.  Hopefully, the elapsed times are fastest for the GPU implementation and slowest for the single threaded, no SIMD implementation.
-
-### Example 1: user specified distance matrix
-
-First, we randomly generate a distance matrix and use HMC to learn the Bayesian MDS posterior.  We use AVX and 4 CPU cores.  We also choose to learn the MDS likelihood precision (`learnPrec=TRUE`) and the `P` dimensional latent precision matrix (`learnTraitPrec=TRUE`). 
-
-```
-# generate high dimensional data
-x       <- matrix(rnorm(5000),500,10)
-data    <- as.matrix(dist(x))
-
-# run HMC
-hmc <- hmcsampler(n_iter=100, burnIn=0, data=data, learnPrec=TRUE, learnTraitPrec=TRUE, threads=3, simd=2, treeCov=FALSE, trajectory=0.1)
-```
-Look at trace plot of MDS precision.
-```
-plot(hmc$precision, type="l")
-```
-
-Hmmm, needs more samples. Let's speed it up with the GPU.
-
-```
-hmc <- hmcsampler(n_iter=200, burnIn=0, data=data, learnPrec=TRUE, learnTraitPrec=TRUE, gpu=1, single=1,  treeCov=FALSE, trajectory=0.1)
-
-plot(hmc$target, type="l") # plot the negative log likelihood
-
-```
-
-Still not enough samples. Run the chain for 2000 iterations.
-
-### Example 2: phylogenetic inference
-
-```
-beast <- readbeast()
-hmc <- hmcsampler(n_iter=1000, burnIn=500, beast=beast, learnPrec=TRUE, learnTraitPrec=TRUE, threads=3, simd=2, treeCov=FALSE, trajectory=0.01)
-```
-
 
 # Standalone library
 
 ### Compilation
 
-The standalone build requires CMake Version ≥ 2.8. Use the terminal to navigate to directory `mds/build`.
+The standalone build requires CMake Version ≥ 2.8. Use the terminal to navigate to directory `hawkes/build`.
 
 ```
 cd build
@@ -120,25 +75,25 @@ make
 Once the library is built, test the various implementation settings. The `benchmark` program computes the MDS log likelihood and its gradient for a given number of iterations and returns the time taken for each. First check the serial implementation for 1000 locations.
 
 ```
-./benchmark --truncation --locations 1000 
+./benchmark --locations 1000 
 ```
 
 The following implementation using AVX SIMD should be roughly twice as fast.
 
 ```
-./benchmark --truncation --locations 1000 --avx
+./benchmark --locations 1000 --avx
 ```
 
 Even faster should be a combination of AVX and a 4 core approach.
 
 ```
-./benchmark --truncation --locations 1000 --avx --tbb 4
+./benchmark --locations 1000 --avx --tbb 4
 ```
 
 The GPU implementation should be fastest of all. Make sure that your GPU can handle double precision floating points.  If not, make sure to toggle `--float`.  
 
 ```
-./benchmark --truncation --locations 1000 --gpu 2
+./benchmark --locations 1000 --gpu 2
 ```
 
 Test the different methods by increasing `iterations` and `locations`.
@@ -149,7 +104,7 @@ Test the different methods by increasing `iterations` and `locations`.
 
 ### OpenCL
 
-Both builds of MassiveMDS rely on the OpenCL framework for their GPU capabilities. Builds using OpenCL generally require access to the OpenCL headers <https://github.com/KhronosGroup/OpenCL-Headers> and the shared library `OpenCL.so` (or dynamically linked library `OpenCL.dll` for Windows).  Since we have included the headers in the package, one only needs acquire the shared library. Vendor specific drivers include the OpenCL shared library and are available here:
+Both builds of hpHawkes rely on the OpenCL framework for their GPU capabilities. Builds using OpenCL generally require access to the OpenCL headers <https://github.com/KhronosGroup/OpenCL-Headers> and the shared library `OpenCL.so` (or dynamically linked library `OpenCL.dll` for Windows).  Since we have included the headers in the package, one only needs acquire the shared library. Vendor specific drivers include the OpenCL shared library and are available here:
 
 NVIDIA <https://www.nvidia.com/Download/index.aspx?lang=en-us>
 
@@ -161,15 +116,15 @@ Intel <https://downloadcenter.intel.com/product/80939/Graphics-Drivers> .
 Another approach is to download vendor specific SDKs, which also include the shared libraries. <https://github.com/cdeterman/gpuR/wiki/Installing-OpenCL> has more details on this approach.
 
 #### OpenCL on Windows
-Building the MassiveMDS R package on Windows with OpenCL requires copying (once installed) `OpenCl.dll` to the MassiveMDS library.  For a 64 bit machine use
+Building the hpHawkes R package on Windows with OpenCL requires copying (once installed) `OpenCl.dll` to the hpHawkes library.  For a 64 bit machine use
 
 ```
-cd MassiveMDS
+cd hawkes
 scp /C/Windows/System32/OpenCL.dll inst/lib/x64
 ```
 and for a 32 bit machine use the following.
 ```
-cd MassiveMDS
+cd hawkes
 scp /C/Windows/SysWOW64/OpenCL.dll inst/lib/i386
 ```
 Finally, uncomment the indicated lines in `src/Makevars.win`.
