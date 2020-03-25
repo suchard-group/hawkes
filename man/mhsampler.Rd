@@ -27,6 +27,8 @@ mhsampler(
 
 \item{times}{Observation times.}
 
+\item{radius}{Standard deviations of proposal distributions.}
+
 \item{params}{Length 6, default 1.}
 
 \item{latentDimension}{Dimension of latent space. Integer ranging from 2 to 8.}

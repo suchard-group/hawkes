@@ -1,4 +1,4 @@
-library(MassiveMDS)
+library(hpHawkes)
 
 context("testLikGrad.R")
 

@@ -16,9 +16,9 @@ LinkingTo:
 Imports:
     Rcpp,
     RcppParallel,
-    MASS,
-    ape,
-    RcppXsimd
+    RcppXsimd,
+    mvtnorm,
+    truncnorm
 Suggests:
     testthat,
     caper

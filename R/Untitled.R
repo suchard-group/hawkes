@@ -98,6 +98,7 @@ probability_se <- function(locations, times, params,
 #' @export
 test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
 
+  set.seed(666)
   embeddingDimension <- 2
 
   locations <- matrix(rnorm(n = locationCount * embeddingDimension),
@@ -244,6 +245,7 @@ Potential <- function(engine,parameters) {
 #' @param burnIn Number of initial samples to throw away.
 #' @param locations N x P locations matrix.
 #' @param times Observation times.
+#' @param radius Standard deviations of proposal distributions.
 #' @param params Length 6, default 1.
 #' @param latentDimension Dimension of latent space. Integer ranging from 2 to 8.
 #' @param threads Number of CPU cores to be used.

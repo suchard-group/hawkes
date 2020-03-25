@@ -8,7 +8,7 @@
 #' @author Marc Suchard and Andrew Holbrook
 #' @importFrom Rcpp evalCpp
 #' @importFrom RcppParallel RcppParallelLibs
-#' @importFrom stats dist dnorm pnorm rWishart rnorm runif
+#' @importFrom stats dist dnorm pnorm rWishart rnorm runif rexp
 #' @importFrom utils read.table
 #' @importFrom mvtnorm dmvnorm
 #' @useDynLib hpHawkes

@@ -1,4 +1,4 @@
 library(testthat)
-library(MassiveMDS)
+library(hpHawkes)
 
-test_check("MassiveMDS")
+test_check("hpHawkes")
