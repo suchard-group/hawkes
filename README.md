@@ -43,7 +43,7 @@ Speed computing the log likelihood should translate directly to faster MCMC time
 
 ```
 # load 2010 Washington D.C. gunfire data
-load('data/dcData.Rdata')
+load('data/dcData.RData')
 is.unsorted(dcData$Time) # check that Time is ordered correctly
 
 one_thread_no_simd <- sampler(n_iter=10, locations=cbind(dcData$X,dcData$Y), times=dcData$Time)

@@ -2,7 +2,7 @@
 % Please edit documentation in R/Untitled.R
 \name{timeTest}
 \alias{timeTest}
-\title{Time log likelihood and gradient calculations}
+\title{Time log likelihood calculations}
 \usage{
 timeTest(
   locationCount = 5000,
@@ -30,5 +30,5 @@ timeTest(
 User, system and elapsed time. Elapsed time is most important.
 }
 \description{
-Time log likelihood and gradient calculations for serial and parallel implementations.
+Time log likelihood calculations for serial and parallel implementations.
 }
