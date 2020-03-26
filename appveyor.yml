@@ -5,7 +5,7 @@ init:
   ps: |
         $ErrorActionPreference = "Stop"
         Invoke-WebRequest http://raw.github.com/krlmlr/r-appveyor/master/scripts/appveyor-tool.ps1 -OutFile "..\appveyor-tool.ps1"
-        Invoke-WebRequest http://raw.github.com/suchard-group/MassiveMDS/master/extras/startup.R -OutFile "..\startup.R"
+        Invoke-WebRequest http://raw.github.com/suchard-group/hawkes/master/extras/startup.R -OutFile "..\startup.R"
         Import-Module '..\appveyor-tool.ps1'
 
 install:
@@ -68,8 +68,8 @@ notifications:
  - provider: Email
    to:
      - aholbroo@g.ucla.edu
-   subject: 'MassiveMDS build {{status}}'
-   message: "https://ci.appveyor.com/project/andrewjholbrook/massivemds"
+   subject: 'hpHawkes build {{status}}'
+   message: "https://ci.appveyor.com/project/andrewjholbrook/hpHawkes"
    on_build_success: true
    on_build_failure: true
    on_build_status_changed: true
