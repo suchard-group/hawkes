@@ -470,7 +470,7 @@ public:
 
 	void computeSumOfLikContribs() {
 
-		RealType lSumOfLikContribs = 0.0;
+		//RealType lSumOfLikContribs = 0.0;
 
 #ifdef MICRO_BENCHMARK
         auto startTime = std::chrono::steady_clock::now();

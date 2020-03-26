@@ -16,7 +16,7 @@
 #define	_MATH_PRIVATE_H_
 
 #include <sys/types.h>
-
+#include <cstdint>
 
 #define        __LITTLE_ENDIAN        1234
 #define        __BIG_ENDIAN        4321

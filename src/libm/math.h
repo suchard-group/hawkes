@@ -14,9 +14,12 @@
  */
 #ifndef _MATH_H_
 #define	_MATH_H_
+
 #include <sys/cdefs.h>
 #include <sys/types.h>
 #include <limits.h>
+#include <cstdint>
+
 #define __pure2
 /*
  * ANSI/POSIX
