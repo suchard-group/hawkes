@@ -8,9 +8,9 @@ GPU capabilities for either build require installation of OpenCL computing frame
 
 # R package
 
-[![Build Status](https://travis-ci.com/suchard-group/hawkes.svg?token=qEEKCayH6SfMBzc9H5Jp&branch=master)
+[![Build Status](https://travis-ci.com/suchard-group/hawkes.svg?branch=master)](https://travis-ci.com/suchard-group/hawkes)
 
-[![Build status](https://ci.appveyor.com/api/projects/status/7cr6rmeqdwmo5unx?svg=true)](https://ci.appveyor.com/project/andrewjholbrook/massivemds)
+[![Build status](https://ci.appveyor.com/api/projects/status/github/suchard-group/hawkes?branch=master&svg=true)](https://ci.appveyor.com/project/andrewjholbrook/hawkes)
 
 ### Testing
 
