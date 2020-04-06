@@ -42,7 +42,7 @@ Not all GPUs have double precision capabilities. You might need to set `single=1
 Speed computing the log likelihood should translate directly to faster MCMC times. Compare these MCMC implementations:
 
 ```
-# load 2010 Washington D.C. gunfire data
+# 2010 Washington D.C. gunfire data `dcData` is already loaded
 is.unsorted(dcData$Time) # check that Time is ordered correctly
 
 one_thread_no_simd <- sampler(n_iter=10, locations=cbind(dcData$X,dcData$Y), times=dcData$Time)
@@ -56,6 +56,21 @@ two_threads_avx$Time
 gpu$Time
 ```
 Again, you might need to set `single=1` to get the GPU implementation working.  Hopefully, the elapsed times are fastest for the GPU implementation and slowest for the single threaded, no SIMD implementation.
+
+Starting values for parameters are fed to `sampler` with 6-element long `params` vector. Currently, elements 2 and 3 of `params` are not sampled over: these are the spatial and temporal precisions (1/lengthscale) for the Gaussian kernel background intensity.  They remain fixed and must be specified with care.  Elements 1, 4, 5 and 6 are the self-excitatory spatial precision (1/lengthscale), self-excitatory temporal precision, the self-excitatory weight and the background weight, respectively.
+
+Get MCMC sample using GPU with initial values of 1 and spatial and temporal background lengthscales set to 1.6 kilometers and 14 days:
+```
+gpu <- sampler(n_iter=2000,
+burnIn=1000,
+params=c(1,1/1.6,1/(14*24),1,1,1), locations=cbind(dcData$X,dcData$Y),
+times=dcData$Time,
+gpu=2)
+```
+Create trace plot for, say, the self-excitatory weight:
+```
+plot(gpu$samples[5,])
+```
 
 # Standalone library
 
