@@ -14,7 +14,11 @@ GPU capabilities for either build require installation of OpenCL computing frame
 
 ### Testing
 
-We use the `timeTest` function to time the different implementations of the spatio-temporal Hawkes process log likelihood calculations for `maxIts` iterations.  First check the serial implementation for 1000 locations.
+After cloning `hpHawkes` to your prefered directory, build the `R` package via the command line with
+```
+R CMD build hawkes
+```
+Open `R` and use the `timeTest` function to time the different implementations of the spatio-temporal Hawkes process log likelihood calculations for `maxIts` iterations.  First check the serial implementation for 1000 locations.
 
 ```
 timeTest(locationCount=1000)
