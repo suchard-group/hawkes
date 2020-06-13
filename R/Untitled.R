@@ -329,7 +329,7 @@ sampler <- function(n_iter,
     Proposed = Proposed + 1
 
     #propose new parameters with UNIVARIATE M-H proposal
-    index <- sample(c(1,4:6),size = 1) # random scan of only 1, 4:6 parameters
+    index <- sample(1:6,size = 1) # random scan of 1:6 parameters
 
     #if (ProposedParams[index]<Radii[index]) {
       Former <- ProposedParams[index]
