@@ -225,12 +225,16 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 #'
 #' @param engine HPH engine object.
 #' @param parameters (Exponentiated) spatio-temporal Hawkes process parameters (d=6).
+#' @param lbs Lower bounds on spatial and temporal lengthscales for background rate.
 #' @return Potential or its gradient.
 #'
 #' @export
-Potential <- function(engine,parameters) {
-  logPrior <- sum(log(truncnorm::dtruncnorm(x=parameters[1:5],sd=10,a=0))) +
-              log(truncnorm::dtruncnorm(x=parameters[6],sd=1,a=0))
+Potential <- function(engine,parameters,lbs) {
+  logPrior <- sum(log(truncnorm::dtruncnorm(x=parameters[c(1,4)],sd=10,mean = 0,a=0))) +
+              log(truncnorm::dtruncnorm(x=parameters[2],a=0,b=1/lbs[1])) +
+              log(truncnorm::dtruncnorm(x=parameters[3],a=0,b=1/lbs[2])) +
+              sum(log(truncnorm::dtruncnorm(x=parameters[5],sd=10,a=0))) +
+              sum(log(truncnorm::dtruncnorm(x=parameters[6],sd=1,a=0)))
   logLikelihood <- hpHawkes::getLogLikelihood(engine)
 
   return(-logLikelihood-logPrior)
@@ -247,6 +251,7 @@ Potential <- function(engine,parameters) {
 #' @param times Observation times.
 #' @param radius Standard deviations of proposal distributions.
 #' @param params Length 6, default 1.
+#' @param lowerbounds Lower bounds on spatial and temporal lengthscales for background rate.
 #' @param latentDimension Dimension of latent space. Integer ranging from 2 to 8.
 #' @param threads Number of CPU cores to be used.
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
@@ -262,7 +267,8 @@ sampler <- function(n_iter,
                        locations=NULL,
                        times=NULL,
                        radius = 2,                 # radius for uniform proposals
-                       params=c(1, 1/1.6, 1/(14*24),1,1,1),
+                       params=c(1,1,1,1,1,1),
+                       lowerbounds=c(0,0),
                        latentDimension=2,
                        threads=1,                     # number of CPU cores
                        simd=0,                        # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
@@ -280,7 +286,8 @@ sampler <- function(n_iter,
     }
   }
 
-  #set.seed(666)
+  if(params[2]>1/lowerbounds[1]) params[2] <- 1/lowerbounds[1]/2
+  if(params[3]>1/lowerbounds[2]) params[3] <- 1/lowerbounds[2]/2
 
   # Set up the parameters
   NumOfIterations = n_iter
@@ -316,11 +323,11 @@ sampler <- function(n_iter,
   # Initialize the location
   CurrentParams = as.vector(params);
 
-  CurrentU = Potential(engine,params)
+  CurrentU = Potential(engine,params,lowerbounds)
 
   cat(paste0('Initial log-likelihood: ', hpHawkes::getLogLikelihood(engine), '\n'))
 
-  # Perform Hamiltonian Monte Carlo
+  # Perform Adaptive M-H
   for (Iteration in 1:NumOfIterations) {
 
     ProposedParams = CurrentParams
@@ -331,36 +338,57 @@ sampler <- function(n_iter,
     #propose new parameters with UNIVARIATE M-H proposal
     index <- sample(1:6,size = 1) # random scan of 1:6 parameters
 
-    #if (ProposedParams[index]<Radii[index]) {
-      Former <- ProposedParams[index]
-      ProposedParams[index] <- truncnorm::rtruncnorm(1,a=0,mean=ProposedParams[index],sd=Radii[index])
+    Former <- ProposedParams[index]
 
-        #ProposedParams[index] + # make proposal
-        #runif(1,min = -ProposedParams[index], max=Radii[index])
+    if (index==2) {
 
+      ProposedParams[index] <- truncnorm::rtruncnorm(1,a=0,b=1/lowerbounds[1],
+                                                     mean=ProposedParams[index],sd=Radii[index])
 
       # get proposed log post
       engine <- hpHawkes::setParameters(engine, ProposedParams)
-      ProposedU = Potential(engine,ProposedParams)
+      ProposedU = Potential(engine,ProposedParams,lowerbounds)
 
       # Compute the terms of accept/reject step
       CurrentH = CurrentU -
-        log( truncnorm::dtruncnorm(x=ProposedParams[index], a=0, mean=Former, sd=Radii[index]) ) #log(Former+Radii[index])
-      ProposedH = ProposedU - # log(ProposedParams[index]+Radii[index]) -
-        #log(as.numeric(Former<ProposedParams[index]+Radii[index]))
+        log( truncnorm::dtruncnorm(x=ProposedParams[index], a=0,b=1/lowerbounds[1],
+                                   mean=Former, sd=Radii[index]) )
+      ProposedH = ProposedU -
+        log( truncnorm::dtruncnorm(x=Former, a=0,b=1/lowerbounds[1],
+                                   mean=ProposedParams[index], sd=Radii[index]) )
+
+    } else if (index==3) {
+
+      ProposedParams[index] <- truncnorm::rtruncnorm(1,a=0,b=1/lowerbounds[2],
+                                                     mean=ProposedParams[index],sd=Radii[index])
+
+      # get proposed log post
+      engine <- hpHawkes::setParameters(engine, ProposedParams)
+      ProposedU = Potential(engine,ProposedParams,lowerbounds)
+
+      # Compute the terms of accept/reject step
+      CurrentH = CurrentU -
+        log( truncnorm::dtruncnorm(x=ProposedParams[index], a=0,b=1/lowerbounds[2],
+                                   mean=Former, sd=Radii[index]) )
+      ProposedH = ProposedU -
+        log( truncnorm::dtruncnorm(x=Former, a=0,b=1/lowerbounds[2],
+                                   mean=ProposedParams[index], sd=Radii[index]) )
+
+    } else {
+
+      ProposedParams[index] <- truncnorm::rtruncnorm(1,a=0,mean=ProposedParams[index],sd=Radii[index])
+
+      # get proposed log post
+      engine <- hpHawkes::setParameters(engine, ProposedParams)
+      ProposedU = Potential(engine,ProposedParams,lowerbounds)
+
+      # Compute the terms of accept/reject step
+      CurrentH = CurrentU -
+        log( truncnorm::dtruncnorm(x=ProposedParams[index], a=0, mean=Former, sd=Radii[index]) )
+      ProposedH = ProposedU -
         log( truncnorm::dtruncnorm(x=Former, a=0, mean=ProposedParams[index], sd=Radii[index]) )
 
-    # } else {
-    #   ProposedParams[index] <- ProposedParams[index] + runif(1,min = -Radii[index], max=Radii[index])
-    #
-    #   # get proposed log post
-    #   engine <- hpHawkes::setParameters(engine, ProposedParams)
-    #   ProposedU = Potential(engine,ProposedParams)
-    #
-    #   # Compute the Hamiltonian
-    #   CurrentH = CurrentU
-    #   ProposedH = ProposedU
-    # }
+    }
 
     Ratio = - ProposedH + CurrentH
     if (Ratio > min(0,log(runif(1)))) {
@@ -392,21 +420,12 @@ sampler <- function(n_iter,
 
     # Show acceptance rate every 100 iterations
     if (Iteration %% 100 == 0) {
-      cat(Iteration, "iterations completed. HMC acceptance rate: ",Accepted/Proposed,"\n")
+      cat(Iteration, "iterations completed. Acceptance rate: ",Accepted/Proposed,"\n")
       cat("Radii ",Radii,"\n")
 
       Proposed = 0
       Accepted = 0
     }
-#
-#     if (Iteration %% 5 == 0) { # stepsize adjustment
-#       AcceptRate = Accepted2 / 5
-#       Ratio = AcceptRate / 0.8
-#       if (Ratio > 2) Ratio = 2
-#       if (Ratio < 0.5) Ratio = 0.5
-#
-#       StepSize = StepSize * Ratio
-#     }
 
     # Start timer after burn-in
     if (Iteration == burnIn) { # If burnIn > 0
