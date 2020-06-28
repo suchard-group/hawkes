@@ -11,7 +11,6 @@ sampler(
   times = NULL,
   radius = 2,
   params = c(1, 1, 1, 1, 1, 1),
-  lowerbounds = c(0, 0),
   latentDimension = 2,
   threads = 1,
   simd = 0,
@@ -31,8 +30,6 @@ sampler(
 \item{radius}{Standard deviations of proposal distributions.}
 
 \item{params}{Length 6, default 1.}
-
-\item{lowerbounds}{Lower bounds on spatial and temporal lengthscales for background rate.}
 
 \item{latentDimension}{Dimension of latent space. Integer ranging from 2 to 8.}
 

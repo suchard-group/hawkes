@@ -4,14 +4,12 @@
 \alias{Potential}
 \title{Potential function and gradient for HMC}
 \usage{
-Potential(engine, parameters, lbs)
+Potential(engine, parameters)
 }
 \arguments{
 \item{engine}{HPH engine object.}
 
 \item{parameters}{(Exponentiated) spatio-temporal Hawkes process parameters (d=6).}
-
-\item{lbs}{Lower bounds on spatial and temporal lengthscales for background rate.}
 }
 \value{
 Potential or its gradient.

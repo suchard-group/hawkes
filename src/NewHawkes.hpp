@@ -536,7 +536,8 @@ public:
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
 
             const auto rate =  mu0TauXprecDTauTprec *
-                    adhoc::pdf_new(locDist * tauXprec) * adhoc::pdf_new(timDiff * tauTprec) +
+                    mask(timDiff!=zero, adhoc::pdf_new(locDist * tauXprec) *
+                     adhoc::pdf_new(timDiff * tauTprec)) +
                     sigmaXprecDThetaOmega * mask(timDiff > zero,
                          adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
 
@@ -705,7 +706,7 @@ public:
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
 
             const auto background =  mu0TauXprecDTauTprec *
-                               adhoc::pdf_new(locDist * tauXprec) * adhoc::pdf_new(timDiff * tauTprec);
+                    mask(timDiff != zero,  adhoc::pdf_new(locDist * tauXprec) * adhoc::pdf_new(timDiff * tauTprec));
 
             const auto selfexcite = sigmaXprecDThetaOmega * mask(timDiff > zero,
                                                                  adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));

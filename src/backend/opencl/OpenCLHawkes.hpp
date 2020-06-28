@@ -951,7 +951,8 @@ public:
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL background = mu0TauXprecDTauTprec *
-                                          pdf(distance * tauXprec) * pdf(timDiff*tauTprec);
+                                          pdf(distance * tauXprec) *
+                                          select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO));
         );
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
