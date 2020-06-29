@@ -64,6 +64,8 @@ public:
 
           probsSelfExcite(locationCount),
 
+          innerGradsContribs(locationCount),
+
           gradient(6),
           gradientPtr(&gradient),
 
@@ -171,7 +173,6 @@ public:
 
         dProbsSelfExcite = mm::GPUMemoryManager<RealType>(probsSelfExcite.size(), ctx);
 
-        dGradient = mm::GPUMemoryManager<VectorType>(1, ctx);
 
 #ifdef MICRO_BENCHMARK
 	    timer.fill(0.0);
@@ -1009,6 +1010,180 @@ public:
     }
 
 
+    void createOpenCLInnerGradsLoopKernel() {
+
+        const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double pdf(double);
+
+                static double pdf(double value) {
+                    return 0.5 * M_SQRT1_2 * M_2_SQRTPI * exp( - pow(value,2.0) * 0.5);
+                }
+        );
+
+        const char pdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float pdf(float);
+
+                static float pdf(float value) {
+
+                    const float rSqrt2f = 0.70710678118655f;
+                    const float rSqrtPif = 0.56418958354775f;
+                    return rSqrt2f * rSqrtPif * exp( - pow(value,2.0f) * 0.5f);
+                }
+        );
+
+        const char cdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double cdf(double);
+
+                static double cdf(double value) {
+                    return 0.5 * erfc(-value * M_SQRT1_2);
+                }
+        );
+
+        const char cdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float cdf(float);
+
+                static float cdf(float value) {
+
+                    const float rSqrt2f = 0.70710678118655f;
+                    return 0.5f * erfc(-value * rSqrt2f);
+                }
+        );
+
+        const char safeExpStringFloat[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float safe_exp(float);
+
+                static float safe_exp(float value) {
+                    if (value < -103.0f) {
+                        return 0.0f;
+                    } else if (value > 88.0f) {
+                        return MAXFLOAT;
+                    } else {
+                        return exp(value);
+                    }
+                }
+        );
+
+        const char safeExpStringDouble[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double safe_exp(double);
+
+                static double safe_exp(double value) {
+                    return exp(value);
+                }
+        );
+
+        std::stringstream code;
+        std::stringstream options;
+
+        options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
+
+        if (sizeof(RealType) == 8) { // 64-bit fp
+            code << " #pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
+                    << " -DZERO=0.0 -DHALF=0.5 -DONE=1.0";
+            code << cdfString1Double;
+            code << pdfString1Double;
+            code << safeExpStringDouble;
+
+        } else { // 32-bit fp
+            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
+                    << " -DZERO=0.0f -DHALF=0.5f -DONE=1.0f";
+            code << cdfString1Float;
+            code << pdfString1Float;
+            code << safeExpStringFloat;
+        }
+        //TODO: possible speedup from smaller vector size to match embedding dimension (right now always 8)
+        code <<
+             " __kernel void innerGradsLoop(__global const REAL_VECTOR *locations, \n" <<
+             "                                 __global const REAL *times,             \n" <<
+             "						          __global REAL *innerGradsContribs,       \n" <<
+             "                                 const REAL sigmaXprec,                  \n" <<
+             "                                 const REAL tauXprec,                    \n" <<
+             "                                 const REAL tauTprec,                    \n" <<
+             "                                 const REAL omega,                       \n" <<
+             "                                 const REAL theta,                       \n" <<
+             "                                 const REAL mu0,                         \n" <<
+             "                                 const int dimX,                         \n" <<
+             "						          const uint locationCount) {             \n";
+
+        code <<
+             "   const uint i = get_group_id(0);                                     \n" <<
+             "                                                                       \n" <<
+             "   const uint lid = get_local_id(0);                                   \n" <<
+             "   uint j = get_local_id(0);                                           \n" <<
+             "                                                                       \n" <<
+             "   __local REAL scratch[TPB];                                          \n" <<
+             "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
+             "   const REAL timeI = times[i];                                        \n" <<
+             "                                                                       \n" <<
+             "   REAL        sum = ZERO;                                             \n" <<
+             "   REAL mu0TauXprecDTauTprec = mu0 * pow(tauXprec,dimX) * tauTprec;    \n" <<
+             "   REAL thetaSigmaXprecDOmega = theta * pow(sigmaXprec,dimX) * omega;  \n" <<
+             "                                                                       \n" <<
+             "   while (j < locationCount) {                                         \n" << // originally j < locationCount
+             "                                                                       \n" <<
+             "     const REAL timDiff = timeI - times[j];                            \n" << // timDiffs[i * locationCount + j];
+             "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
+             "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
+
+        if (OpenCLRealType::dim == 8) {
+            code << "     const REAL distance = sqrt(                                \n" <<
+                 "              dot(difference.lo, difference.lo) +               \n" <<
+                 "              dot(difference.hi, difference.hi)                 \n" <<
+                 "      );                                                        \n";
+
+        } else {
+            code << "     const REAL distance = length(difference);                  \n";
+        }
+
+        code << BOOST_COMPUTE_STRINGIZE_SOURCE(
+                const REAL innerContrib = mu0TauXprecDTauTprec *
+                                          pdf(distance * tauXprec) *
+                                          select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO))  +
+                                          thetaSigmaXprecDOmega *
+                                          select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
+        );
+
+        code <<
+             "     sum += innerContrib;                                              \n" <<
+             "     j += TPB;                                                         \n" <<
+             "     }                                                                 \n" <<
+             "     scratch[lid] = sum;                                               \n";
+#ifdef USE_VECTOR
+        code << reduce::ReduceBody1<RealType,false>::body();
+#else
+        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
+#endif
+        code <<
+             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+             "   if (lid == 0) {                                                     \n";
+
+        code <<
+             "     innerGradsContribs[i] = scratch[0]                                      \n" <<
+             "   }                                                                   \n" <<
+             " }                                                                     \n ";
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+        Rcpp::Rcout << "Likelihood contributions kernel\n" << code.str() << std::endl;
+#else
+        std::cerr << "Likelihood contributions kernel\n" << options.str() << code.str() << std::endl;
+#endif
+#endif
+
+        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+        kernelInnerGradsLoop = boost::compute::kernel(program, "innerGradsLoop");
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+        Rcpp:Rcout << "Successful build." << std::endl;
+#else
+        std::cerr << "Successful build." << std::endl;
+#endif
+#endif
+
+    }
+
+
     void createOpenCLGradientKernel() {
 
         const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
@@ -1094,7 +1269,8 @@ public:
         code <<
              " __kernel void computeGradient(__global const REAL_VECTOR *locations,         \n" <<
              "                                 __global const REAL *times,             \n" <<
-             "						          __global REAL_VECTOR *gradContribs,      \n" <<
+             "                                 __global const REAL *innerGradsContribs, \n" <<
+             "						          __global REAL_VECTOR *gradient,           \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
              "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL tauTprec,                    \n" <<
@@ -1112,21 +1288,13 @@ public:
              "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
              "   const REAL timeI = times[i];                                        \n" <<
              "                                                                       \n" <<
-             "   __local REAL sigmaXScratch[TPB];                                          \n" <<
-             "   __local REAL tauXScratch[TPB];                                          \n" <<
-             "   __local REAL tauTScratch[TPB];                                          \n" <<
-             "   __local REAL omegaScratch[TPB];                                          \n" <<
-             "   __local REAL thetaScratch[TPB];                                          \n" <<
-             "   __local REAL mu0Scratch[TPB];                                          \n" <<
-             "   __local REAL totalRateScratch[TPB];                                          \n" <<
+             "   __local REAL nRateScratch[TPB];                                          \n" <<
+             "   __local REAL_VECTOR nNprimeScratch[TPB];                                 \n" <<
+             "   __local REAL_VECTOR nprimeNScratch[TPB];                                 \n" <<
              "                                                                       \n" <<
-             "   REAL        sigmaXSum = ZERO;                                             \n" <<
-             "   REAL        tauXSum = ZERO;                                             \n" <<
-             "   REAL        tauTSum = ZERO;                                             \n" <<
-             "   REAL        omegaSum = ZERO;                                             \n" <<
-             "   REAL        thetaSum = ZERO;                                             \n" <<
-             "   REAL        mu0Sum = ZERO;                                             \n" <<
-             "   REAL        totalRateSum = ZERO;                                             \n" <<
+             "   REAL        nRateSum = ZERO;                                             \n" <<
+             "   REAL_VECTOR        nNprimeSum = ZERO;                                      \n" <<
+             "   REAL_VECTOR        nprimeNSum = ZERO;                                      \n" <<
              "                                                                           \n" <<
              "   const REAL sigmaXprec2 = sigmaXprec * sigmaXprec;                       \n" <<
              "   const REAL sigmaXprecD = pow(sigmaXprec, dimX);                             \n" <<
@@ -1134,7 +1302,7 @@ public:
              "   const REAL tauXprecD = pow(tauXprec, dimX);                             \n" <<
              "   const REAL tauTprec2 = tauTprec * tauTprec;                             \n" <<
              "   const REAL mu0TauXprecDTauTprec = mu0 * tauXprecD * tauTprec;           \n" <<
-             "   const REAL sigmaXprecDTheta = sigmaXprecD * theta;                      \n" <<
+             "   const REAL thetaSigmaXprecDOmega = theta * pow(sigmaXprec,dimX) * omega;  \n" <<
              "                                                                       \n" <<
              "   while (j < locationCount) {                                         \n" << // originally j < locationCount
              "                                                                       \n" <<
@@ -1154,35 +1322,32 @@ public:
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL pdfLocDistSigmaXPrec = pdf(locDist * sigmaXprec);
                 const REAL pdfLocDistTauXPrec = pdf(locDist * tauXprec);
-                const REAL pdfTimDiffTauTPrec = pdf(timDiff * tauTprec);
-                const REAL expOmegaTimDiff = select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO));
+                const REAL pdfTimDiffTauTPrec = select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO))//pdf(timDiff * tauTprec);
+                const REAL expOmegaTimDiffNNprime = select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO));
+                const REAL expOmegaTimDiffNprimeN = select(ZERO, exp(-omega * timDiff), (CAST)isless(timDiff,ZERO));
 
-                const REAL mu0Rate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
-                const REAL thetaRate = expOmegaTimDiff * pdfLocDistSigmaXPrec;
+                const REAL baseRate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
+                const REAL seRateNNprime = pdfLocDistSigmaXPrec * expOmegaTimDiffNNprime;
+                const REAL seRateNprimeN = pdfLocDistSigmaXPrec * expOmegaTimDiffNprimeN;
 
-                const REAL sigmaXrate = (sigmaXprec2*locDist*locDist - dimX) * thetaRate;
-                const REAL tauXrate = (tauXprec2 * locDist * locDist - dimX) * mu0Rate;
-                const REAL tauTrate = (tauTprec2 * timDiff * timDiff - ONE) * mu0Rate;
-                const REAL omegaRate = timDiff * thetaRate;
-                const REAL totalRate = mu0TauXprecDTauTprec * mu0Rate + sigmaXprecDTheta * thetaRate;
+                const REAL nRate = mu0TauXprecDTauTprec * baseRate + thetaSigmaXprecDOmega * seRateNNprime;
+                const REAL nNprimeGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
+                        sigmaXprec2 * thetaSigmaXprecDOmega * seRateNNprime) * difference;
+                const REAL nprimeNGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
+                        sigmaXprec2 * thetaSigmaXprecDOmega * seRateNprimeN) * difference / innerGradsContribs[j];
 
-                sigmaXSum += sigmaXrate;
-                tauXSum   += tauXrate;
-                tauTSum   += tauTrate;
-                omegaSum  += omegaRate;
-                thetaSum  += thetaRate;
-                mu0Sum    += mu0Rate;
-                totalRateSum += totalRate;
+                nRateSum += nRate;
+                nNprimeSum += nNprimeGrad;
+                nprimeNSum += nprimeNGrad;
 
-                j += TPB;
+
+        j += TPB;
 	        }
-	        sigmaXScratch[lid] = sigmaXSum;
-	        tauXScratch[lid] = tauXSum;
-	        tauTScratch[lid] = tauTSum;
-	        omegaScratch[lid] = omegaSum;
-	        thetaScratch[lid] = thetaSum;
-	        mu0Scratch[lid] = mu0Sum;
-	        totalRateScratch[lid] = totalRateSum;
+
+	        nRateScratch[lid] = nRateSum;
+	        nNprimeScratch[lid] = nNprimeSum;
+	        nprimeNScratch[lid] = nprimeNSum;
+
         );
 
         code <<
@@ -1190,13 +1355,9 @@ public:
              "       barrier(CLK_LOCAL_MEM_FENCE);                                    \n" <<
              "       uint mask = (k << 1) - 1;                                        \n" <<
              "       if ((lid & mask) == 0) {                                         \n" <<
-             "           sigmaXScratch[lid] += sigmaXScratch[lid + k];                \n" <<
-             "           tauXScratch[lid]   += tauXScratch[lid + k];                  \n" <<
-             "           tauTScratch[lid]   += tauTScratch[lid + k];                  \n" <<
-             "           omegaScratch[lid]  += omegaScratch[lid + k];                 \n" <<
-             "           thetaScratch[lid]  += thetaScratch[lid + k];                 \n" <<
-             "           mu0Scratch[lid]    += mu0Scratch[lid + k];                   \n" <<
-             "           totalRateScratch[lid]   += totalRateScratch[lid + k];        \n" <<
+             "           nRateScratch[lid]   += nRateScratch[lid + k];                \n" <<
+             "           nNprimeScratch[lid]   += nNprimeScratch[lid + k];            \n" <<
+             "           nprimeNScratch[lid]   += nprimeNScratch[lid + k];            \n" <<
              "       }                                                                \n" <<
              "   }                                                                    \n";
 
@@ -1205,19 +1366,8 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                const REAL timDiff = times[locationCount-1]-times[i];
-                const REAL expOmegaTimDiff = exp(-omega*timDiff);
 
-                gradContribs[i].s0 = sigmaXScratch[0] / totalRateScratch[0];
-                gradContribs[i].s1 = tauXScratch[0]   / totalRateScratch[0];
-                gradContribs[i].s2 = tauTScratch[0]   / totalRateScratch[0] * tauXprecD +
-                                     pdf(tauTprec * timDiff) * timDiff + pdf(tauTprec*times[i])*times[i];
-                gradContribs[i].s3 = (1-(1+omega*timDiff) * expOmegaTimDiff)/(omega*omega) -
-                                     omegaScratch[0]/totalRateScratch[0] * sigmaXprecD;
-                gradContribs[i].s4 = thetaScratch[0] / totalRateScratch[0] * sigmaXprecD + (expOmegaTimDiff-1)/omega;
-                gradContribs[i].s5 = mu0Scratch[0] / totalRateScratch[0] * tauXprecD * tauTprec -
-                                     ( cdf(tauTprec*timDiff) - cdf(tauTprec*(-times[i])) );
-
+                gradContribs[i] = nNprimeScratch[0] / nRateScratch[0] + nprimeNScratch[0];
                 );
 
         code <<
@@ -1252,6 +1402,7 @@ public:
 		createOpenCLGradientKernel();
 		createOpenCLSummationKernel();
         createOpenCLProbsSelfExciteKernel();
+        createOpenCLInnerGradsLoopKernel();
 
 	}
 
@@ -1283,6 +1434,7 @@ private:
 
     mm::MemoryManager<RealType> probsSelfExcite;
 
+    mm::MemoryManager<RealType> innerGradsContribs;
     mm::MemoryManager<RealType> gradient;
     mm::MemoryManager<RealType>* gradientPtr;
 
@@ -1294,6 +1446,8 @@ private:
     mm::GPUMemoryManager<RealType> dOmegaGradContribs;
     mm::GPUMemoryManager<RealType> dThetaGradContribs;
     mm::GPUMemoryManager<RealType> dMu0GradContribs;
+
+    mm::GPUMemoryManager<RealType> dInnerGradsContribs;
     mm::GPUMemoryManager<VectorType> dGradContribs;
     mm::GPUMemoryManager<VectorType> dGradient;
 
@@ -1335,6 +1489,7 @@ private:
 	boost::compute::kernel kernelGradientVector;
     boost::compute::kernel kernelLikSum;
     boost::compute::kernel kernelProbsSelfExcite;
+    boost::compute::kernel kernelInnerGradsLoop;
 
 #else
     boost::compute::kernel kernelLikContribs;
