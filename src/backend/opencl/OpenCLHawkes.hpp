@@ -13,7 +13,7 @@
 #include <Rcpp.h>
 #endif
 
-//#define DEBUG_KERNELS
+#define DEBUG_KERNELS
 
 #define SSE
 //#undef SSE
@@ -166,7 +166,7 @@ public:
         dOmegaGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
         dThetaGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
         dMu0GradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
-        dGradContribs = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
+        dInnerGradsContribs = mm::GPUMemoryManager<RealType>(locationCount, ctx);
 
 		dLikContribs = mm::GPUMemoryManager<RealType>(likContribs.size(), ctx);
 		dStoredLikContribs = mm::GPUMemoryManager<RealType>(storedLikContribs.size(), ctx);
@@ -265,89 +265,150 @@ public:
 
     int getInternalDimension() override { return OpenCLRealType::dim; }
 
+//    void getLogLikelihoodGradient(double* result, size_t length) override {
+//
+//#ifdef MICRO_BENCHMARK
+//        auto startTime = std::chrono::steady_clock::now();
+//#endif
+//
+//        kernelGradientVector.set_arg(0, dLocations0);
+//        kernelGradientVector.set_arg(1, dTimes);
+//        kernelGradientVector.set_arg(2, dGradContribs);
+//        kernelGradientVector.set_arg(3, static_cast<RealType>(sigmaXprec));
+//        kernelGradientVector.set_arg(4, static_cast<RealType>(tauXprec));
+//        kernelGradientVector.set_arg(5, static_cast<RealType>(tauTprec));
+//        kernelGradientVector.set_arg(6, static_cast<RealType>(omega));
+//        kernelGradientVector.set_arg(7, static_cast<RealType>(theta));
+//        kernelGradientVector.set_arg(8, static_cast<RealType>(mu0));
+//        kernelGradientVector.set_arg(9, boost::compute::int_(embeddingDimension));
+//        kernelGradientVector.set_arg(10, boost::compute::uint_(locationCount));
+//
+//        queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
+//                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+//        queue.finish();
+//
+//#ifdef MICRO_BENCHMARK
+//        timer[2] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+//#endif
+//
+////#ifdef MICRO_BENCHMARK
+////        startTime = std::chrono::steady_clock::now();
+////#endif
+////
+////        // TODO Start of extremely expensive part
+////        std::vector<RealType> sum(6);
+////        boost::compute::reduce(dSigmaXGradContribs.begin(), dSigmaXGradContribs.end(), &sum[0], queue);
+////        boost::compute::reduce(dTauXGradContribs.begin(), dTauXGradContribs.end(), &sum[1], queue);
+////        boost::compute::reduce(dTauTGradContribs.begin(), dTauTGradContribs.end(), &sum[2], queue);
+////        boost::compute::reduce(dOmegaGradContribs.begin(), dOmegaGradContribs.end(), &sum[3], queue);
+////        boost::compute::reduce(dThetaGradContribs.begin(), dThetaGradContribs.end(), &sum[4], queue);
+////        boost::compute::reduce(dMu0GradContribs.begin(), dMu0GradContribs.end(), &sum[5], queue);
+////        // TODO End of extremely expensive part
+////
+////#ifdef MICRO_BENCHMARK
+////        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+////#endif
+//
+////        sum[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
+////        sum[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
+////        sum[2] *= mu0 * tauTprec * tauTprec;
+////        sum[3] *= theta;
+//
+////        gradient = sum;
+//
+////        mm::bufferedCopy(std::begin(sum), std::end(sum), result, buffer);
+//
+//#ifdef MICRO_BENCHMARK
+//        startTime = std::chrono::steady_clock::now();
+//#endif
+//
+//        kernelLikSum.set_arg(0,dGradContribs);
+//        kernelLikSum.set_arg(1,dGradient);
+//        kernelLikSum.set_arg(2,boost::compute::uint_(locationCount));
+//
+//        queue.enqueue_1d_range_kernel(kernelLikSum, 0,
+//                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+//        queue.finish();
+//
+//#ifdef MICRO_BENCHMARK
+//        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+//#endif
+//
+//        std::vector<double> middleMan(8);
+//
+//        mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
+//                                                   middleMan.data(), buffer, queue);
+//        queue.finish();
+//
+//        middleMan[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
+//        middleMan[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
+//        middleMan[2] *= mu0 * tauTprec * tauTprec;
+//        middleMan[3] *= theta;
+//
+//        memcpy(result,middleMan.data(), 48);
+//
+//    }
+
     void getLogLikelihoodGradient(double* result, size_t length) override {
 
-#ifdef MICRO_BENCHMARK
-        auto startTime = std::chrono::steady_clock::now();
-#endif
+        // TODO Buffer gradients
+
+        kernelInnerGradsLoop.set_arg(0, dLocations0);
+        kernelInnerGradsLoop.set_arg(1, dTimes);
+        kernelInnerGradsLoop.set_arg(2, dInnerGradsContribs);
+        kernelInnerGradsLoop.set_arg(3, static_cast<RealType>(sigmaXprec));
+        kernelInnerGradsLoop.set_arg(4, static_cast<RealType>(tauXprec));
+        kernelInnerGradsLoop.set_arg(5, static_cast<RealType>(tauTprec));
+        kernelInnerGradsLoop.set_arg(6, static_cast<RealType>(omega));
+        kernelInnerGradsLoop.set_arg(7, static_cast<RealType>(theta));
+        kernelInnerGradsLoop.set_arg(8, static_cast<RealType>(mu0));
+        kernelInnerGradsLoop.set_arg(9, boost::compute::int_(embeddingDimension));
+        kernelInnerGradsLoop.set_arg(10, boost::compute::uint_(locationCount));
+
+        queue.enqueue_1d_range_kernel(kernelInnerGradsLoop, 0,
+                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
 
         kernelGradientVector.set_arg(0, dLocations0);
         kernelGradientVector.set_arg(1, dTimes);
-        kernelGradientVector.set_arg(2, dGradContribs);
-        kernelGradientVector.set_arg(3, static_cast<RealType>(sigmaXprec));
-        kernelGradientVector.set_arg(4, static_cast<RealType>(tauXprec));
-        kernelGradientVector.set_arg(5, static_cast<RealType>(tauTprec));
-        kernelGradientVector.set_arg(6, static_cast<RealType>(omega));
-        kernelGradientVector.set_arg(7, static_cast<RealType>(theta));
-        kernelGradientVector.set_arg(8, static_cast<RealType>(mu0));
-        kernelGradientVector.set_arg(9, boost::compute::int_(embeddingDimension));
-        kernelGradientVector.set_arg(10, boost::compute::uint_(locationCount));
+        kernelGradientVector.set_arg(2, dInnerGradsContribs);
+        kernelGradientVector.set_arg(3, dGradient);
+        kernelGradientVector.set_arg(4, static_cast<RealType>(sigmaXprec));
+        kernelGradientVector.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelGradientVector.set_arg(6, static_cast<RealType>(tauTprec));
+        kernelGradientVector.set_arg(7, static_cast<RealType>(omega));
+        kernelGradientVector.set_arg(8, static_cast<RealType>(theta));
+        kernelGradientVector.set_arg(9, static_cast<RealType>(mu0));
+        kernelGradientVector.set_arg(10, boost::compute::int_(embeddingDimension));
+        kernelGradientVector.set_arg(11, boost::compute::uint_(locationCount));
+
 
         queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
         queue.finish();
 
-#ifdef MICRO_BENCHMARK
-        timer[2] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
-#endif
+        if (length == locationCount * OpenCLRealType::dim) {
 
-//#ifdef MICRO_BENCHMARK
-//        startTime = std::chrono::steady_clock::now();
-//#endif
-//
-//        // TODO Start of extremely expensive part
-//        std::vector<RealType> sum(6);
-//        boost::compute::reduce(dSigmaXGradContribs.begin(), dSigmaXGradContribs.end(), &sum[0], queue);
-//        boost::compute::reduce(dTauXGradContribs.begin(), dTauXGradContribs.end(), &sum[1], queue);
-//        boost::compute::reduce(dTauTGradContribs.begin(), dTauTGradContribs.end(), &sum[2], queue);
-//        boost::compute::reduce(dOmegaGradContribs.begin(), dOmegaGradContribs.end(), &sum[3], queue);
-//        boost::compute::reduce(dThetaGradContribs.begin(), dThetaGradContribs.end(), &sum[4], queue);
-//        boost::compute::reduce(dMu0GradContribs.begin(), dMu0GradContribs.end(), &sum[5], queue);
-//        // TODO End of extremely expensive part
-//
-//#ifdef MICRO_BENCHMARK
-//        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
-//#endif
+            mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
+                                                       result, buffer, queue);
+            queue.finish();
 
-//        sum[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
-//        sum[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
-//        sum[2] *= mu0 * tauTprec * tauTprec;
-//        sum[3] *= theta;
+        } else {
 
-//        gradient = sum;
+            if (doubleBuffer.size() != locationCount * OpenCLRealType::dim) {
+                doubleBuffer.resize(locationCount * OpenCLRealType::dim);
+            }
 
-//        mm::bufferedCopy(std::begin(sum), std::end(sum), result, buffer);
+            mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
+                                                       doubleBuffer.data(), buffer, queue);
+            queue.finish();
 
-#ifdef MICRO_BENCHMARK
-        startTime = std::chrono::steady_clock::now();
-#endif
-
-        kernelLikSum.set_arg(0,dGradContribs);
-        kernelLikSum.set_arg(1,dGradient);
-        kernelLikSum.set_arg(2,boost::compute::uint_(locationCount));
-
-        queue.enqueue_1d_range_kernel(kernelLikSum, 0,
-                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
-        queue.finish();
-
-#ifdef MICRO_BENCHMARK
-        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
-#endif
-
-        std::vector<double> middleMan(8);
-
-        mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
-                                                   middleMan.data(), buffer, queue);
-        queue.finish();
-
-        middleMan[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
-        middleMan[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
-        middleMan[2] *= mu0 * tauTprec * tauTprec;
-        middleMan[3] *= theta;
-
-        memcpy(result,middleMan.data(), 48);
+            mm::paddedBufferedCopy(begin(doubleBuffer), OpenCLRealType::dim, embeddingDimension,
+                                   result, embeddingDimension,
+                                   locationCount, buffer);
+        }
 
     }
+
 
 	void getProbsSelfExcite(double* result, size_t length) override {
 
@@ -1095,7 +1156,7 @@ public:
         code <<
              " __kernel void innerGradsLoop(__global const REAL_VECTOR *locations, \n" <<
              "                                 __global const REAL *times,             \n" <<
-             "						          __global REAL *innerGradsContribs,       \n" <<
+             "						          __global REAL *output,       \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
              "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL tauTprec,                    \n" <<
@@ -1158,15 +1219,15 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code <<
-             "     innerGradsContribs[i] = scratch[0]                                      \n" <<
+             "     output[i] = scratch[0]                                      \n" <<
              "   }                                                                   \n" <<
              " }                                                                     \n ";
 
 #ifdef DEBUG_KERNELS
         #ifdef RBUILD
-        Rcpp::Rcout << "Likelihood contributions kernel\n" << code.str() << std::endl;
+        Rcpp::Rcout << "Inner gradient kernel\n" << code.str() << std::endl;
 #else
-        std::cerr << "Likelihood contributions kernel\n" << options.str() << code.str() << std::endl;
+        std::cerr << "Inner gradient kernel\n" << options.str() << code.str() << std::endl;
 #endif
 #endif
 
@@ -1270,7 +1331,7 @@ public:
              " __kernel void computeGradient(__global const REAL_VECTOR *locations,         \n" <<
              "                                 __global const REAL *times,             \n" <<
              "                                 __global const REAL *innerGradsContribs, \n" <<
-             "						          __global REAL_VECTOR *gradient,           \n" <<
+             "						          __global REAL_VECTOR *output,           \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
              "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL tauTprec,                    \n" <<
@@ -1367,7 +1428,7 @@ public:
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
 
-                gradContribs[i] = nNprimeScratch[0] / nRateScratch[0] + nprimeNScratch[0];
+                output[i] = nNprimeScratch[0] / nRateScratch[0] + nprimeNScratch[0];
                 );
 
         code <<
@@ -1376,9 +1437,9 @@ public:
 
 #ifdef DEBUG_KERNELS
         #ifdef RBUILD
-        Rcpp::Rcout << "Likelihood contributions kernel\n" << code.str() << std::endl;
+        Rcpp::Rcout << "Outer gradient kernel\n" << code.str() << std::endl;
 #else
-        std::cerr << "Likelihood contributions kernel\n" << options.str() << code.str() << std::endl;
+        std::cerr << "Outer gradient kernel\n" << options.str() << code.str() << std::endl;
 #endif
 #endif
 

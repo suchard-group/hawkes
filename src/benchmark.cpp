@@ -182,13 +182,20 @@ int main(int argc, char* argv[]) {
 	//instance->getLogLikelihoodGradient(gradient.data(),6);
     auto sumProbSEs = probSEs;
 
+    int gradientIndex = 1;
+
+    std::vector<double> gradient(locationCount * dataDimension);
+
+    auto sumGradient = 0;
+
 	std::cout << "Starting HPH benchmark" << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
 	double timer = 0;
     double timer2 = 0;
+    double timer3 = 0;
 
-	for (auto itr = 0; itr < iterations; ++itr) {
+    for (auto itr = 0; itr < iterations; ++itr) {
 
 
         for (int i = 0; i < 6; ++i) {
@@ -216,8 +223,18 @@ int main(int argc, char* argv[]) {
         std::transform(sumProbSEs.begin(),sumProbSEs.end(),
                 probSEs.begin(),sumProbSEs.begin(),std::plus<double>());
 
+
+        auto startTime3 = std::chrono::steady_clock::now();
+
+        instance->getLogLikelihoodGradient(gradient.data(), locationCount * dataDimension);
+
+        auto duration3 = std::chrono::steady_clock::now() - startTime3;
+        timer3 += std::chrono::duration<double, std::milli>(duration3).count();
+
+        sumGradient += gradient[gradientIndex];
 	}
 	logLik /= iterations;
+    sumGradient /= iterations;
 
 	auto endTime = std::chrono::steady_clock::now();
 	auto duration = endTime - startTime;
@@ -225,17 +242,17 @@ int main(int argc, char* argv[]) {
 	std::cout << "End HPH benchmark" << std::endl;
 	std::cout << "AvgLogLik = " << logLik << std::endl;
     std::cout << "AvgProbSE = " << std::accumulate(sumProbSEs.begin(), sumProbSEs.end(), 0.0) / iterations / locationCount << std::endl;
-//    std::cout << "AvgGradient = " << "(" << sumGradient[0] << ", " << sumGradient[1] << ", " <<  sumGradient[2] << ", " <<
-//    sumGradient[3] << ", " <<  sumGradient[4] << ", " <<  sumGradient[5] << ")" <<  std::endl;
+    std::cout << "AvgSumGradient = " << sumGradient << std::endl;
 	std::cout << timer  << " ms" << std::endl;
     std::cout << timer2 << " ms" << std::endl;
+    std::cout << timer3 << " ms" << std::endl;
 
-	std::cout << std::chrono::duration<double, std::milli> (duration).count() << " ms "
+    std::cout << std::chrono::duration<double, std::milli> (duration).count() << " ms "
 			  << std::endl;
 
 	std::ofstream outfile;
 	outfile.open("report.txt",std::ios_base::app);
-    outfile << deviceNumber << " " << threads << " " << simd << " " << locationCount << " " << embeddingDimension << " " << iterations << " " << timer << " " << timer2 << "\n" ;
+    outfile << deviceNumber << " " << threads << " " << simd << " " << locationCount << " " << embeddingDimension << " " << iterations << " " << timer << " " << timer2 << " " << timer3 << "\n" ;
 	outfile.close();
 
 }
