@@ -14,14 +14,15 @@
 #' @export
 computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE) {
 
+  wrap_func <- function (x){ # takes vector x
+    return(log_lik(params=parameters,
+                   obs_x=matrix(x,nrow=dim(locations)[1],ncol=dim(locations)[2]),
+                   obs_t=times))
+  }
+
   if (gradient) {
-    gradLogLikelihood <- rep(0,6)
-    gradLogLikelihood[1] <- num_grad("h",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[2] <- num_grad("tau_x",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[3] <- num_grad("tau_t",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[4] <- num_grad("omega",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[5] <- num_grad("theta",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[6] <- num_grad("mu_0",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
+    gradLogLikelihood <- numDeriv::grad(wrap_func,x=as.vector(locations))
+    gradLogLikelihood <- matrix(gradLogLikelihood,nrow=dim(locations)[1],ncol=dim(locations)[2])
     return(gradLogLikelihood)
   } else {
     logLikelihood <- log_lik(params=parameters,obs_x=locations,obs_t=times)

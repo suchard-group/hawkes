@@ -78,7 +78,8 @@ getGradient <- function(engine) {
     stop("parameters not set")
   }
 
-  .getLogLikelihoodGradient(engine$engine, 6)
+  matrix(.getLogLikelihoodGradient(engine$engine, engine$locationCount * engine$embeddingDimension),
+         nrow = engine$locationCount, byrow = TRUE)
 }
 
 #' Deliver parameters to HPH engine object
