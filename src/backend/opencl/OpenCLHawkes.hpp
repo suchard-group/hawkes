@@ -1383,7 +1383,7 @@ public:
                 const REAL pdfLocDistTauXPrec = pdf(locDist * tauXprec);
                 const REAL pdfTimDiffTauTPrec = select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO));//pdf(timDiff * tauTprec);
                 const REAL expOmegaTimDiffNNprime = select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO));
-                const REAL expOmegaTimDiffNprimeN = select(ZERO, exp(-omega * timDiff), (CAST)isless(timDiff,ZERO));
+                const REAL expOmegaTimDiffNprimeN = select(ZERO, exp(omega * timDiff), (CAST)isless(timDiff,ZERO));
 
                 const REAL baseRate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
                 const REAL seRateNNprime = pdfLocDistSigmaXPrec * expOmegaTimDiffNNprime;
@@ -1393,7 +1393,7 @@ public:
                 const REAL_VECTOR nNprimeGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
                         sigmaXprec2 * thetaSigmaXprecDOmega * seRateNNprime) * difference;
                 const REAL_VECTOR nprimeNGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
-                        sigmaXprec2 * thetaSigmaXprecDOmega * seRateNprimeN) * difference/ innerGradsContribs[j];
+                        sigmaXprec2 * thetaSigmaXprecDOmega * seRateNprimeN) * difference / innerGradsContribs[j];
 
                 nRateSum += nRate;
                 nNprimeSum += nNprimeGrad;
