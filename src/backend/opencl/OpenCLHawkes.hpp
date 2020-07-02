@@ -13,7 +13,7 @@
 #include <Rcpp.h>
 #endif
 
-#define DEBUG_KERNELS
+//#define DEBUG_KERNELS
 
 #define SSE
 //#undef SSE
@@ -65,9 +65,6 @@ public:
           probsSelfExcite(locationCount),
 
           innerGradsContribs(locationCount),
-
-          gradient(6),
-          gradientPtr(&gradient),
 
           locations0(locationCount * OpenCLRealType::dim),
           locations1(locationCount * OpenCLRealType::dim),
@@ -367,6 +364,7 @@ public:
 
         queue.enqueue_1d_range_kernel(kernelInnerGradsLoop, 0,
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
+        queue.finish();
 
         kernelGradientVector.set_arg(0, dLocations0);
         kernelGradientVector.set_arg(1, dTimes);
@@ -635,77 +633,77 @@ public:
 		return sum;
 	}
 
-    void createOpenCLSummationKernel() {
-
-        std::stringstream code;
-        std::stringstream options;
-
-        options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
-
-        if (sizeof(RealType) == 8) { // 64-bit fp
-            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
-            options << " -DREAL=double -DREAL_VECTOR=double8" << " -DCAST=long"
-                    << " -DZERO=0.0 -DHALF=0.5";
-
-        } else { // 32-bit fp
-            options << " -DREAL=float -DREAL_VECTOR=float8" << " -DCAST=int"
-                    << " -DZERO=0.0f -DHALF=0.5f";
-        }
-
-        code <<
-             " __kernel void computeSum(__global const REAL_VECTOR *summand,           \n" <<
-             "                          __global REAL_VECTOR *outputSum,               \n" <<
-             "						    const uint locationCount) {                    \n";
-
-        code <<
-             "   const uint lid = get_local_id(0);                                   \n" <<
-             "   uint j = get_local_id(0);                                           \n" <<
-             "                                                                       \n" <<
-             "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
-             "                                                                       \n" <<
-             "   REAL_VECTOR sum = ZERO;                                             \n" <<
-             "                                                                       \n" <<
-             "   while (j < locationCount) {                                         \n";
-
-        code <<
-             "     sum += summand[j];                                                \n" <<
-             "     j += TPB;                                                        \n" <<
-             "      }                                                               \n" <<
-             "     scratch[lid] = sum;                                               \n";
-#ifdef USE_VECTOR
-        code << reduce::ReduceBody1<RealType,false>::body();
-#else
-        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
-#endif
-        code <<
-             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
-             "   if (lid == 0) {                                                     \n";
-
-        code <<
-             "     outputSum[0] = scratch[0];                                      \n" <<
-             "   }                                                                   \n" <<
-             " }                                                                     \n ";
-
-#ifdef DEBUG_KERNELS
-        #ifdef RBUILD
-		    Rcpp::Rcout << "Summation kernel\n" << code.str() << std::endl;
-#else
-        std::cerr << "Summation kernel\n" << options.str() << code.str() << std::endl;
-#endif
-#endif
-
-        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
-        kernelLikSum = boost::compute::kernel(program, "computeSum");
-
-#ifdef DEBUG_KERNELS
-        #ifdef RBUILD
-        Rcpp:Rcout << "Successful build." << std::endl;
-#else
-        std::cerr << "Successful build." << std::endl;
-#endif
-#endif
-
-    }
+//    void createOpenCLSummationKernel() {
+//
+//        std::stringstream code;
+//        std::stringstream options;
+//
+//        options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
+//
+//        if (sizeof(RealType) == 8) { // 64-bit fp
+//            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+//            options << " -DREAL=double -DREAL_VECTOR=double8" << " -DCAST=long"
+//                    << " -DZERO=0.0 -DHALF=0.5";
+//
+//        } else { // 32-bit fp
+//            options << " -DREAL=float -DREAL_VECTOR=float8" << " -DCAST=int"
+//                    << " -DZERO=0.0f -DHALF=0.5f";
+//        }
+//
+//        code <<
+//             " __kernel void computeSum(__global const REAL_VECTOR *summand,           \n" <<
+//             "                          __global REAL_VECTOR *outputSum,               \n" <<
+//             "						    const uint locationCount) {                    \n";
+//
+//        code <<
+//             "   const uint lid = get_local_id(0);                                   \n" <<
+//             "   uint j = get_local_id(0);                                           \n" <<
+//             "                                                                       \n" <<
+//             "   __local REAL_VECTOR scratch[TPB];                                   \n" <<
+//             "                                                                       \n" <<
+//             "   REAL_VECTOR sum = ZERO;                                             \n" <<
+//             "                                                                       \n" <<
+//             "   while (j < locationCount) {                                         \n";
+//
+//        code <<
+//             "     sum += summand[j];                                                \n" <<
+//             "     j += TPB;                                                        \n" <<
+//             "      }                                                               \n" <<
+//             "     scratch[lid] = sum;                                               \n";
+//#ifdef USE_VECTOR
+//        code << reduce::ReduceBody1<RealType,false>::body();
+//#else
+//        code << (isNvidia ? reduce::ReduceBody2<RealType,true>::body() : reduce::ReduceBody2<RealType,false>::body());
+//#endif
+//        code <<
+//             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+//             "   if (lid == 0) {                                                     \n";
+//
+//        code <<
+//             "     outputSum[0] = scratch[0];                                      \n" <<
+//             "   }                                                                   \n" <<
+//             " }                                                                     \n ";
+//
+//#ifdef DEBUG_KERNELS
+//        #ifdef RBUILD
+//		    Rcpp::Rcout << "Summation kernel\n" << code.str() << std::endl;
+//#else
+//        std::cerr << "Summation kernel\n" << options.str() << code.str() << std::endl;
+//#endif
+//#endif
+//
+//        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+//        kernelLikSum = boost::compute::kernel(program, "computeSum");
+//
+//#ifdef DEBUG_KERNELS
+//        #ifdef RBUILD
+//        Rcpp:Rcout << "Successful build." << std::endl;
+//#else
+//        std::cerr << "Successful build." << std::endl;
+//#endif
+//#endif
+//
+//    }
 
 	void createOpenCLLikContribsKernel() {
 
@@ -1152,7 +1150,7 @@ public:
             code << pdfString1Float;
             code << safeExpStringFloat;
         }
-        //TODO: possible speedup from smaller vector size to match embedding dimension (right now always 8)
+
         code <<
              " __kernel void innerGradsLoop(__global const REAL_VECTOR *locations, \n" <<
              "                                 __global const REAL *times,             \n" <<
@@ -1219,7 +1217,7 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code <<
-             "     output[i] = scratch[0]                                      \n" <<
+             "     output[i] = scratch[0];                                      \n" <<
              "   }                                                                   \n" <<
              " }                                                                     \n ";
 
@@ -1313,14 +1311,14 @@ public:
 
         if (sizeof(RealType) == 8) { // 64-bit fp
             code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
-            options << " -DREAL=double -DREAL_VECTOR=double8" << " -DCAST=long"
+            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
                     << " -DZERO=0.0 -DHALF=0.5 -DONE=1.0";
             code << cdfString1Double;
             code << pdfString1Double;
             code << safeExpStringDouble;
 
         } else { // 32-bit fp
-            options << " -DREAL=float -DREAL_VECTOR=float8" << " -DCAST=int"
+            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
                     << " -DZERO=0.0f -DHALF=0.5f -DONE=1.0f";
             code << cdfString1Float;
             code << pdfString1Float;
@@ -1353,7 +1351,7 @@ public:
              "   __local REAL_VECTOR nNprimeScratch[TPB];                                 \n" <<
              "   __local REAL_VECTOR nprimeNScratch[TPB];                                 \n" <<
              "                                                                       \n" <<
-             "   REAL        nRateSum = ZERO;                                             \n" <<
+             "   REAL               nRateSum = ZERO;                                             \n" <<
              "   REAL_VECTOR        nNprimeSum = ZERO;                                      \n" <<
              "   REAL_VECTOR        nprimeNSum = ZERO;                                      \n" <<
              "                                                                           \n" <<
@@ -1383,7 +1381,7 @@ public:
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL pdfLocDistSigmaXPrec = pdf(locDist * sigmaXprec);
                 const REAL pdfLocDistTauXPrec = pdf(locDist * tauXprec);
-                const REAL pdfTimDiffTauTPrec = select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO))//pdf(timDiff * tauTprec);
+                const REAL pdfTimDiffTauTPrec = select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO));//pdf(timDiff * tauTprec);
                 const REAL expOmegaTimDiffNNprime = select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO));
                 const REAL expOmegaTimDiffNprimeN = select(ZERO, exp(-omega * timDiff), (CAST)isless(timDiff,ZERO));
 
@@ -1392,10 +1390,10 @@ public:
                 const REAL seRateNprimeN = pdfLocDistSigmaXPrec * expOmegaTimDiffNprimeN;
 
                 const REAL nRate = mu0TauXprecDTauTprec * baseRate + thetaSigmaXprecDOmega * seRateNNprime;
-                const REAL nNprimeGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
+                const REAL_VECTOR nNprimeGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
                         sigmaXprec2 * thetaSigmaXprecDOmega * seRateNNprime) * difference;
-                const REAL nprimeNGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
-                        sigmaXprec2 * thetaSigmaXprecDOmega * seRateNprimeN) * difference / innerGradsContribs[j];
+                const REAL_VECTOR nprimeNGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
+                        sigmaXprec2 * thetaSigmaXprecDOmega * seRateNprimeN) * difference/ innerGradsContribs[j];
 
                 nRateSum += nRate;
                 nNprimeSum += nNprimeGrad;
@@ -1461,7 +1459,7 @@ public:
 
         createOpenCLLikContribsKernel();
 		createOpenCLGradientKernel();
-		createOpenCLSummationKernel();
+//		createOpenCLSummationKernel();
         createOpenCLProbsSelfExciteKernel();
         createOpenCLInnerGradsLoopKernel();
 
@@ -1496,8 +1494,6 @@ private:
     mm::MemoryManager<RealType> probsSelfExcite;
 
     mm::MemoryManager<RealType> innerGradsContribs;
-    mm::MemoryManager<RealType> gradient;
-    mm::MemoryManager<RealType>* gradientPtr;
 
     mm::GPUMemoryManager<RealType> dTimes;
 
@@ -1548,7 +1544,7 @@ private:
 #ifdef USE_VECTORS
 	boost::compute::kernel kernelLikContribsVector;
 	boost::compute::kernel kernelGradientVector;
-    boost::compute::kernel kernelLikSum;
+   // boost::compute::kernel kernelLikSum;
     boost::compute::kernel kernelProbsSelfExcite;
     boost::compute::kernel kernelInnerGradsLoop;
 
