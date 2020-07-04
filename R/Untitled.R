@@ -127,10 +127,13 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
                              parameters=params2))
 
  cat("grads\n")
-print(hpHawkes::getGradient(engine))
-print(computeLoglikelihood(locations=locations,
-                           times=times,
-                           parameters=params2,gradient = TRUE))
+ hphGrad <- hpHawkes::getGradient(engine)
+ print(hphGrad)
+ naiveGrad <- computeLoglikelihood(locations=locations,
+                                   times=times,
+                                   parameters=params2,gradient = TRUE)
+ print(naiveGrad)
+ cat("max absolute difference between gradients:\n",max(abs(hphGrad-naiveGrad)))
 }
 
 
