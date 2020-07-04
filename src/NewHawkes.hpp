@@ -609,7 +609,8 @@ public:
                                                                     adhoc::exp(omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
             const auto nRate = baseRate + seRateNNprime;
             const auto nNprimeGradContrib = tauXprec2 * baseRate + sigmaXprec2 * seRateNNprime;
-            const auto nprimeNGradContrib = tauXprec2 * baseRate + sigmaXprec2 * seRateNprimeN;
+            const auto nprimeNGradContrib = (tauXprec2 * baseRate + sigmaXprec2 * seRateNprimeN)/
+                                            SimdHelper<SimdType, RealType>::get(&preGradient[j]);
 
             nRateSum += nRate;
 
@@ -622,7 +623,7 @@ public:
                     const RealType difference = ((*locationsPtr)[i * embeddingDimension + d] -
                                              (*locationsPtr)[(j + k) * embeddingDimension + d]);
                     const RealType update1 = - something1 * difference;
-                    const RealType update2 = - something2 * difference / (*preGradientPtr)[j];
+                    const RealType update2 = - something2 * difference;// /(*preGradientPtr)[j+k];
 
                     nNprimeSum[d] += update1;
                     nprimeNSum[d] += update2;
