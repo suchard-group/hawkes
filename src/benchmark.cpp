@@ -184,9 +184,8 @@ int main(int argc, char* argv[]) {
 
     int gradientIndex = 1;
 
-    std::vector<double> gradient(locationCount * dataDimension);
-
-    auto sumGradient = 0;
+    std::vector<double> gradient(locationCount * dataDimension,0.0);
+    auto sumGradient = gradient;
 
 	std::cout << "Starting HPH benchmark" << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
@@ -231,10 +230,12 @@ int main(int argc, char* argv[]) {
         auto duration3 = std::chrono::steady_clock::now() - startTime3;
         timer3 += std::chrono::duration<double, std::milli>(duration3).count();
 
-        sumGradient += gradient[gradientIndex];
+        std::transform(sumGradient.begin(),sumGradient.end(),
+                       gradient.begin(),sumGradient.begin(),std::plus<double>());
+
+        //sumGradient += gradient[gradientIndex];
 	}
 	logLik /= iterations;
-    sumGradient /= iterations;
 
 	auto endTime = std::chrono::steady_clock::now();
 	auto duration = endTime - startTime;
@@ -242,7 +243,7 @@ int main(int argc, char* argv[]) {
 	std::cout << "End HPH benchmark" << std::endl;
 	std::cout << "AvgLogLik = " << logLik << std::endl;
     std::cout << "AvgProbSE = " << std::accumulate(sumProbSEs.begin(), sumProbSEs.end(), 0.0) / iterations / locationCount << std::endl;
-    std::cout << "AvgSumGradient = " << sumGradient << std::endl;
+    std::cout << "AvgGradient = " << std::accumulate(sumGradient.begin(), sumGradient.end(), 0.0) / iterations / locationCount << std::endl;
 	std::cout << timer  << " ms" << std::endl;
     std::cout << timer2 << " ms" << std::endl;
     std::cout << timer3 << " ms" << std::endl;
