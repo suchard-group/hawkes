@@ -215,6 +215,9 @@ public:
           storedLikContribs(locationCount),
 
           ratesVectorPtr(&ratesVector),
+          nNprimeSumPtr(&nNprimeSum),
+          nprimeNSumPtr(&nprimeNSum),
+
           gradientPtr(&gradient),
 
           preGradientPtr(&preGradient),
@@ -347,39 +350,6 @@ public:
 		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
     }
 
-	template <typename SimdType, int SimdSize, typename Algorithm>
-    void computeLogLikelihoodGradientGeneric() {
-
-        const auto length = locationCount * embeddingDimension;
-        if (length != gradientPtr->size()) {
-            gradientPtr->resize(length);
-        }
-
-        std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
-                  static_cast<RealType>(0.0));
-
-//        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
-//        const auto tauXprecD = pow(tauXprec, embeddingDimension);
-//        const auto tauTprec2 = tauTprec * tauTprec;
-
-        for_each(0, locationCount, [this](const int i) { // [gradient,dim]
-
-            const int vectorCount = locationCount - locationCount % SimdSize;
-
-            DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-
-            innerGradientLoop<SimdType, SimdSize>(dispatch, i, 0, vectorCount);
-
-            if (vectorCount < locationCount) { // Edge-cases
-
-                DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-
-                innerGradientLoop<RealType, 1>(dispatch, i, vectorCount, locationCount);
-            }
-
-        }, ParallelType());
-
-    }
 
 #ifdef USE_SIMD
 
@@ -570,20 +540,73 @@ public:
 	    return pack;
 	}
 
+    template <typename SimdType, int SimdSize, typename Algorithm>
+    void computeLogLikelihoodGradientGeneric() {
+
+        const auto length = locationCount * embeddingDimension;
+        if (length != gradientPtr->size()) {
+            gradientPtr->resize(length);
+        }
+        if (length != nNprimeSumPtr->size()) {
+            nNprimeSumPtr->resize(length);
+        }
+        if (length != nprimeNSumPtr->size()) {
+            nprimeNSumPtr->resize(length);
+        }
+        if (locationCount != ratesVectorPtr->size()) {
+            ratesVectorPtr->resize(locationCount);
+        }
+
+        std::fill(std::begin(*gradientPtr), std::end(*gradientPtr),
+                  static_cast<RealType>(0.0));
+        std::fill(std::begin(*nNprimeSumPtr), std::end(*nNprimeSumPtr),
+                  static_cast<RealType>(0.0));
+        std::fill(std::begin(*nprimeNSumPtr), std::end(*nprimeNSumPtr),
+                  static_cast<RealType>(0.0));
+        std::fill(std::begin(*ratesVectorPtr), std::end(*ratesVectorPtr),
+                  static_cast<RealType>(0.0));
+
+
+//        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
+//        const auto tauXprecD = pow(tauXprec, embeddingDimension);
+//        const auto tauTprec2 = tauTprec * tauTprec;
+
+        for_each(0, locationCount, [this](const int i) { // [gradient,dim]
+
+            const int vectorCount = locationCount - locationCount % SimdSize;
+
+            DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+
+            innerGradientLoop<SimdType, SimdSize>(dispatch, i, 0, vectorCount);
+
+            if (vectorCount < locationCount) { // Edge-cases
+
+                DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+
+                innerGradientLoop<RealType, 1>(dispatch, i, vectorCount, locationCount);
+            }
+
+            for (int d = 0; d < embeddingDimension; ++d) {
+                (*gradientPtr)[i * embeddingDimension + d] += (*nNprimeSumPtr)[i * embeddingDimension + d] /
+                        (*ratesVectorPtr)[i] + (*nprimeNSumPtr)[i * embeddingDimension + d];
+            }
+
+        }, ParallelType());
+
+    }
+
+
     template <typename SimdType, int SimdSize, typename DispatchType>
     void innerGradientLoop(const DispatchType& dispatch, const int i, const int begin, const int end) {
 
         const auto zero = SimdType(RealType(0));
-        auto nRateSum = SimdType(RealType(0));
+       // auto nRateSum = SimdType(RealType(0));
 
-        RealType nNprimeSum[embeddingDimension];
-        RealType nprimeNSum[embeddingDimension];
-
-        for(int n=0 ; n<embeddingDimension ; ++n )
-        {
-            nNprimeSum[n] = RealType(0);
-            nprimeNSum[n] = RealType(0);
-        }
+//        for(int n=0 ; n<embeddingDimension ; ++n )
+//        {
+//            nNprimeSum[n] = RealType(0);
+//            nprimeNSum[n] = RealType(0);
+//        }
 
         const auto tauXprec2 = pow(tauXprec, 2);
         const auto sigmaXprec2 = pow(sigmaXprec, 2);
@@ -607,10 +630,10 @@ public:
                                                                     adhoc::exp(omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
             const auto nRate = baseRate + seRateNNprime;
             const auto nNprimeGradContrib = tauXprec2 * baseRate + sigmaXprec2 * seRateNNprime;
-            const auto nprimeNGradContrib = (tauXprec2 * baseRate + sigmaXprec2 * seRateNprimeN)/
-                    SimdHelper<SimdType, RealType>::get(&preGradient[j]);
+            const auto nprimeNGradContrib = (tauXprec2 * baseRate + sigmaXprec2 * seRateNprimeN);///
+                //   SimdHelper<SimdType, RealType>::get(&preGradient[j]);
 
-            nRateSum += nRate;
+            (*ratesVectorPtr)[i] += reduce(nRate);
 
             for (int k = 0; k < SimdSize; ++k) {
                 for (int d = 0; d < embeddingDimension; ++d) {
@@ -621,17 +644,12 @@ public:
                     const auto difference = ((*locationsPtr)[i * embeddingDimension + d] -
                                              (*locationsPtr)[(j + k) * embeddingDimension + d]);
                     const auto update1 = - something1 * difference;
-                    const auto update2 = - something2 * difference;///(*preGradientPtr)[j+k];
+                    const auto update2 = - something2 * difference/(*preGradientPtr)[j+k];
 
-                    nNprimeSum[d] += update1;
-                    nprimeNSum[d] += update2;
+                    (*nNprimeSumPtr)[i * embeddingDimension + d] += update1;
+                    (*nprimeNSumPtr)[i * embeddingDimension + d] += update2;
                 }
             }
-        }
-
-        const auto reducedNRateSum = reduce(nRateSum);
-        for (int d = 0; d < embeddingDimension; ++d) {
-            (*gradientPtr)[i * embeddingDimension + d] = nNprimeSum[d] /reducedNRateSum + nprimeNSum[d];
         }
     }
 
@@ -910,6 +928,12 @@ private:
 
     mm::MemoryManager<RealType> ratesVector;
     mm::MemoryManager<RealType>* ratesVectorPtr;
+
+    mm::MemoryManager<RealType> nNprimeSum;
+    mm::MemoryManager<RealType>* nNprimeSumPtr;
+
+    mm::MemoryManager<RealType> nprimeNSum;
+    mm::MemoryManager<RealType>* nprimeNSumPtr;
 
     mm::MemoryManager<RealType> preGradient;
     mm::MemoryManager<RealType>* preGradientPtr;
