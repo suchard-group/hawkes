@@ -2,7 +2,6 @@
 #include <vector>
 #include <iostream>
 
-// #include "Hawkes.hpp"
 #include "NewHawkes.hpp"
 #include "dr_inference_hawkes_NativeHPHSingleton.h"
 
@@ -13,23 +12,21 @@ extern "C"
 JNIEXPORT jint JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_initialize
   (JNIEnv *, jobject, jint embeddingDimension, jint elementCount, jlong flags, jint device, jint threads) {
     instances.emplace_back(
-//         std::make_shared<hph::Hawkes<double>>(embeddingDimension, elementCount, flags));
-//         std::make_shared<hph::NewHawkes<double,hph::CpuAccumulate>>(embeddingDimension, elementCount, flags)
 		hph::factory(embeddingDimension, elementCount, flags, device, threads)
     );
     return instances.size() - 1;
   }
 
-//extern "C"
-//JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_updateLocations
-//  (JNIEnv *env, jobject, jint instance, jint index, jdoubleArray xArray) {
-//  	jsize len = env->GetArrayLength(xArray);
-//  	jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
-//
-//    instances[instance]->updateLocations(index, x, len);
-//
-//    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
-//}
+extern "C"
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_updateLocations
+  (JNIEnv *env, jobject, jint instance, jint index, jdoubleArray xArray) {
+  	jsize len = env->GetArrayLength(xArray);
+  	jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
+
+    instances[instance]->updateLocations(index, x, len);
+
+    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
+}
 
 extern "C"
 JNIEXPORT jdouble JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getSumOfIncrements
@@ -55,38 +52,27 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_acceptState
     instances[instance]->acceptState();
 }
 
-//extern "C"
-//JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setLocDistsData
-//  (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
-//  	jsize len = env->GetArrayLength(xArray);
-//  	jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
-//
-//    instances[instance]->setLocDistsData(x, len);
-//
-//    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
-//}
+extern "C"
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimesData
+        (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
+    jsize len = env->GetArrayLength(xArray);
+    jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
 
-//extern "C"
-//JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimDiffsData
-//        (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
-//    jsize len = env->GetArrayLength(xArray);
-//    jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
-//
-//    instances[instance]->setTimDiffsData(x, len);
-//
-//    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
-//}
+    instances[instance]->setTimesData(x, len);
 
-//extern "C"
-//JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient
-//  (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
-//	jsize len = env->GetArrayLength(xArray);
-//	jdouble* x = env->GetDoubleArrayElements(xArray, NULL); // TODO: Try GetPrimitiveArrayCritical
-//
-//	instances[instance]->getLogLikelihoodGradient(x, len);
-//
-//	env->ReleaseDoubleArrayElements(xArray, x, 0); // copy values back
-//}
+    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
+}
+
+extern "C"
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient
+  (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
+	jsize len = env->GetArrayLength(xArray);
+	jdouble* x = env->GetDoubleArrayElements(xArray, NULL); // TODO: Try GetPrimitiveArrayCritical
+
+	instances[instance]->getLogLikelihoodGradient(x, len);
+
+	env->ReleaseDoubleArrayElements(xArray, x, 0); // copy values back
+}
 
 extern "C"
 JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setParameters
@@ -104,13 +90,3 @@ JNIEXPORT jint JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getInternalDi
         (JNIEnv *, jobject, jint instance) {
     return instances[instance]->getInternalDimension();
 }
-
-
-// jsize len = (*env)->GetArrayLength(env, arr);
-//     jdouble *partials = env->GetDoubleArrayElements(inPartials, NULL);
-//
-// 	jint errCode = (jint)beagleSetPartials(instance, bufferIndex, (double *)partials);
-//
-//     env->ReleaseDoubleArrayElements(inPartials, partials, JNI_ABORT);
-//         // not using JNI_ABORT flag here because we want the values to be copied back...
-//     env->ReleaseDoubleArrayElements(outPartials, partials, 0);

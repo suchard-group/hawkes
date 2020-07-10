@@ -65,14 +65,6 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_makeDirty
 
 /*
  * Class:     dr_inference_hawkes_NativeHPHSingleton
- * Method:    setPairwiseData
- * Signature: (I[D)V
- */
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setPairwiseData
-  (JNIEnv *, jobject, jint, jdoubleArray);
-
-/*
- * Class:     dr_inference_hawkes_NativeHPHSingleton
  * Method:    setParameters
  * Signature: (I[D)V
  */
@@ -81,11 +73,11 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setParameters
 
 /*
  * Class:     dr_inference_hawkes_NativeHPHSingleton
- * Method:    getPairwiseData
- * Signature: (I)[D
+ * Method:    setTimesData
+ * Signature: (I[D)V
  */
-JNIEXPORT jdoubleArray JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getPairwiseData
-  (JNIEnv *, jobject, jint);
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimesData
+  (JNIEnv *, jobject, jint, jdoubleArray);
 
 /*
  * Class:     dr_inference_hawkes_NativeHPHSingleton

@@ -11,7 +11,8 @@ sampler(
   times = NULL,
   radius = 2,
   params = c(1, 1, 1, 1, 1, 1),
-  lowerbounds = c(0, 0),
+  upperbounds = c(Inf, Inf, Inf, Inf),
+  lowerbounds = c(0, 0, 0, 0),
   latentDimension = 2,
   threads = 1,
   simd = 0,
@@ -30,9 +31,11 @@ sampler(
 
 \item{radius}{Standard deviations of proposal distributions.}
 
-\item{params}{Length 6, default 1.}
+\item{params}{Initial values of all parameters (lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal and self-excitatory and background rates, in order), default 1.}
 
-\item{lowerbounds}{Lower bounds on spatial and temporal lengthscales for background rate.}
+\item{upperbounds}{Vector of upper bounds on lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal, in order.}
+
+\item{lowerbounds}{Vector of lower bounds on lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal, in order.}
 
 \item{latentDimension}{Dimension of latent space. Integer ranging from 2 to 8.}
 

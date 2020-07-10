@@ -225,16 +225,18 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 #'
 #' @param engine HPH engine object.
 #' @param parameters (Exponentiated) spatio-temporal Hawkes process parameters (d=6).
-#' @param lbs Lower bounds on spatial and temporal lengthscales for background rate.
+#' @param lbs Lower bounds on spatial and temporal lengthscales.
+#' @param ubs Upper bounds on spatial and temporal lengthscales.
 #' @return Potential or its gradient.
 #'
 #' @export
-Potential <- function(engine,parameters,lbs) {
-  logPrior <- sum(log(truncnorm::dtruncnorm(x=parameters[c(1,4)],sd=10,mean = 0,a=0))) +
-              log(truncnorm::dtruncnorm(x=parameters[2],a=0,b=1/lbs[1])) +
-              log(truncnorm::dtruncnorm(x=parameters[3],a=0,b=1/lbs[2])) +
-              sum(log(truncnorm::dtruncnorm(x=parameters[5],sd=10,a=0))) +
-              sum(log(truncnorm::dtruncnorm(x=parameters[6],sd=1,a=0)))
+Potential <- function(engine,parameters,lbs,ubs) {
+  logPrior <- log(truncnorm::dtruncnorm(x=parameters[1],sd=10,a=1/ubs[1],b=1/lbs[1])) +
+              log(truncnorm::dtruncnorm(x=parameters[2],a=1/ubs[2],b=1/lbs[2])) +
+              log(truncnorm::dtruncnorm(x=parameters[3],a=1/ubs[3],b=1/lbs[3])) +
+              log(truncnorm::dtruncnorm(x=parameters[4],sd=10,a=1/ubs[4],b=1/lbs[4])) +
+              log(truncnorm::dtruncnorm(x=parameters[5],a=0)) +
+              log(truncnorm::dtruncnorm(x=parameters[6],a=0))
   logLikelihood <- hpHawkes::getLogLikelihood(engine)
 
   return(-logLikelihood-logPrior)
@@ -250,8 +252,9 @@ Potential <- function(engine,parameters,lbs) {
 #' @param locations N x P locations matrix.
 #' @param times Observation times.
 #' @param radius Standard deviations of proposal distributions.
-#' @param params Length 6, default 1.
-#' @param lowerbounds Lower bounds on spatial and temporal lengthscales for background rate.
+#' @param params Initial values of all parameters (lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal and self-excitatory and background rates, in order), default 1.
+#' @param upperbounds Vector of upper bounds on lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal, in order.
+#' @param lowerbounds Vector of lower bounds on lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal, in order.
 #' @param latentDimension Dimension of latent space. Integer ranging from 2 to 8.
 #' @param threads Number of CPU cores to be used.
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
@@ -268,7 +271,8 @@ sampler <- function(n_iter,
                        times=NULL,
                        radius = 2,                 # radius for uniform proposals
                        params=c(1,1,1,1,1,1),
-                       lowerbounds=c(0,0),
+                       upperbounds=c(Inf,Inf,Inf,Inf),
+                       lowerbounds=c(0,0,0,0),
                        latentDimension=2,
                        threads=1,                     # number of CPU cores
                        simd=0,                        # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
@@ -286,8 +290,16 @@ sampler <- function(n_iter,
     }
   }
 
-  if(params[2]>1/lowerbounds[1]) params[2] <- 1/lowerbounds[1]/2
-  if(params[3]>1/lowerbounds[2]) params[3] <- 1/lowerbounds[2]/2
+  # enforce constraints on starting values
+  if(params[1]>1/lowerbounds[1]) params[1] <- (1/lowerbounds[1]+1/upperbounds[1])/2
+  if(params[2]>1/lowerbounds[2]) params[2] <- (1/lowerbounds[2]+1/upperbounds[2])/2
+  if(params[3]>1/lowerbounds[3]) params[3] <- (1/lowerbounds[3]+1/upperbounds[3])/2
+  if(params[4]>1/lowerbounds[4]) params[4] <- (1/lowerbounds[4]+1/upperbounds[4])/2
+
+  if(params[1]<1/upperbounds[1]) params[1] <- (1/lowerbounds[1]+1/upperbounds[1])/2
+  if(params[2]<1/upperbounds[2]) params[2] <- (1/lowerbounds[2]+1/upperbounds[2])/2
+  if(params[3]<1/upperbounds[3]) params[3] <- (1/lowerbounds[3]+1/upperbounds[3])/2
+  if(params[4]<1/upperbounds[4]) params[4] <- (1/lowerbounds[4]+1/upperbounds[4])/2
 
   # Set up the parameters
   NumOfIterations = n_iter
@@ -309,9 +321,7 @@ sampler <- function(n_iter,
   # Build reusable object to compute Loglikelihood (gradient)
   engine <- engineInitial(locations,N,P,times,params,threads,simd,gpu,single)
 
-  #params <- gradascent(engine = engine, params=params)
   engine <- hpHawkes::setParameters(engine,params)
-
 
   Accepted = 0;
   Acceptances = rep(0,6) # total acceptances within adaptation run (<= SampBound)
@@ -323,7 +333,7 @@ sampler <- function(n_iter,
   # Initialize the location
   CurrentParams = as.vector(params);
 
-  CurrentU = Potential(engine,params,lowerbounds)
+  CurrentU = Potential(engine,params,lowerbounds,upperbounds)
 
   cat(paste0('Initial log-likelihood: ', hpHawkes::getLogLikelihood(engine), '\n'))
 
@@ -340,38 +350,21 @@ sampler <- function(n_iter,
 
     Former <- ProposedParams[index]
 
-    if (index==2) {
+    if (index<5) {
 
-      ProposedParams[index] <- truncnorm::rtruncnorm(1,a=0,b=1/lowerbounds[1],
+      ProposedParams[index] <- truncnorm::rtruncnorm(1,a=1/upperbounds[index],b=1/lowerbounds[index],
                                                      mean=ProposedParams[index],sd=Radii[index])
 
       # get proposed log post
       engine <- hpHawkes::setParameters(engine, ProposedParams)
-      ProposedU = Potential(engine,ProposedParams,lowerbounds)
+      ProposedU = Potential(engine,ProposedParams,lowerbounds,upperbounds)
 
       # Compute the terms of accept/reject step
       CurrentH = CurrentU -
-        log( truncnorm::dtruncnorm(x=ProposedParams[index], a=0,b=1/lowerbounds[1],
+        log( truncnorm::dtruncnorm(x=ProposedParams[index], a=1/upperbounds[index],b=1/lowerbounds[index],
                                    mean=Former, sd=Radii[index]) )
       ProposedH = ProposedU -
-        log( truncnorm::dtruncnorm(x=Former, a=0,b=1/lowerbounds[1],
-                                   mean=ProposedParams[index], sd=Radii[index]) )
-
-    } else if (index==3) {
-
-      ProposedParams[index] <- truncnorm::rtruncnorm(1,a=0,b=1/lowerbounds[2],
-                                                     mean=ProposedParams[index],sd=Radii[index])
-
-      # get proposed log post
-      engine <- hpHawkes::setParameters(engine, ProposedParams)
-      ProposedU = Potential(engine,ProposedParams,lowerbounds)
-
-      # Compute the terms of accept/reject step
-      CurrentH = CurrentU -
-        log( truncnorm::dtruncnorm(x=ProposedParams[index], a=0,b=1/lowerbounds[2],
-                                   mean=Former, sd=Radii[index]) )
-      ProposedH = ProposedU -
-        log( truncnorm::dtruncnorm(x=Former, a=0,b=1/lowerbounds[2],
+        log( truncnorm::dtruncnorm(x=Former, a=1/upperbounds[index],b=1/lowerbounds[index],
                                    mean=ProposedParams[index], sd=Radii[index]) )
 
     } else {
@@ -380,7 +373,7 @@ sampler <- function(n_iter,
 
       # get proposed log post
       engine <- hpHawkes::setParameters(engine, ProposedParams)
-      ProposedU = Potential(engine,ProposedParams,lowerbounds)
+      ProposedU = Potential(engine,ProposedParams,lowerbounds,upperbounds)
 
       # Compute the terms of accept/reject step
       CurrentH = CurrentU -
@@ -443,6 +436,5 @@ sampler <- function(n_iter,
   # only HMC, return ...
   return(list(samples = ParametersSaved, target = Target, Time = time))
 
-  # end iterations for loop
 } # end M-H function
 
