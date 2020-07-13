@@ -1347,11 +1347,9 @@ public:
              "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
              "   const REAL timeI = times[i];                                        \n" <<
              "                                                                       \n" <<
-             "   __local REAL nRateScratch[TPB];                                          \n" <<
              "   __local REAL_VECTOR nNprimeScratch[TPB];                                 \n" <<
              "   __local REAL_VECTOR nprimeNScratch[TPB];                                 \n" <<
              "                                                                       \n" <<
-             "   REAL               nRateSum = ZERO;                                             \n" <<
              "   REAL_VECTOR        nNprimeSum = ZERO;                                      \n" <<
              "   REAL_VECTOR        nprimeNSum = ZERO;                                      \n" <<
              "                                                                           \n" <<
@@ -1389,13 +1387,11 @@ public:
                 const REAL seRateNNprime = pdfLocDistSigmaXPrec * expOmegaTimDiffNNprime;
                 const REAL seRateNprimeN = pdfLocDistSigmaXPrec * expOmegaTimDiffNprimeN;
 
-                const REAL nRate = mu0TauXprecDTauTprec * baseRate + thetaSigmaXprecDOmega * seRateNNprime;
                 const REAL_VECTOR nNprimeGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
                         sigmaXprec2 * thetaSigmaXprecDOmega * seRateNNprime) * difference;
                 const REAL_VECTOR nprimeNGrad = - (tauXprec2 * mu0TauXprecDTauTprec * baseRate +
                         sigmaXprec2 * thetaSigmaXprecDOmega * seRateNprimeN) * difference / innerGradsContribs[j];
 
-                nRateSum += nRate;
                 nNprimeSum += nNprimeGrad;
                 nprimeNSum += nprimeNGrad;
 
@@ -1403,7 +1399,6 @@ public:
         j += TPB;
 	        }
 
-	        nRateScratch[lid] = nRateSum;
 	        nNprimeScratch[lid] = nNprimeSum;
 	        nprimeNScratch[lid] = nprimeNSum;
 
@@ -1414,7 +1409,6 @@ public:
              "       barrier(CLK_LOCAL_MEM_FENCE);                                    \n" <<
              "       uint mask = (k << 1) - 1;                                        \n" <<
              "       if ((lid & mask) == 0) {                                         \n" <<
-             "           nRateScratch[lid]   += nRateScratch[lid + k];                \n" <<
              "           nNprimeScratch[lid]   += nNprimeScratch[lid + k];            \n" <<
              "           nprimeNScratch[lid]   += nprimeNScratch[lid + k];            \n" <<
              "       }                                                                \n" <<
@@ -1425,8 +1419,7 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-
-                output[i] = nNprimeScratch[0] / nRateScratch[0] + nprimeNScratch[0];
+                output[i] = nNprimeScratch[0] / innerGradsContribs[i] + nprimeNScratch[0];
                 );
 
         code <<
