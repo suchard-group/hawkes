@@ -33,7 +33,7 @@ computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE)
 #' Get event specific probabilities self-excitatory
 #'
 #' Takes locations, times and parameters and returns the probability
-#' that each event is a parent (backround) or a child (self-excitatory).
+#' that each event is a child (self-excitatory) as opposed to a parent (background.
 #'
 #' @param locations Matrix of spatial locations (nxp).
 #' @param times    Vector of times.
@@ -43,12 +43,13 @@ computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE)
 #' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
 #' @param single Set \code{single=1} if your GPU does not accommodate doubles.
 #' @param naive Just use naive R implementation (very very slow).
+#' @param dimension Dimension of space
 #' @return n vector of probabilities.
 #'
 #' @export
 probability_se <- function(locations, times, params,
                            threads=0, simd=0, gpu=0, single=0,
-                           naive=FALSE) {
+                           naive=FALSE, dimension) {
 
   if (naive) {
 
@@ -70,7 +71,7 @@ probability_se <- function(locations, times, params,
     return(output)
 
   } else {
-    embeddingDimension <- 2
+    embeddingDimension <- dimension
     locationCount <- dim(locations)[1]
     engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
     engine <- hpHawkes::updateLocations(engine, locations)
@@ -100,7 +101,7 @@ probability_se <- function(locations, times, params,
 test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
 
   set.seed(666)
-  embeddingDimension <- 2
+  embeddingDimension <- 3
 
   locations <- matrix(rnorm(n = locationCount * embeddingDimension),
                  ncol = embeddingDimension, nrow = locationCount)
@@ -241,7 +242,7 @@ Potential <- function(engine,parameters) {
   #             log(truncnorm::dtruncnorm(x=parameters[2],a=0,b=parameters[1])) +
   #             log(truncnorm::dtruncnorm(x=parameters[4],sd=10,a=parameters[3])) +
   #             log(truncnorm::dtruncnorm(x=parameters[3],a=0,b=parameters[4])) +
-              log(truncnorm::dtruncnorm(x=parameters[5],sd=10,a=0)) +
+              log(truncnorm::dtruncnorm(x=parameters[5],sd=1,a=0)) +
               log(truncnorm::dtruncnorm(x=parameters[6],sd=1,a=0))
   logLikelihood <- hpHawkes::getLogLikelihood(engine)
 

@@ -12,7 +12,8 @@ probability_se(
   simd = 0,
   gpu = 0,
   single = 0,
-  naive = FALSE
+  naive = FALSE,
+  dimension
 )
 }
 \arguments{
@@ -31,11 +32,13 @@ probability_se(
 \item{single}{Set \code{single=1} if your GPU does not accommodate doubles.}
 
 \item{naive}{Just use naive R implementation (very very slow).}
+
+\item{dimension}{Dimension of space}
 }
 \value{
 n vector of probabilities.
 }
 \description{
 Takes locations, times and parameters and returns the probability
-that each event is a parent (backround) or a child (self-excitatory).
+that each event is a child (self-excitatory) as opposed to a parent (background.
 }
