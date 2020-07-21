@@ -57,14 +57,6 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_acceptState
 
 /*
  * Class:     dr_inference_hawkes_NativeHPHSingleton
- * Method:    makeDirty
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_makeDirty
-  (JNIEnv *, jobject, jint);
-
-/*
- * Class:     dr_inference_hawkes_NativeHPHSingleton
  * Method:    setParameters
  * Signature: (I[D)V
  */
