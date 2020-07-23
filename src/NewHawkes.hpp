@@ -338,68 +338,68 @@ public:
         mu0 = data[5];
     }
 
-	void getLogLikelihoodGradient(double* result, size_t length) {
-		assert (length == 6);
-		computeLogLikelihoodGradientGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
-		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
-    }
-
-	template <typename SimdType, int SimdSize, typename Algorithm>
-    RealType computeLogLikelihoodGradientGeneric() {
-
-        const auto length = 6;
-        if (length != gradientPtr->size()) {
-            gradientPtr->resize(length);
-        }
-
-        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
-        const auto tauXprecD = pow(tauXprec, embeddingDimension);
-        const auto tauTprec2 = tauTprec * tauTprec;
-
-        const auto grad =
-                accumulate(0, locationCount, RealTypePack<7>(0.0), [this,
-                                                                    sigmaXprecD,
-                                                                    tauXprecD,
-                                                                    tauTprec2](const int i) {
-
-                    const int vectorCount = locationCount - locationCount % SimdSize;
-
-                    DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-                    auto sumOfRates = innerLoop1<SimdType, SimdSize, 7>(dispatch, i, 0, vectorCount,
-                            sigmaXprecD, tauXprecD, tauTprec2);
-
-                    if (vectorCount < locationCount) { // Edge-cases
-                        DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-                        sumOfRates += innerLoop1<RealType, 1, 7>(dispatch, i, vectorCount, locationCount,
-                                sigmaXprecD, tauXprecD, tauTprec2);
-                    }
-
-                    auto const timDiff = times[locationCount-1]-times[i];
-                    auto const expOmegaTimDiff = adhoc::exp(-omega*timDiff);
-
-                    sumOfRates[0] /= sumOfRates[6];
-                    sumOfRates[1] /= sumOfRates[6];
-                    sumOfRates[2] = sumOfRates[2]/sumOfRates[6] * tauXprecD +
-                            adhoc::pdf_new(tauTprec * timDiff) * timDiff + adhoc::pdf_new(tauTprec*times[i])*times[i];
-                    sumOfRates[3] = (1-(1+omega*timDiff) * expOmegaTimDiff)/(omega*omega) - sumOfRates[3]/sumOfRates[6] * sigmaXprecD;
-                    sumOfRates[4] = sumOfRates[4]/sumOfRates[6] * sigmaXprecD + (expOmegaTimDiff-1)/omega;
-                    sumOfRates[5] = sumOfRates[5]/sumOfRates[6] * tauXprecD * tauTprec -
-                            (adhoc::exp(math::phi_new(tauTprec*timDiff)) - adhoc::exp(math::phi_new(tauTprec*(-times[i]))));
-                    sumOfRates[6] = std::log(sumOfRates[6]);
-
-                    return sumOfRates;
-
-                }, ParallelType());
-
-        (*gradientPtr)[0] = grad[0] * theta * sigmaXprecD * sigmaXprec;        //sigmaX
-        (*gradientPtr)[1] = grad[1] * mu0 * tauXprecD * tauXprec * tauTprec;   //tauX
-        (*gradientPtr)[2] = grad[2] * mu0 * tauTprec2;                         //tauT
-        (*gradientPtr)[3] = grad[3] * theta;                                   //omega
-        (*gradientPtr)[4] = grad[4];                                           //theta
-        (*gradientPtr)[5] = grad[5];                                           //mu0
-
-        return grad[6]; // TODO log-likelihood
-    }
+//	void getLogLikelihoodGradient(double* result, size_t length) {
+//		assert (length == 6);
+//		computeLogLikelihoodGradientGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+//		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
+//    }
+//
+//	template <typename SimdType, int SimdSize, typename Algorithm>
+//    RealType computeLogLikelihoodGradientGeneric() {
+//
+//        const auto length = 6;
+//        if (length != gradientPtr->size()) {
+//            gradientPtr->resize(length);
+//        }
+//
+//        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
+//        const auto tauXprecD = pow(tauXprec, embeddingDimension);
+//        const auto tauTprec2 = tauTprec * tauTprec;
+//
+//        const auto grad =
+//                accumulate(0, locationCount, RealTypePack<7>(0.0), [this,
+//                                                                    sigmaXprecD,
+//                                                                    tauXprecD,
+//                                                                    tauTprec2](const int i) {
+//
+//                    const int vectorCount = locationCount - locationCount % SimdSize;
+//
+//                    DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+//                    auto sumOfRates = innerLoop1<SimdType, SimdSize, 7>(dispatch, i, 0, vectorCount,
+//                            sigmaXprecD, tauXprecD, tauTprec2);
+//
+//                    if (vectorCount < locationCount) { // Edge-cases
+//                        DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+//                        sumOfRates += innerLoop1<RealType, 1, 7>(dispatch, i, vectorCount, locationCount,
+//                                sigmaXprecD, tauXprecD, tauTprec2);
+//                    }
+//
+//                    auto const timDiff = times[locationCount-1]-times[i];
+//                    auto const expOmegaTimDiff = adhoc::exp(-omega*timDiff);
+//
+//                    sumOfRates[0] /= sumOfRates[6];
+//                    sumOfRates[1] /= sumOfRates[6];
+//                    sumOfRates[2] = sumOfRates[2]/sumOfRates[6] * tauXprecD +
+//                            adhoc::pdf_new(tauTprec * timDiff) * timDiff + adhoc::pdf_new(tauTprec*times[i])*times[i];
+//                    sumOfRates[3] = (1-(1+omega*timDiff) * expOmegaTimDiff)/(omega*omega) - sumOfRates[3]/sumOfRates[6] * sigmaXprecD;
+//                    sumOfRates[4] = sumOfRates[4]/sumOfRates[6] * sigmaXprecD + (expOmegaTimDiff-1)/omega;
+//                    sumOfRates[5] = sumOfRates[5]/sumOfRates[6] * tauXprecD * tauTprec -
+//                            (adhoc::exp(math::phi_new(tauTprec*timDiff)) - adhoc::exp(math::phi_new(tauTprec*(-times[i]))));
+//                    sumOfRates[6] = std::log(sumOfRates[6]);
+//
+//                    return sumOfRates;
+//
+//                }, ParallelType());
+//
+//        (*gradientPtr)[0] = grad[0] * theta * sigmaXprecD * sigmaXprec;        //sigmaX
+//        (*gradientPtr)[1] = grad[1] * mu0 * tauXprecD * tauXprec * tauTprec;   //tauX
+//        (*gradientPtr)[2] = grad[2] * mu0 * tauTprec2;                         //tauT
+//        (*gradientPtr)[3] = grad[3] * theta;                                   //omega
+//        (*gradientPtr)[4] = grad[4];                                           //theta
+//        (*gradientPtr)[5] = grad[5];                                           //mu0
+//
+//        return grad[6]; // TODO log-likelihood
+//    }
 
 #ifdef USE_SIMD
 

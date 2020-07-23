@@ -4,7 +4,7 @@
 \alias{computeLoglikelihood}
 \title{Serially computed Hawkes process log likelihood and gradient}
 \usage{
-computeLoglikelihood(locations, times, parameters, gradient = FALSE)
+computeLoglikelihood(locations, times, parameters)
 }
 \arguments{
 \item{locations}{Matrix of spatial locations (nxp).}
@@ -12,8 +12,6 @@ computeLoglikelihood(locations, times, parameters, gradient = FALSE)
 \item{times}{Vector of times.}
 
 \item{parameters}{Hawkes process parameters (length=6).}
-
-\item{gradient}{Return gradient (or log likelihood)? Defaults to FALSE.}
 }
 \value{
 Hawkes process log likelihood or its gradient.

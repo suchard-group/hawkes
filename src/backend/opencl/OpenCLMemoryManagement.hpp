@@ -53,10 +53,10 @@ namespace hph {
         static const int dim = 8;
     };
 
-namespace mm {
+    namespace mm {
 
-template <typename T>
-using GPUMemoryManager = boost::compute::vector<T>;
+        template <typename T>
+        using GPUMemoryManager = boost::compute::vector<T>;
 
 //	template <typename RealVectorPtr, typename Buffer, typename Queue>
 //	void bufferedCopyFromDevice(RealVectorPtr begin,
@@ -64,14 +64,14 @@ using GPUMemoryManager = boost::compute::vector<T>;
 //								double *destination,
 //								Buffer& buffer, Queue& queue);
 
-	template <typename OpenCLRealType,typename Buffer, typename Queue>
-	void bufferedCopyFromDevice(typename mm::GPUMemoryManager<typename OpenCLRealType::BaseType>::iterator begin,
-								typename mm::GPUMemoryManager<typename OpenCLRealType::BaseType>::iterator end,
-								double *destination,
-							    Buffer&, Queue& queue) {
+        template <typename OpenCLRealType,typename Buffer, typename Queue>
+        void bufferedCopyFromDevice(typename mm::GPUMemoryManager<typename OpenCLRealType::BaseType>::iterator begin,
+                                    typename mm::GPUMemoryManager<typename OpenCLRealType::BaseType>::iterator end,
+                                    double *destination,
+                                    Buffer&, Queue& queue) {
 
-		boost::compute::copy(begin, end, destination, queue);
-	}
+            boost::compute::copy(begin, end, destination, queue);
+        }
 
 
         template <typename OpenCLVectorType, typename Buffer, typename Queue>
@@ -139,20 +139,20 @@ using GPUMemoryManager = boost::compute::vector<T>;
 //        copy(begin, end, reinterpret_cast<double8_ *>(destination), queue);
 //    }
 
-	template <typename Buffer, typename Queue>
-	void bufferedCopyFromDevice(mm::GPUMemoryManager<float>::iterator begin,
-								mm::GPUMemoryManager<float>::iterator end,
-								double *destination,
-								Buffer& buffer, Queue& queue) {
+        template <typename Buffer, typename Queue>
+        void bufferedCopyFromDevice(mm::GPUMemoryManager<float>::iterator begin,
+                                    mm::GPUMemoryManager<float>::iterator end,
+                                    double *destination,
+                                    Buffer& buffer, Queue& queue) {
 
-		const auto length = std::distance(begin, end);
-		if (buffer.size() < length) {
-			buffer.resize(length);
-		}
+            const auto length = std::distance(begin, end);
+            if (buffer.size() < length) {
+                buffer.resize(length);
+            }
 
-		boost::compute::copy(begin, end, std::begin(buffer), queue);
-		std::copy(std::begin(buffer), std::begin(buffer) + length, destination);
-	}
+            boost::compute::copy(begin, end, std::begin(buffer), queue);
+            std::copy(std::begin(buffer), std::begin(buffer) + length, destination);
+        }
 
 //	template <typename Buffer, typename Queue>
 //	void bufferedCopyFromDevice(mm::GPUMemoryManager<boost::compute::float2_>::iterator begin,
@@ -318,17 +318,17 @@ using GPUMemoryManager = boost::compute::vector<T>;
 //             destination, queue);
 //    }
 
-    template <typename OpenCLVectorType, typename BufferPtr, typename Queue>
-    void copyToDevice(BufferPtr begin, BufferPtr end,
-                      typename mm::GPUMemoryManager<typename OpenCLVectorType::VectorType>::iterator destination,
-                      Queue& queue) {
-        using namespace boost::compute;
+        template <typename OpenCLVectorType, typename BufferPtr, typename Queue>
+        void copyToDevice(BufferPtr begin, BufferPtr end,
+                          typename mm::GPUMemoryManager<typename OpenCLVectorType::VectorType>::iterator destination,
+                          Queue& queue) {
+            using namespace boost::compute;
 
-        const auto length = std::distance(begin, end);
-        copy(reinterpret_cast<typename OpenCLVectorType::VectorType *>(&(*begin)),
-             reinterpret_cast<typename OpenCLVectorType::VectorType *>(&(*begin)) + length / OpenCLVectorType::dim,
-             destination, queue);
-    }
+            const auto length = std::distance(begin, end);
+            copy(reinterpret_cast<typename OpenCLVectorType::VectorType *>(&(*begin)),
+                 reinterpret_cast<typename OpenCLVectorType::VectorType *>(&(*begin)) + length / OpenCLVectorType::dim,
+                 destination, queue);
+        }
 
 //    template <typename BufferPtr, typename Queue>
 //    void copyToDevice(BufferPtr begin, BufferPtr end,
@@ -396,7 +396,7 @@ using GPUMemoryManager = boost::compute::vector<T>;
 //             destination, queue);
 //    }
 
-} // namespace mm
+    } // namespace mm
 } // namespace hph
 
 #endif // _OPENCL_MEMORY_MANAGEMENT_HPP

@@ -8,25 +8,13 @@
 #' @param locations Matrix of spatial locations (nxp).
 #' @param times    Vector of times.
 #' @param parameters Hawkes process parameters (length=6).
-#' @param gradient Return gradient (or log likelihood)? Defaults to FALSE.
 #' @return Hawkes process log likelihood or its gradient.
 #'
 #' @export
-computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE) {
+computeLoglikelihood <- function(locations, times, parameters) {
 
-  if (gradient) {
-    gradLogLikelihood <- rep(0,6)
-    gradLogLikelihood[1] <- num_grad("h",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[2] <- num_grad("tau_x",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[3] <- num_grad("tau_t",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[4] <- num_grad("omega",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[5] <- num_grad("theta",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[6] <- num_grad("mu_0",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    return(gradLogLikelihood)
-  } else {
     logLikelihood <- log_lik(params=parameters,obs_x=locations,obs_t=times)
     return(logLikelihood)
-  }
 }
 
 #' Get event specific probabilities self-excitatory
@@ -93,7 +81,7 @@ probability_se <- function(locations, times, params,
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
 #' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
 #' @param single Set \code{single=1} if your GPU does not accommodate doubles.
-#' @return Returns MDS log likelihoods (should be equal) and distance between gradients (should be 0).
+#' @return Returns MDS log likelihoods (should be equal).
 #'
 #' @export
 test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
@@ -124,12 +112,6 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
   print(computeLoglikelihood(locations=locations,
                              times=times,
                              parameters=params2))
-
- cat("grads\n")
-print(hpHawkes::getGradient(engine))
-print(computeLoglikelihood(locations=locations,
-                           times=times,
-                           parameters=params2,gradient = TRUE))
 }
 
 
@@ -173,7 +155,6 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
   ptm <- proc.time()
   for(i in 1:maxIts){
     hpHawkes::getLogLikelihood(engine)
-    #hpHawkes::getGradient(engine)
   }
   proc.time() - ptm
 }

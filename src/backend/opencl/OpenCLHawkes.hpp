@@ -264,89 +264,89 @@ public:
 
     int getInternalDimension() override { return OpenCLRealType::dim; }
 
-    void getLogLikelihoodGradient(double* result, size_t length) override {
-
-#ifdef MICRO_BENCHMARK
-        auto startTime = std::chrono::steady_clock::now();
-#endif
-
-        kernelGradientVector.set_arg(0, dLocations0);
-        kernelGradientVector.set_arg(1, dTimes);
-        kernelGradientVector.set_arg(2, dGradContribs);
-        kernelGradientVector.set_arg(3, static_cast<RealType>(sigmaXprec));
-        kernelGradientVector.set_arg(4, static_cast<RealType>(tauXprec));
-        kernelGradientVector.set_arg(5, static_cast<RealType>(tauTprec));
-        kernelGradientVector.set_arg(6, static_cast<RealType>(omega));
-        kernelGradientVector.set_arg(7, static_cast<RealType>(theta));
-        kernelGradientVector.set_arg(8, static_cast<RealType>(mu0));
-        kernelGradientVector.set_arg(9, boost::compute::int_(embeddingDimension));
-        kernelGradientVector.set_arg(10, boost::compute::uint_(locationCount));
-
-        queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
-                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
-        queue.finish();
-
-#ifdef MICRO_BENCHMARK
-        timer[2] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
-#endif
-
+//    void getLogLikelihoodGradient(double* result, size_t length) override {
+//
+//#ifdef MICRO_BENCHMARK
+//        auto startTime = std::chrono::steady_clock::now();
+//#endif
+//
+//        kernelGradientVector.set_arg(0, dLocations0);
+//        kernelGradientVector.set_arg(1, dTimes);
+//        kernelGradientVector.set_arg(2, dGradContribs);
+//        kernelGradientVector.set_arg(3, static_cast<RealType>(sigmaXprec));
+//        kernelGradientVector.set_arg(4, static_cast<RealType>(tauXprec));
+//        kernelGradientVector.set_arg(5, static_cast<RealType>(tauTprec));
+//        kernelGradientVector.set_arg(6, static_cast<RealType>(omega));
+//        kernelGradientVector.set_arg(7, static_cast<RealType>(theta));
+//        kernelGradientVector.set_arg(8, static_cast<RealType>(mu0));
+//        kernelGradientVector.set_arg(9, boost::compute::int_(embeddingDimension));
+//        kernelGradientVector.set_arg(10, boost::compute::uint_(locationCount));
+//
+//        queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
+//                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+//        queue.finish();
+//
+//#ifdef MICRO_BENCHMARK
+//        timer[2] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+//#endif
+//
+////#ifdef MICRO_BENCHMARK
+////        startTime = std::chrono::steady_clock::now();
+////#endif
+////
+////        // TODO Start of extremely expensive part
+////        std::vector<RealType> sum(6);
+////        boost::compute::reduce(dSigmaXGradContribs.begin(), dSigmaXGradContribs.end(), &sum[0], queue);
+////        boost::compute::reduce(dTauXGradContribs.begin(), dTauXGradContribs.end(), &sum[1], queue);
+////        boost::compute::reduce(dTauTGradContribs.begin(), dTauTGradContribs.end(), &sum[2], queue);
+////        boost::compute::reduce(dOmegaGradContribs.begin(), dOmegaGradContribs.end(), &sum[3], queue);
+////        boost::compute::reduce(dThetaGradContribs.begin(), dThetaGradContribs.end(), &sum[4], queue);
+////        boost::compute::reduce(dMu0GradContribs.begin(), dMu0GradContribs.end(), &sum[5], queue);
+////        // TODO End of extremely expensive part
+////
+////#ifdef MICRO_BENCHMARK
+////        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
+////#endif
+//
+////        sum[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
+////        sum[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
+////        sum[2] *= mu0 * tauTprec * tauTprec;
+////        sum[3] *= theta;
+//
+////        gradient = sum;
+//
+////        mm::bufferedCopy(std::begin(sum), std::end(sum), result, buffer);
+//
 //#ifdef MICRO_BENCHMARK
 //        startTime = std::chrono::steady_clock::now();
 //#endif
 //
-//        // TODO Start of extremely expensive part
-//        std::vector<RealType> sum(6);
-//        boost::compute::reduce(dSigmaXGradContribs.begin(), dSigmaXGradContribs.end(), &sum[0], queue);
-//        boost::compute::reduce(dTauXGradContribs.begin(), dTauXGradContribs.end(), &sum[1], queue);
-//        boost::compute::reduce(dTauTGradContribs.begin(), dTauTGradContribs.end(), &sum[2], queue);
-//        boost::compute::reduce(dOmegaGradContribs.begin(), dOmegaGradContribs.end(), &sum[3], queue);
-//        boost::compute::reduce(dThetaGradContribs.begin(), dThetaGradContribs.end(), &sum[4], queue);
-//        boost::compute::reduce(dMu0GradContribs.begin(), dMu0GradContribs.end(), &sum[5], queue);
-//        // TODO End of extremely expensive part
+//        kernelLikSum.set_arg(0,dGradContribs);
+//        kernelLikSum.set_arg(1,dGradient);
+//        kernelLikSum.set_arg(2,boost::compute::uint_(locationCount));
+//
+//        queue.enqueue_1d_range_kernel(kernelLikSum, 0,
+//                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+//        queue.finish();
 //
 //#ifdef MICRO_BENCHMARK
 //        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
 //#endif
-
-//        sum[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
-//        sum[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
-//        sum[2] *= mu0 * tauTprec * tauTprec;
-//        sum[3] *= theta;
-
-//        gradient = sum;
-
-//        mm::bufferedCopy(std::begin(sum), std::end(sum), result, buffer);
-
-#ifdef MICRO_BENCHMARK
-        startTime = std::chrono::steady_clock::now();
-#endif
-
-        kernelLikSum.set_arg(0,dGradContribs);
-        kernelLikSum.set_arg(1,dGradient);
-        kernelLikSum.set_arg(2,boost::compute::uint_(locationCount));
-
-        queue.enqueue_1d_range_kernel(kernelLikSum, 0,
-                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
-        queue.finish();
-
-#ifdef MICRO_BENCHMARK
-        timer[3] += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
-#endif
-
-        std::vector<double> middleMan(8);
-
-        mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
-                                                   middleMan.data(), buffer, queue);
-        queue.finish();
-
-        middleMan[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
-        middleMan[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
-        middleMan[2] *= mu0 * tauTprec * tauTprec;
-        middleMan[3] *= theta;
-
-        memcpy(result,middleMan.data(), 48);
-
-    }
+//
+//        std::vector<double> middleMan(8);
+//
+//        mm::bufferedCopyFromDevice<OpenCLRealType>(dGradient.begin(), dGradient.end(),
+//                                                   middleMan.data(), buffer, queue);
+//        queue.finish();
+//
+//        middleMan[0] *= theta * pow(sigmaXprec,embeddingDimension+1);
+//        middleMan[1] *= mu0 * pow(tauXprec,embeddingDimension+1) * tauTprec;
+//        middleMan[2] *= mu0 * tauTprec * tauTprec;
+//        middleMan[3] *= theta;
+//
+//        memcpy(result,middleMan.data(), 48);
+//
+//    }
 
 	void getProbsSelfExcite(double* result, size_t length) override {
 
