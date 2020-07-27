@@ -10,7 +10,7 @@ extern "C" {
 /*
  * Class:     dr_inference_hawkes_NativeHPHSingleton
  * Method:    initialize
- * Signature: (IIJ)I
+ * Signature: (IIJII)I
  */
 JNIEXPORT jint JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_initialize
   (JNIEnv *, jobject, jint, jint, jlong, jint, jint);
@@ -57,6 +57,14 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_acceptState
 
 /*
  * Class:     dr_inference_hawkes_NativeHPHSingleton
+ * Method:    makeDirty
+ * Signature: (I)V
+ */
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_makeDirty
+  (JNIEnv *, jobject, jint);
+
+/*
+ * Class:     dr_inference_hawkes_NativeHPHSingleton
  * Method:    setParameters
  * Signature: (I[D)V
  */
@@ -79,8 +87,14 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimesData
 JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient
   (JNIEnv *, jobject, jint, jdoubleArray);
 
+/*
+ * Class:     dr_inference_hawkes_NativeHPHSingleton
+ * Method:    getInternalDimension
+ * Signature: (I)I
+ */
 JNIEXPORT jint JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getInternalDimension
-        (JNIEnv *, jobject, jint);
+  (JNIEnv *, jobject, jint);
+
 #ifdef __cplusplus
 }
 #endif
