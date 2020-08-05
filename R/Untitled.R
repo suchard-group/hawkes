@@ -234,8 +234,8 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 #'
 #' @export
 Potential <- function(engine,parameters) {
-  logPrior <- log(truncnorm::dtruncnorm(x=parameters[1],sd=10,a=0)) +
-    log(truncnorm::dtruncnorm(x=parameters[2],a=0)) +
+  logPrior <- log(truncnorm::dtruncnorm(x=parameters[1],sd=0.01,a=0)) +
+    log(truncnorm::dtruncnorm(x=parameters[2],a=0,sd=0.001)) +
     log(truncnorm::dtruncnorm(x=parameters[4],sd=10,a=0)) +
     log(truncnorm::dtruncnorm(x=parameters[3],a=0)) +
   # logPrior <- log(truncnorm::dtruncnorm(x=parameters[1],sd=10,a=parameters[2])) +
