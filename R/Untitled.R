@@ -249,6 +249,7 @@ Potential <- function(engine,parameters,lbs,ubs) {
 #'
 #' @param n_iter Number of MCMC iterations.
 #' @param burnIn Number of initial samples to throw away.
+#' @param thinPeriod Collect once every thinPeriod samples (default=1).
 #' @param locations N x P locations matrix.
 #' @param times Observation times.
 #' @param radius Standard deviations of proposal distributions.
@@ -267,6 +268,7 @@ Potential <- function(engine,parameters,lbs,ubs) {
 #' @export
 sampler <- function(n_iter,
                        burnIn=0,
+                       thinPeriod=1,
                        locations=NULL,
                        times=NULL,
                        radius = 2,                 # radius for uniform proposals
@@ -305,7 +307,8 @@ sampler <- function(n_iter,
   NumOfIterations = n_iter
 
   # Allocate output space
-  ParametersSaved = matrix(0,6,NumOfIterations-burnIn)
+  #totalNumberSaved = ceiling((NumOfIterations-burnIn)/thinPeriod) + 1
+  ParametersSaved = vector()
   Target = vector()
   savedLikEvals <- rep(0,n_iter)
   P <- latentDimension
@@ -406,8 +409,8 @@ sampler <- function(n_iter,
     }
 
     # Save if sample is required
-    if (Iteration > burnIn) {
-      ParametersSaved[,Iteration-burnIn] = CurrentParams
+    if (Iteration > burnIn & (Iteration-burnIn) %% thinPeriod == 0) {
+      ParametersSaved = cbind(ParametersSaved, CurrentParams)
       Target[Iteration-burnIn] = CurrentU
     }
 

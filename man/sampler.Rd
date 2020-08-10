@@ -7,6 +7,7 @@
 sampler(
   n_iter,
   burnIn = 0,
+  thinPeriod = 1,
   locations = NULL,
   times = NULL,
   radius = 2,
@@ -24,6 +25,8 @@ sampler(
 \item{n_iter}{Number of MCMC iterations.}
 
 \item{burnIn}{Number of initial samples to throw away.}
+
+\item{thinPeriod}{Collect once every thinPeriod samples (default=1).}
 
 \item{locations}{N x P locations matrix.}
 
