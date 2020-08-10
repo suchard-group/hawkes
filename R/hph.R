@@ -56,31 +56,6 @@ getProbsSelfExcite <- function(engine) {
   return(probsSE)
 }
 
-#' Helper HPH log likelihood gradient function
-#'
-#' Takes HPH engine object and returns log likelihood gradient.
-#'
-#' @param engine An HPH engine object.
-#' @return HPH log likelihood gradient.
-#'
-#' @export
-getGradient <- function(engine) {
-
-  if (!engine$locationsInitialized) {
-    stop("locations not set")
-  }
-
-  if (!engine$timesInitialized) {
-    stop("times not set")
-  }
-
-  if (is.null(engine$parameters)) {
-    stop("parameters not set")
-  }
-
-  .getLogLikelihoodGradient(engine$engine, 6)
-}
-
 #' Deliver parameters to HPH engine object
 #'
 #' Helper function delivers Hawkes process likelihood parameters to HPH engine object.
