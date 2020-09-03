@@ -12,6 +12,11 @@ GPU capabilities for either build require installation of OpenCL computing frame
 
 [![Build status](https://ci.appveyor.com/api/projects/status/github/suchard-group/hawkes?branch=master&svg=true)](https://ci.appveyor.com/project/andrewjholbrook/hawkes)
 
+
+[![DOI](https://zenodo.org/badge/200700494.svg)](https://zenodo.org/badge/latestdoi/200700494)
+
+
+
 ### Testing
 
 After cloning `hpHawkes` to your prefered directory, build the `R` package via the command line with
