@@ -9,6 +9,9 @@ sampler(
   burnIn = 0,
   locations = NULL,
   times = NULL,
+  thinPeriod = 1,
+  sampleLocations = FALSE,
+  windowWidth = NULL,
   radius = 2,
   params = c(1, 1, 1, 1, 1, 1),
   latentDimension = 2,
@@ -26,6 +29,12 @@ sampler(
 \item{locations}{N x P locations matrix.}
 
 \item{times}{Observation times.}
+
+\item{thinPeriod}{Collect once every thinPeriod samples (default=1).}
+
+\item{sampleLocations}{Do we want to sample locations? (Default FALSE).}
+
+\item{windowWidth}{Width of uncertainty window for locations.}
 
 \item{radius}{Standard deviations of proposal distributions.}
 

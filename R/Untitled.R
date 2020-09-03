@@ -148,10 +148,11 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
 #' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
 #' @param single Set \code{single=1} if your GPU does not accommodate doubles.
+#' @param r Should we use naive R implementation? (Default FALSE)
 #' @return User, system and elapsed time. Elapsed time is most important.
 #'
 #' @export
-timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,single=0) {
+timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,single=0, r=FALSE) {
   # function returns length of time to compute log likelihood
   # threads is number of CPU cores used
   # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
@@ -175,12 +176,23 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
   params2$theta <- params[5]
   params2$mu_0  <- params[6]
 
-  ptm <- proc.time()
-  for(i in 1:maxIts){
-    hpHawkes::getLogLikelihood(engine)
-    #hpHawkes::getGradient(engine)
+  if(r) {
+    ptm <- proc.time()
+    for(i in 1:maxIts){
+      computeLoglikelihood(locations = locations,times=times,parameters=params2)
+      #hpHawkes::getGradient(engine)
+    }
+    cat(proc.time() - ptm)
+    return(proc.time() - ptm)
+  } else {
+    ptm <- proc.time()
+    for(i in 1:maxIts){
+      hpHawkes::getLogLikelihood(engine)
+      #hpHawkes::getGradient(engine)
+    }
+    cat(proc.time() - ptm)
+    return(proc.time() - ptm)
   }
-  proc.time() - ptm
 }
 
 
@@ -234,8 +246,8 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 #'
 #' @export
 Potential <- function(engine,parameters) {
-  logPrior <- log(truncnorm::dtruncnorm(x=parameters[1],sd=0.01,a=0)) +
-    log(truncnorm::dtruncnorm(x=parameters[2],a=0,sd=0.001)) +
+  logPrior <- log(truncnorm::dtruncnorm(x=parameters[1],sd=10,a=0)) +
+    log(truncnorm::dtruncnorm(x=parameters[2],a=0)) +
     log(truncnorm::dtruncnorm(x=parameters[4],sd=10,a=0)) +
     log(truncnorm::dtruncnorm(x=parameters[3],a=0)) +
   # logPrior <- log(truncnorm::dtruncnorm(x=parameters[1],sd=10,a=parameters[2])) +
@@ -245,7 +257,6 @@ Potential <- function(engine,parameters) {
               log(truncnorm::dtruncnorm(x=parameters[5],sd=1,a=0)) +
               log(truncnorm::dtruncnorm(x=parameters[6],sd=1,a=0))
   logLikelihood <- hpHawkes::getLogLikelihood(engine)
-
   return(-logLikelihood-logPrior)
 }
 
@@ -258,6 +269,9 @@ Potential <- function(engine,parameters) {
 #' @param burnIn Number of initial samples to throw away.
 #' @param locations N x P locations matrix.
 #' @param times Observation times.
+#' @param thinPeriod Collect once every thinPeriod samples (default=1).
+#' @param sampleLocations Do we want to sample locations? (Default FALSE).
+#' @param windowWidth Width of uncertainty window for locations.
 #' @param radius Standard deviations of proposal distributions.
 #' @param params Length 6, default 1.
 #' @param latentDimension Dimension of latent space. Integer ranging from 2 to 8.
@@ -274,6 +288,9 @@ sampler <- function(n_iter,
                        burnIn=0,
                        locations=NULL,
                        times=NULL,
+                       thinPeriod=1,
+                       sampleLocations=FALSE,
+                       windowWidth=NULL,
                        radius = 2,                 # radius for uniform proposals
                        params=c(1,1,1,1,1,1),
                        latentDimension=2,
@@ -281,6 +298,13 @@ sampler <- function(n_iter,
                        simd=0,                        # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
                        gpu=0,
                        single=0) {
+
+  if (sampleLocations==TRUE) {
+    if (is.null(windowWidth)) stop("Select window width.")
+    B <- 100 # number of locations to update at a time
+    locUp <- locations + windowWidth/2
+    locLow <- locations - windowWidth/2
+  }
 
   # Check availability of SIMD  TODO Move into hidden function
   if (simd > 0) {
@@ -300,7 +324,8 @@ sampler <- function(n_iter,
   NumOfIterations = n_iter
 
   # Allocate output space
-  ParametersSaved = matrix(0,6,NumOfIterations-burnIn)
+  ParametersSaved = vector()
+  if (sampleLocations) LocationsSaved = list()
   Target = vector()
   savedLikEvals <- rep(0,n_iter)
   P <- latentDimension
@@ -316,18 +341,24 @@ sampler <- function(n_iter,
   # Build reusable object to compute Loglikelihood (gradient)
   engine <- engineInitial(locations,N,P,times,params,threads,simd,gpu,single)
 
-  #params <- gradascent(engine = engine, params=params)
   engine <- hpHawkes::setParameters(engine,params)
 
-
   Accepted = 0;
-  Acceptances = rep(0,6) # total acceptances within adaptation run (<= SampBound)
-  SampBound = rep(5,6)   # current total samples before adapting radius
-  SampCount = rep(0,6)   # number of samples collected (adapt when = SampBound)
-  Radii  = rep(radius,6)
   Proposed = 0;
+  if(sampleLocations){
+    Acceptances = rep(0,7) # total acceptances within adaptation run (<= SampBound)
+    SampBound = rep(5,7)   # current total samples before adapting radius
+    SampCount = rep(0,7)   # number of samples collected (adapt when = SampBound)
+    Radii  = rep(radius,7)
+  }else{
+    Acceptances = rep(0,6) # total acceptances within adaptation run (<= SampBound)
+    SampBound = rep(5,6)   # current total samples before adapting radius
+    SampCount = rep(0,6)   # number of samples collected (adapt when = SampBound)
+    Radii  = rep(radius,6)
+  }
 
-  # Initialize the location
+  # Initialize locations and parameters
+  if (sampleLocations) CurrentLocations = locations
   CurrentParams = as.vector(params);
 
   CurrentU = Potential(engine,params)
@@ -338,14 +369,22 @@ sampler <- function(n_iter,
   for (Iteration in 1:NumOfIterations) {
 
     ProposedParams = CurrentParams
+    if (sampleLocations) ProposedLocations = CurrentLocations
     engine <- hpHawkes::setParameters(engine, ProposedParams)
+    if (sampleLocations) engine <- hpHawkes::updateLocations(engine,ProposedLocations)
 
     Proposed = Proposed + 1
 
     #propose new parameters with UNIVARIATE M-H proposal
-    index <- sample(1:6,size = 1) # random scan of 1:6 parameters
+    if(sampleLocations){
+      index <- sample(1:7,size = 1,prob = c(rep(1/12,6),0.5)) # random scan of 1:6 parameters
+    } else {
+      index <- sample(1:6,size = 1)
+    }
 
-    Former <- ProposedParams[index]
+    if (index < 7) {
+      Former <- ProposedParams[index]
+    }
 
     if (index==1) {
 
@@ -415,7 +454,7 @@ sampler <- function(n_iter,
         log( truncnorm::dtruncnorm(x=Former, a=ProposedParams[3],
                                    mean=ProposedParams[index], sd=Radii[index]) )
 
-    } else {
+    } else if (index == 5 | index == 6) {
 
       ProposedParams[index] <- truncnorm::rtruncnorm(1,a=0,mean=ProposedParams[index],sd=Radii[index])
 
@@ -429,11 +468,37 @@ sampler <- function(n_iter,
       ProposedH = ProposedU -
         log( truncnorm::dtruncnorm(x=Former, a=0, mean=ProposedParams[index], sd=Radii[index]) )
 
+    } else {
+      indices <- sample(1:N,size=B)
+      Former <- as.vector(ProposedLocations[indices,])
+      ProposedLocations[indices,] <- truncnorm::rtruncnorm(B*latentDimension,
+                                                 a=as.vector(locLow[indices,]),
+                                                 b=as.vector(locUp[indices,]),
+                                                 mean=Former,
+                                                 sd=Radii[index])
+
+      engine <- hpHawkes::updateLocations(engine, ProposedLocations)
+      ProposedU = Potential(engine,ProposedParams)
+
+      # Compute the terms of accept/reject step
+      CurrentH = CurrentU -
+        sum( log( truncnorm::dtruncnorm(x=ProposedLocations[indices,],
+                                   a=as.vector(locLow[indices,]),
+                                   b=as.vector(locUp[indices,]),
+                                   mean=Former,
+                                   sd=Radii[index]) ) )
+      ProposedH = ProposedU -
+        sum( log( truncnorm::dtruncnorm(x=Former,
+                                   a=as.vector(locLow[indices,]),
+                                   b=as.vector(locUp[indices,]),
+                                   mean=ProposedLocations[indices,],
+                                   sd=Radii[index]) ) )
     }
 
     Ratio = - ProposedH + CurrentH
     if (Ratio > min(0,log(runif(1)))) {
       CurrentParams = ProposedParams
+      if (sampleLocations) CurrentLocations = ProposedLocations
       CurrentU = ProposedU
       Accepted = Accepted + 1
       Acceptances[index] = Acceptances[index] + 1
@@ -454,9 +519,15 @@ sampler <- function(n_iter,
     }
 
     # Save if sample is required
-    if (Iteration > burnIn) {
-      ParametersSaved[,Iteration-burnIn] = CurrentParams
+    if (Iteration > burnIn & (Iteration-burnIn) %% thinPeriod == 0) {
+      ParametersSaved = cbind(ParametersSaved, CurrentParams)
+      if(sampleLocations){
+        LocationsSaved[[length(LocationsSaved)+1]] = CurrentLocations
+      }
       Target[Iteration-burnIn] = CurrentU
+
+      cat(CurrentParams, "\n",file = "output/params.txt",append = TRUE)
+      if (sampleLocations) cat(as.vector(t(CurrentLocations)), "\n",file = "output/locs.txt",append = TRUE)
     }
 
     # Show acceptance rate every 100 iterations
@@ -482,7 +553,11 @@ sampler <- function(n_iter,
   time = proc.time() - timer
 
   # only HMC, return ...
-  return(list(samples = ParametersSaved, target = Target, Time = time))
+  if (sampleLocations) {
+    return(list(samples = ParametersSaved, locations=LocationsSaved, target = Target, Time = time))
+  } else {
+    return(list(samples = ParametersSaved, target = Target, Time = time))
+  }
 
   # end iterations for loop
 } # end M-H function
