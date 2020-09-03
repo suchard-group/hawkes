@@ -10,7 +10,8 @@ timeTest(
   threads = 0,
   simd = 0,
   gpu = 0,
-  single = 0
+  single = 0,
+  r = FALSE
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ timeTest(
 \item{gpu}{Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.}
 
 \item{single}{Set \code{single=1} if your GPU does not accommodate doubles.}
+
+\item{r}{Should we use naive R implementation? (Default FALSE)}
 }
 \value{
 User, system and elapsed time. Elapsed time is most important.

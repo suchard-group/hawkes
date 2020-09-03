@@ -125,10 +125,11 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
 #' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
 #' @param single Set \code{single=1} if your GPU does not accommodate doubles.
+#' @param r Should we use naive R implementation? (Default FALSE)
 #' @return User, system and elapsed time. Elapsed time is most important.
 #'
 #' @export
-timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,single=0) {
+timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,single=0, r=FALSE) {
   # function returns length of time to compute log likelihood
   # threads is number of CPU cores used
   # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
@@ -152,11 +153,23 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
   params2$theta <- params[5]
   params2$mu_0  <- params[6]
 
-  ptm <- proc.time()
-  for(i in 1:maxIts){
-    hpHawkes::getLogLikelihood(engine)
+  if(r) {
+    ptm <- proc.time()
+    for(i in 1:maxIts){
+      computeLoglikelihood(locations = locations,times=times,parameters=params2)
+      #hpHawkes::getGradient(engine)
+    }
+    cat(proc.time() - ptm)
+    return(proc.time() - ptm)
+  } else {
+    ptm <- proc.time()
+    for(i in 1:maxIts){
+      hpHawkes::getLogLikelihood(engine)
+      #hpHawkes::getGradient(engine)
+    }
+    cat(proc.time() - ptm)
+    return(proc.time() - ptm)
   }
-  proc.time() - ptm
 }
 
 
