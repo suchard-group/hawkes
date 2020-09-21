@@ -11,7 +11,7 @@ sampler(
   times = NULL,
   thinPeriod = 1,
   sampleLocations = FALSE,
-  windowWidth = NULL,
+  locRad = NULL,
   radius = 2,
   params = c(1, 1, 1, 1, 1, 1),
   latentDimension = 2,
@@ -34,8 +34,6 @@ sampler(
 
 \item{sampleLocations}{Do we want to sample locations? (Default FALSE).}
 
-\item{windowWidth}{Width of uncertainty window for locations.}
-
 \item{radius}{Standard deviations of proposal distributions.}
 
 \item{params}{Length 6, default 1.}
@@ -49,6 +47,8 @@ sampler(
 \item{gpu}{Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.}
 
 \item{single}{Set \code{single=1} if your GPU does not accommodate doubles.}
+
+\item{windowWidth}{Width of uncertainty window for locations.}
 }
 \value{
 List containing posterior samples, negative log likelihood values (\code{target}) and time to compute (\code{Time}).

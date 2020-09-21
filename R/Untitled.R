@@ -260,6 +260,56 @@ Potential <- function(engine,parameters) {
   return(-logLikelihood-logPrior)
 }
 
+asymLense <- function (d,R,r) {
+  A <- r^2*acos((d^2 + r^2 - R^2)/(2*d*r)) + R^2*acos((d^2 - r^2 + R^2)/(2*d*R)) -
+    1/2*sqrt((d + r - R)*(d - r + R)*(-d + r + R)*(d + r + R))
+  return(A)
+}
+
+intersectionArea <- function (d,R,r) {
+  if( ! assertthat::are_equal(length(d),length(r)) ) stop("Requires equal length vectors")
+  if( ! assertthat::are_equal(length(d),length(R)) ) stop("Requires equal length vectors")
+  if( any(d>r+R) ) stop("Proposal outside target circle.")
+
+  #A <- ifelse(d <= abs(R-r), pmin(R,r)^2*pi, asymLense(d,R,r))
+  A <-rep(length(d))
+  logVec <- d <= abs(R-r)
+  A[logVec] <- pmin(R[logVec],r[logVec])^2*pi
+  A[!logVec] <- asymLense(d[!logVec],R[!logVec],r[!logVec])
+  return(A)
+}
+
+euc_dist_for_mats <- function (x,y) {
+  disp <- x-y
+  return( sqrt( rowSums(disp^2) ) )
+}
+
+euc_dist_for_vecs <- function (x,y) {
+  disp <- x-y
+  return( sqrt( sum(disp^2) ) )
+}
+
+intersectionProp <- function(circCenters,circRadii,propCenters,propRadii) {
+  if( ! assertthat::are_equal(dim(circCenters)[1],length(circRadii)) ) stop("Requires equal length vectors")
+  if( ! assertthat::are_equal(length(circRadii),dim(propCenters)[1]) ) stop("Requires equal length vectors")
+  if( ! assertthat::are_equal(dim(propCenters)[1],length(propRadii)) ) stop("Requires equal length vectors")
+  if( any(euc_dist_for_mats(circCenters,propCenters) >= propRadii+circRadii) ) stop("Intersection is void.")
+
+  len <- dim(circCenters)[1]
+  props <- matrix(0,len,2)
+  for (i in 1:len) {
+    accept <- FALSE
+    while (!accept) {
+      theta <- runif(1,0,2*pi)
+      r     <- runif(1,0,propRadii[i])
+      props[i,] <- propCenters[i,] + r*c(cos(theta),sin(theta))
+
+      if( euc_dist_for_vecs(props[i,],circCenters[i,]) < circRadii[i] ) accept <- TRUE
+    }
+  }
+  return(props)
+}
+
 #' M-H for Bayesian inference of Hawkes model parameters
 #'
 #' Takes a number of settings and returns posterior samples of parameters
@@ -290,7 +340,7 @@ sampler <- function(n_iter,
                        times=NULL,
                        thinPeriod=1,
                        sampleLocations=FALSE,
-                       windowWidth=NULL,
+                       locRad=NULL,
                        radius = 2,                 # radius for uniform proposals
                        params=c(1,1,1,1,1,1),
                        latentDimension=2,
@@ -300,10 +350,8 @@ sampler <- function(n_iter,
                        single=0) {
 
   if (sampleLocations==TRUE) {
-    if (is.null(windowWidth)) stop("Select window width.")
-    B <- 100 # number of locations to update at a time
-    locUp <- locations + windowWidth/2
-    locLow <- locations - windowWidth/2
+    if (is.null(locRad)) stop("Select location uncertainty circle radius.")
+    B <- 100 # number of locations to update at a time (> 1)
   }
 
   # Check availability of SIMD  TODO Move into hidden function
@@ -469,30 +517,28 @@ sampler <- function(n_iter,
         log( truncnorm::dtruncnorm(x=Former, a=0, mean=ProposedParams[index], sd=Radii[index]) )
 
     } else {
-      indices <- sample(1:N,size=B)
-      Former <- as.vector(ProposedLocations[indices,])
-      ProposedLocations[indices,] <- truncnorm::rtruncnorm(B*latentDimension,
-                                                 a=as.vector(locLow[indices,]),
-                                                 b=as.vector(locUp[indices,]),
-                                                 mean=Former,
-                                                 sd=Radii[index])
+      indices <- sample(1:N,size=B,prob = locRad)
+      Former <- ProposedLocations[indices,]
+      ProposedLocations[indices,] <- intersectionProp(circCenters=locations[indices,],
+                                                      circRadii=locRad[indices],
+                                                      propCenters=Former,
+                                                      propRadii=pmin(Radii[index]*locRad[indices],
+                                                                     locRad[indices]))
 
       engine <- hpHawkes::updateLocations(engine, ProposedLocations)
       ProposedU = Potential(engine,ProposedParams)
 
       # Compute the terms of accept/reject step
       CurrentH = CurrentU -
-        sum( log( truncnorm::dtruncnorm(x=ProposedLocations[indices,],
-                                   a=as.vector(locLow[indices,]),
-                                   b=as.vector(locUp[indices,]),
-                                   mean=Former,
-                                   sd=Radii[index]) ) )
+        sum( log( 1/intersectionArea(d=euc_dist_for_mats(Former,locations[indices,]),
+                                     R=locRad[indices],
+                                     r=pmin(Radii[index]*locRad[indices],
+                                            locRad[indices])) ) )
       ProposedH = ProposedU -
-        sum( log( truncnorm::dtruncnorm(x=Former,
-                                   a=as.vector(locLow[indices,]),
-                                   b=as.vector(locUp[indices,]),
-                                   mean=ProposedLocations[indices,],
-                                   sd=Radii[index]) ) )
+        sum( log( 1/intersectionArea(d=euc_dist_for_mats(ProposedLocations[indices,],locations[indices,]),
+                                     R=locRad[indices],
+                                     r=pmin(Radii[index]*locRad[indices],
+                                            locRad[indices])) ) )
     }
 
     Ratio = - ProposedH + CurrentH
