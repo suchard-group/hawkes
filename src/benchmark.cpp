@@ -75,8 +75,9 @@ int main(int argc, char* argv[]) {
 	auto normalData = std::normal_distribution<double>(0.0, 1.0);
 	auto toss = std::bernoulli_distribution(0.25);
 	auto expo = std::exponential_distribution<double>(1);
-	
-	std::shared_ptr<tbb::task_scheduler_init> task{nullptr};
+    auto smallExpo = std::exponential_distribution<double>(10);
+
+    std::shared_ptr<tbb::task_scheduler_init> task{nullptr};
 
     int deviceNumber = -1;
     int threads = 0;
@@ -162,6 +163,12 @@ int main(int argc, char* argv[]) {
 	}
     instance->setTimesData(&times[0], locationCount);
 
+    std::vector<double> backgroundRates(locationCount);
+    for (int i = 0; i < locationCount; ++i) {
+        backgroundRates[i] = smallExpo(prng);
+    }
+    instance->setBackgroundRates(&backgroundRates[0], locationCount);
+
     int dataDimension = internalDimension ? instance->getInternalDimension() : embeddingDimension;
 
     std::vector<double> location(dataDimension);
@@ -170,16 +177,15 @@ int main(int argc, char* argv[]) {
         instance->updateLocations(i, &location[0], dataDimension);
     }
 
-	std::vector<double> parameters(6);
-    for (int i = 0; i < 6; ++i) {
+	std::vector<double> parameters(4);
+    for (int i = 0; i < 4; ++i) {
         parameters[i] = expo(prng2);
     }
-	instance->setParameters(&parameters[0], 6);
+	instance->setParameters(&parameters[0], 4);
 
 	auto logLik = 0; //instance->getSumOfLikContribs();
 
     std::vector<double> probSEs(locationCount,0.0);
-	//instance->getLogLikelihoodGradient(gradient.data(),6);
     auto sumProbSEs = probSEs;
 
 	std::cout << "Starting HPH benchmark" << std::endl;
@@ -191,10 +197,10 @@ int main(int argc, char* argv[]) {
 	for (auto itr = 0; itr < iterations; ++itr) {
 
 
-        for (int i = 0; i < 6; ++i) {
+        for (int i = 0; i < 4; ++i) {
             parameters[i] = expo(prng2);
         }
-        instance->setParameters(&parameters[0], 6);
+        instance->setParameters(&parameters[0], 4);
 
 		auto startTime1 = std::chrono::steady_clock::now();
 

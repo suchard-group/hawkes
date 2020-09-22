@@ -41,12 +41,12 @@ public:
     // Interface
     virtual double getSumOfLikContribs() = 0;
     virtual void updateLocations(int, double*, size_t) = 0;
-    virtual void getLogLikelihoodGradient(double*, size_t) = 0;
     virtual void getProbsSelfExcite(double*, size_t) = 0;
     virtual void storeState() = 0;
     virtual void restoreState() = 0;
     virtual void acceptState() = 0;
     virtual void setTimesData(double*, size_t)  = 0;
+    virtual void setBackgroundRates(double*, size_t)  = 0;
     virtual void setParameters(double*, size_t) = 0;
     virtual int getInternalDimension() = 0;
 

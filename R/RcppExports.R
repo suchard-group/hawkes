@@ -27,12 +27,12 @@ createEngine <- function(embeddingDimension, locationCount, tbb, simd, gpu, sing
     invisible(.Call('_hpHawkes_setTimesData', PACKAGE = 'hpHawkes', sexp, data))
 }
 
-.setParameters <- function(sexp, parameters) {
-    invisible(.Call('_hpHawkes_setParameters', PACKAGE = 'hpHawkes', sexp, parameters))
+.setBackgroundRates <- function(sexp, data) {
+    invisible(.Call('_hpHawkes_setBackgroundRates', PACKAGE = 'hpHawkes', sexp, data))
 }
 
-.getLogLikelihoodGradient <- function(sexp, len) {
-    .Call('_hpHawkes_getLogLikelihoodGradient', PACKAGE = 'hpHawkes', sexp, len)
+.setParameters <- function(sexp, parameters) {
+    invisible(.Call('_hpHawkes_setParameters', PACKAGE = 'hpHawkes', sexp, parameters))
 }
 
 .getProbsSelfExcite <- function(sexp, len) {

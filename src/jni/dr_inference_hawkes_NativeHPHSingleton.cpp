@@ -64,14 +64,14 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimesData
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient
-  (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
-	jsize len = env->GetArrayLength(xArray);
-	jdouble* x = env->GetDoubleArrayElements(xArray, NULL); // TODO: Try GetPrimitiveArrayCritical
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setBackgroundRates
+        (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
+    jsize len = env->GetArrayLength(xArray);
+    jdouble* x = env->GetDoubleArrayElements(xArray, NULL);
 
-	instances[instance]->getLogLikelihoodGradient(x, len);
+    instances[instance]->setBackgroundRates(x, len);
 
-	env->ReleaseDoubleArrayElements(xArray, x, 0); // copy values back
+    env->ReleaseDoubleArrayElements(xArray, x, JNI_ABORT);
 }
 
 extern "C"

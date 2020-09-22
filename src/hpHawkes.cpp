@@ -63,15 +63,15 @@ Rcpp::List createEngine(int embeddingDimension, int locationCount, int tbb, int 
   int deviceNumber = -1;
   int threads = 0;
   if (gpu > 0) {
-    Rcout << "Running on GPU" << std::endl;
+    Rcpp::Rcout << "Running on GPU" << std::endl;
     flags |= hph::Flags::OPENCL;
     deviceNumber = gpu;
     if(single){
       flags |= hph::Flags::FLOAT;
-      Rcout << "Single precision" << std::endl;
+      Rcpp::Rcout << "Single precision" << std::endl;
     }
   } else {
-    Rcout << "Running on CPU" << std::endl;
+      Rcpp::Rcout << "Running on CPU" << std::endl;
 
 #if RCPP_PARALLEL_USE_TBB
   if (tbb > 0) {
@@ -99,6 +99,7 @@ Rcpp::List createEngine(int embeddingDimension, int locationCount, int tbb, int 
     Rcpp::Named("embeddingDimension") = embeddingDimension,
     Rcpp::Named("locationCount") = locationCount,
     Rcpp::Named("timesInitialized") = false,
+    Rcpp::Named("backgroundRatesInitialized") = false,
     Rcpp::Named("locationsInitialized") = false,
     Rcpp::Named("threads") = threads,
     Rcpp::Named("deviceNumber") = deviceNumber,
@@ -115,18 +116,17 @@ void setTimesData(SEXP sexp,
   ptr->setTimesData(&data[0], data.size());
 }
 
+// [[Rcpp::export(.setBackgroundRates)]]
+void setBackgroundRates(SEXP sexp,
+                  std::vector<double>& data) {
+    auto ptr = parsePtr(sexp);
+    ptr->setBackgroundRates(&data[0], data.size());
+}
+
 // [[Rcpp::export(.setParameters)]]
 void setParameters(SEXP sexp, std::vector<double>& parameters) {
   auto ptr = parsePtr(sexp);
   ptr->setParameters(&parameters[0], parameters.size());
-}
-
-// [[Rcpp::export(.getLogLikelihoodGradient)]]
-std::vector<double> getLogLikelihoodGradient(SEXP sexp, size_t len) {
-  auto ptr = parsePtr(sexp);
-  std::vector<double> result(len);
-  ptr->getLogLikelihoodGradient(&result[0], len);
-  return result;
 }
 
 // [[Rcpp::export(.getProbsSelfExcite)]]
