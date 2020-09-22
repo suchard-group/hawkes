@@ -7,26 +7,15 @@
 #'
 #' @param locations Matrix of spatial locations (nxp).
 #' @param times    Vector of times.
-#' @param parameters Hawkes process parameters (length=6).
-#' @param gradient Return gradient (or log likelihood)? Defaults to FALSE.
+#' @param backgroundRates Vector of observation specific background rates.
+#' @param parameters Hawkes process parameters (length=4).
 #' @return Hawkes process log likelihood or its gradient.
 #'
 #' @export
-computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE) {
-
-  if (gradient) {
-    gradLogLikelihood <- rep(0,6)
-    gradLogLikelihood[1] <- num_grad("h",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[2] <- num_grad("tau_x",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[3] <- num_grad("tau_t",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[4] <- num_grad("omega",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[5] <- num_grad("theta",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    gradLogLikelihood[6] <- num_grad("mu_0",params=parameters,obs_x=locations,obs_t=times )#theta_grad(params=parameters,obs_x=locations,obs_t=times)
-    return(gradLogLikelihood)
-  } else {
-    logLikelihood <- log_lik(params=parameters,obs_x=locations,obs_t=times)
-    return(logLikelihood)
-  }
+computeLoglikelihood <- function(locations, times, parameters,backgroundRates) {
+  logLikelihood <- log_lik(params=parameters,obs_x=locations,
+                           obs_t=times,backgroundRates=backgroundRates)
+  return(logLikelihood)
 }
 
 #' Get event specific probabilities self-excitatory
@@ -36,7 +25,8 @@ computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE)
 #'
 #' @param locations Matrix of spatial locations (nxp).
 #' @param times    Vector of times.
-#' @param params Hawkes process parameters (length=6).
+#' @param params Hawkes process parameters (length=4).
+#' @param backgroundRates Vector of observation specific background rates.
 #' @param threads Number of CPU cores to be used.
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
 #' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
@@ -45,7 +35,7 @@ computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE)
 #' @return n vector of probabilities.
 #'
 #' @export
-probability_se <- function(locations, times, params,
+probability_se <- function(locations, times, params, backgroundRates,
                            threads=0, simd=0, gpu=0, single=0,
                            naive=FALSE) {
 
@@ -64,7 +54,8 @@ probability_se <- function(locations, times, params,
       output[i] <- prob_se(x=locations[i,],
                            t=times[i],
                            params=params2,
-                           obs_x=locations, obs_t=times)
+                           obs_x=locations, obs_t=times,
+                           backgroundRate=backgroundRates[i])
     }
     return(output)
 
@@ -74,6 +65,7 @@ probability_se <- function(locations, times, params,
     engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
     engine <- hpHawkes::updateLocations(engine, locations)
     engine <- hpHawkes::setTimesData(engine, times)
+    engine <- hpHawkes::setBackgroundRates(engine, backgroundRates)
     engine <- hpHawkes::setParameters(engine, params)
     return( hpHawkes::getProbsSelfExcite(engine) )
 
@@ -98,38 +90,32 @@ probability_se <- function(locations, times, params,
 #' @export
 test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
 
-  set.seed(666)
   embeddingDimension <- 2
 
   locations <- matrix(rnorm(n = locationCount * embeddingDimension),
                  ncol = embeddingDimension, nrow = locationCount)
   times <- seq(from=1, to=locationCount, by=1)
+  backgroundRates <- rexp(locationCount,100)
 
-  params <- rexp(6)
+  params <- rexp(4)
 
   engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
   engine <- hpHawkes::updateLocations(engine, locations)
   engine <- hpHawkes::setTimesData(engine, times)
   engine <- hpHawkes::setParameters(engine, params)
+  engine <- hpHawkes::setBackgroundRates(engine, backgroundRates)
   params2 <- list()
   params2$h     <- 1/params[1]
-  params2$tau_x <- 1/params[2]
-  params2$tau_t <- 1/params[3]
-  params2$omega <- params[4]
-  params2$theta <- params[5]
-  params2$mu_0  <- params[6]
+  params2$omega <- params[2]
+  params2$theta <- params[3]
+  params2$mu_0  <- params[4]
 
   cat("logliks\n")
   print(hpHawkes::getLogLikelihood(engine))
   print(computeLoglikelihood(locations=locations,
                              times=times,
-                             parameters=params2))
-
- cat("grads\n")
-print(hpHawkes::getGradient(engine))
-print(computeLoglikelihood(locations=locations,
-                           times=times,
-                           parameters=params2,gradient = TRUE))
+                             parameters=params2,
+                             backgroundRates = backgroundRates))
 }
 
 

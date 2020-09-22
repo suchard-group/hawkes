@@ -8,6 +8,7 @@ probability_se(
   locations,
   times,
   params,
+  backgroundRates,
   threads = 0,
   simd = 0,
   gpu = 0,
@@ -20,7 +21,9 @@ probability_se(
 
 \item{times}{Vector of times.}
 
-\item{params}{Hawkes process parameters (length=6).}
+\item{params}{Hawkes process parameters (length=4).}
+
+\item{backgroundRates}{Vector of observation specific background rates.}
 
 \item{threads}{Number of CPU cores to be used.}
 

@@ -177,11 +177,11 @@ int main(int argc, char* argv[]) {
         instance->updateLocations(i, &location[0], dataDimension);
     }
 
-	std::vector<double> parameters(4);
-    for (int i = 0; i < 4; ++i) {
+	std::vector<double> parameters(5);
+    for (int i = 0; i < 5; ++i) {
         parameters[i] = expo(prng2);
     }
-	instance->setParameters(&parameters[0], 4);
+	instance->setParameters(&parameters[0], 5);
 
 	auto logLik = 0; //instance->getSumOfLikContribs();
 
@@ -197,10 +197,10 @@ int main(int argc, char* argv[]) {
 	for (auto itr = 0; itr < iterations; ++itr) {
 
 
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 5; ++i) {
             parameters[i] = expo(prng2);
         }
-        instance->setParameters(&parameters[0], 4);
+        instance->setParameters(&parameters[0], 5);
 
 		auto startTime1 = std::chrono::steady_clock::now();
 

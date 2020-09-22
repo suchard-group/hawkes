@@ -56,31 +56,6 @@ getProbsSelfExcite <- function(engine) {
   return(probsSE)
 }
 
-#' Helper HPH log likelihood gradient function
-#'
-#' Takes HPH engine object and returns log likelihood gradient.
-#'
-#' @param engine An HPH engine object.
-#' @return HPH log likelihood gradient.
-#'
-#' @export
-getGradient <- function(engine) {
-
-  if (!engine$locationsInitialized) {
-    stop("locations not set")
-  }
-
-  if (!engine$timesInitialized) {
-    stop("times not set")
-  }
-
-  if (is.null(engine$parameters)) {
-    stop("parameters not set")
-  }
-
-  .getLogLikelihoodGradient(engine$engine, 6)
-}
-
 #' Deliver parameters to HPH engine object
 #'
 #' Helper function delivers Hawkes process likelihood parameters to HPH engine object.
@@ -112,6 +87,25 @@ setTimesData <- function(engine, data) {
   }
   .setTimesData(engine$engine, data)
   engine$timesInitialized <- TRUE
+  return(engine)
+}
+
+#' Deliver background rates vector to HPH engine object
+#'
+#' Helper function delivers background rates vector to HPH engine object.
+#'
+#' @param engine HPH engine object.
+#' @param data Background rates vector.
+#' @return HPH engine object.
+#'
+#' @export
+setBackgroundRates <- function(engine, data) {
+  data <- as.vector(data)
+  if (length(data) != engine$locationCount) {
+    stop("Invalid data size")
+  }
+  .setBackgroundRates(engine$engine, data)
+  engine$backgroundRatesInitialized <- TRUE
   return(engine)
 }
 

@@ -49,6 +49,7 @@ public:
     OpenCLHawkes(int embeddingDimension, int locationCount, long flags, int deviceNumber)
         : AbstractHawkes(embeddingDimension, locationCount, flags),
           sigmaXprec(0.0), storedSigmaXprec(0.0),
+          tauXprec(0.0), storedTauXprec(0.0),
           omega(0.0), storedOmega(0.0),
           theta(0.0), storedTheta(0.0),
           mu0(0.0), storedMu0(0.0),
@@ -345,11 +346,12 @@ public:
         kernelProbsSelfExcite.set_arg(2, dBackgroundRates);
         kernelProbsSelfExcite.set_arg(3, dProbsSelfExcite);
         kernelProbsSelfExcite.set_arg(4, static_cast<RealType>(sigmaXprec));
-        kernelProbsSelfExcite.set_arg(5, static_cast<RealType>(omega));
-        kernelProbsSelfExcite.set_arg(6, static_cast<RealType>(theta));
-        kernelProbsSelfExcite.set_arg(7, static_cast<RealType>(mu0));
-        kernelProbsSelfExcite.set_arg(8, boost::compute::int_(embeddingDimension));
-        kernelProbsSelfExcite.set_arg(9, boost::compute::uint_(locationCount));
+        kernelProbsSelfExcite.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelProbsSelfExcite.set_arg(6, static_cast<RealType>(omega));
+        kernelProbsSelfExcite.set_arg(7, static_cast<RealType>(theta));
+        kernelProbsSelfExcite.set_arg(8, static_cast<RealType>(mu0));
+        kernelProbsSelfExcite.set_arg(9, boost::compute::int_(embeddingDimension));
+        kernelProbsSelfExcite.set_arg(10, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelProbsSelfExcite, 0,
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -368,6 +370,7 @@ public:
     void storeState() override {
     	storedSumOfLikContribs = sumOfLikContribs;
         storedSigmaXprec = sigmaXprec;
+        storedTauXprec = tauXprec;
         storedOmega = omega;
         storedTheta = theta;
         storedMu0 = mu0;
@@ -409,6 +412,7 @@ public:
 //    	}
 
         sigmaXprec = storedSigmaXprec;
+        tauXprec = storedTauXprec;
         omega = storedOmega;
         theta = storedTheta;
         mu0 = storedMu0;
@@ -443,11 +447,12 @@ public:
     }
 
     void setParameters(double* data, size_t length) override {
-		assert(length == 4);
+		assert(length == 5);
 		sigmaXprec = data[0];
-		omega = data[1];
-		theta = data[2];
-		mu0 = data[3];
+		tauXprec = data[1];
+		omega = data[2];
+		theta = data[3];
+		mu0 = data[4];
     }
 
 
@@ -472,11 +477,12 @@ public:
         kernelLikContribsVector.set_arg(2, dBackgroundRates);
         kernelLikContribsVector.set_arg(3, dLikContribs);
         kernelLikContribsVector.set_arg(4, static_cast<RealType>(sigmaXprec));
-        kernelLikContribsVector.set_arg(5, static_cast<RealType>(omega));
-        kernelLikContribsVector.set_arg(6, static_cast<RealType>(theta));
-        kernelLikContribsVector.set_arg(7, static_cast<RealType>(mu0));
-        kernelLikContribsVector.set_arg(8, boost::compute::int_(embeddingDimension));
-        kernelLikContribsVector.set_arg(9, boost::compute::uint_(locationCount));
+        kernelLikContribsVector.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelLikContribsVector.set_arg(6, static_cast<RealType>(omega));
+        kernelLikContribsVector.set_arg(7, static_cast<RealType>(theta));
+        kernelLikContribsVector.set_arg(8, static_cast<RealType>(mu0));
+        kernelLikContribsVector.set_arg(9, boost::compute::int_(embeddingDimension));
+        kernelLikContribsVector.set_arg(10, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelLikContribsVector, 0,
                 static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -722,6 +728,7 @@ public:
 			"                                 __global const REAL *backgroundRates,   \n" <<
 			"						          __global REAL *likContribs,             \n" <<
             "                                 const REAL sigmaXprec,                  \n" <<
+            "                                 const REAL tauXprec,                    \n" <<
 			"                                 const REAL omega,                       \n" <<
 			"                                 const REAL theta,                       \n" <<
 			"                                 const REAL mu0,                         \n" <<
@@ -739,6 +746,7 @@ public:
 		    "   const REAL timeI = times[i];                                        \n" <<
 		    "                                                                       \n" <<
 		    "   REAL        sum = ZERO;                                             \n" <<
+		    "   REAL mu0TauXprecDbgI = mu0*pow(tauXprec,dimX)*backgroundRates[i];   \n" <<
 		    "   REAL thetaSigmaXprecDOmega = theta * pow(sigmaXprec,dimX) * omega;  \n" <<
 		    "                                                                       \n" <<
 		    "   while (j < locationCount) {                                         \n" << // originally j < locationCount
@@ -758,9 +766,11 @@ public:
         }
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                const REAL innerContrib = thetaSigmaXprecDOmega *
-                        select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) *
-                        pdf(distance * sigmaXprec);
+                const REAL innerContrib = mu0TauXprecDbgI *
+                                          pdf(distance * tauXprec) *
+                                          select(ZERO, ONE, (CAST)isnotequal(timDiff,ZERO))  +
+                                          thetaSigmaXprecDOmega *
+                                          select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
         );
 
         code <<
@@ -778,7 +788,7 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code <<
-             "     likContribs[i] = log(scratch[0] + mu0*backgroundRates[i]) + theta *               \n" <<
+             "     likContribs[i] = log(scratch[0]) + theta *               \n" <<
              "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) - mu0; \n" <<
              "   }                                                                   \n" <<
              " }                                                                     \n ";
@@ -893,6 +903,7 @@ public:
              "                                 __global const REAL *backgroundRates,   \n" <<
              "						          __global REAL *probsSelfExcite,           \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
+             "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL omega,                       \n" <<
              "                                 const REAL theta,                       \n" <<
              "                                 const REAL mu0,                         \n" <<
@@ -906,10 +917,13 @@ public:
              "   uint j = get_local_id(0);                                           \n" <<
              "                                                                       \n" <<
              "   __local REAL scratch1[TPB];                                          \n" <<
+             "   __local REAL scratch2[TPB];                                          \n" <<
              "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
              "   const REAL timeI = times[i];                                        \n" <<
              "                                                                       \n" <<
              "   REAL        sum1 = ZERO;                                             \n" <<
+             "   REAL        sum2 = ZERO;                                             \n" <<
+             "   REAL mu0TauXprecDbgI = mu0 * pow(tauXprec,dimX) * backgroundRates[i];    \n" <<
              "   REAL thetaSigmaXprecDOmega = theta * pow(sigmaXprec,dimX) * omega;  \n" <<
              "                                                                       \n" <<
              "   while (j < locationCount) {                                         \n" << // originally j < locationCount
@@ -929,15 +943,23 @@ public:
         }
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
+                const REAL background = mu0TauXprecDbgI *
+                                        pdf(distance * tauXprec) *
+                                        select(ZERO, ONE, (CAST)isnotequal(timDiff,ZERO));
+        );
+
+        code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL selfexcite = thetaSigmaXprecDOmega *
-                                          select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
+                                        select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
         );
 
         code <<
-             "     sum1 += selfexcite;                                              \n" <<
+             "     sum1 += background;                                              \n" <<
+             "     sum2 += selfexcite;                                              \n" <<
              "     j += TPB;                                                         \n" <<
              "     }                                                                 \n" <<
-             "     scratch1[lid] = sum1;                                             \n";
+             "     scratch1[lid] = sum1;                                             \n" <<
+             "     scratch2[lid] = sum2;                                               \n";
 
         code <<
              "     for(int k = 1; k < TPB; k <<= 1) {                                 \n" <<
@@ -945,6 +967,7 @@ public:
              "       uint mask = (k << 1) - 1;                                        \n" <<
              "       if ((lid & mask) == 0) {                                         \n" <<
              "           scratch1[lid] += scratch1[lid + k];                  \n" <<
+             "           scratch2[lid] += scratch2[lid + k];                  \n" <<
              "       }                                                                \n" <<
              "   }                                                                    \n";
 
@@ -953,7 +976,7 @@ public:
              "   if (lid == 0) {                                                     \n";
 
         code <<
-             "     probsSelfExcite[i] = scratch1[0] / (scratch1[0] + mu0*backgroundRates[i]);   \n" <<
+             "     probsSelfExcite[i] = scratch2[0] / (scratch1[0] + scratch2[0]);   \n" <<
              "   }                                                                   \n" <<
              " }                                                                     \n ";
 
@@ -990,6 +1013,8 @@ public:
 private:
     double sigmaXprec;
     double storedSigmaXprec;
+    double tauXprec;
+    double storedTauXprec;
     double omega;
     double storedOmega;
     double theta;

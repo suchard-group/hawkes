@@ -192,6 +192,7 @@ public:
     NewHawkes(int embeddingDimension, int locationCount, long flags, int threads)
         : AbstractHawkes(embeddingDimension, locationCount, flags),
           sigmaXprec(0.0), storedSigmaXprec(0.0),
+          tauXprec(0.0), storedTauXprec(0.0),
           omega(0.0), storedOmega(0.0),
           theta(0.0), storedTheta(0.0),
           mu0(0.0), storedMu0(0.0),
@@ -282,6 +283,7 @@ public:
     void storeState() {
     	storedSumOfLikContribs = sumOfLikContribs;
         sigmaXprec = storedSigmaXprec;
+        tauXprec = storedTauXprec;
         omega = storedOmega;
         theta = storedTheta;
         mu0 = storedMu0;
@@ -302,6 +304,7 @@ public:
     	sumOfLikContribs = storedSumOfLikContribs;
 
         sigmaXprec = storedSigmaXprec;
+        tauXprec = storedTauXprec;
         omega = storedOmega;
         theta = storedTheta;
         mu0 = storedMu0;
@@ -328,11 +331,12 @@ public:
     }
 
     void setParameters(double* data, size_t length) {
-        assert(length == 4);
+        assert(length == 5);
         sigmaXprec = data[0];
-        omega = data[1];
-        theta = data[2];
-        mu0 = data[3];
+        tauXprec = data[1];
+        omega = data[2];
+        theta = data[3];
+        mu0 = data[4];
     }
 
 
@@ -458,7 +462,9 @@ public:
         auto sum = SimdType(RealType(0));
         const auto zero = SimdType(RealType(0));
 
+        const auto tauXprecD = pow(tauXprec, embeddingDimension);
         const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
+        const auto mu0TauXprecDbgI = mu0 * tauXprecD * SimdType(RealType(backgroundRates[i]));
         const auto sigmaXprecDThetaOmega = sigmaXprecD * theta * omega;
 
         const auto timeI = SimdType(RealType(times[i]));
@@ -468,14 +474,17 @@ public:
             const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
 
-            const auto rate = sigmaXprecDThetaOmega * mask(timDiff > zero,
-                         adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
+            const auto rate =  adhoc::pdf_new(locDist * tauXprec) *
+                               mask(timDiff != zero, mu0TauXprecDbgI) +
+                               sigmaXprecDThetaOmega * mask(timDiff > zero,
+                                                            adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
 
             sum += rate;
         }
 
         return reduce(sum);
     }
+
 
     template <int N>
 	class RealTypePack {
@@ -536,7 +545,7 @@ public:
                         sumOfRates += ratesLoop<RealType, 1>(dispatch, i, vectorCount, locationCount);
                     }
 
-                    return xsimd::log(sumOfRates + mu0*backgroundRates[i]) +
+                    return xsimd::log(sumOfRates) +
                            theta * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1) - mu0;
 
                 }, ParallelType());
@@ -560,16 +569,49 @@ public:
             const int vectorCount = locationCount - locationCount % SimdSize;
 
             DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-            auto sumOfRates = ratesLoop<SimdType, SimdSize>(dispatch, i, 0, vectorCount);
+            auto sumOfRates = innerProbsSelfExciteLoop<SimdType, SimdSize>(dispatch, i, 0, vectorCount);
 
             if (vectorCount < locationCount) { // Edge-cases
                 DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
-                sumOfRates += ratesLoop<RealType, 1>(dispatch, i, vectorCount, locationCount);
+                sumOfRates += innerProbsSelfExciteLoop<RealType, 1>(dispatch, i, vectorCount, locationCount);
             }
 
-            (*probsSelfExcitePtr)[i] += sumOfRates / (mu0*backgroundRates[i] + sumOfRates);
+            (*probsSelfExcitePtr)[i] += sumOfRates[1] / (sumOfRates[0] + sumOfRates[1]);
         }, ParallelType());
     }
+
+    template <typename SimdType, int SimdSize, typename DispatchType>
+    RealTypePack<2> innerProbsSelfExciteLoop(const DispatchType& dispatch, const int i, const int begin, const int end) {
+
+        const auto zero = SimdType(RealType(0));
+        std::array<SimdType, 2> sum = {zero, zero};
+
+        const auto tauXprecD = pow(tauXprec, embeddingDimension);
+        const auto sigmaXprecD = pow(sigmaXprec, embeddingDimension);
+        const auto mu0TauXprecDbgI = mu0 * tauXprecD * SimdType(RealType(backgroundRates[i]));
+        const auto sigmaXprecDThetaOmega = sigmaXprecD * theta * omega;
+
+        const auto timeI = SimdType(RealType(times[i]));
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+            const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
+
+            const auto background =  adhoc::pdf_new(locDist * tauXprec) *
+                                     mask(timDiff != zero, mu0TauXprecDbgI);
+
+            const auto selfexcite = sigmaXprecDThetaOmega * mask(timDiff > zero,
+                                                                 adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
+
+            sum[0] += background;
+            sum[1] += selfexcite;
+        }
+
+        return reduce<SimdType,2>(sum);
+        ;
+    }
+
 
 // Parallelization helper functions
 
@@ -702,6 +744,8 @@ public:
 private:
     double sigmaXprec;
     double storedSigmaXprec;
+    double tauXprec;
+    double storedTauXprec;
     double omega;
     double storedOmega;
     double theta;
