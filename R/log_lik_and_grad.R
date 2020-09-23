@@ -62,7 +62,7 @@ integral <- function (params,obs_x,obs_t) {
   omega  <- params$omega
   se_int <- - theta * sum( exp(-omega*(obs_t[n]-obs_t))-1 )
 
-  return( params$mu_0+se_int )
+  return( n*params$mu_0+se_int )
 }
 
 log_lik <- function (params,obs_x,obs_t,backgroundRates) {

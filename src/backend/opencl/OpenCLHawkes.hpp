@@ -789,7 +789,7 @@ public:
 
         code <<
              "     likContribs[i] = log(scratch[0]) + theta *               \n" <<
-             "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) - mu0/locationCount; \n" <<
+             "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) - mu0; \n" <<
              "   }                                                                   \n" <<
              " }                                                                     \n ";
 
