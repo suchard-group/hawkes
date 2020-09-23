@@ -9,11 +9,12 @@ engineInitial(
   N,
   P,
   times,
-  parameters = c(1, 6),
+  parameters = c(1, 5),
   threads,
   simd,
   gpu,
-  single
+  single,
+  backgroundRates
 )
 }
 \arguments{
@@ -25,7 +26,7 @@ engineInitial(
 
 \item{times}{Vector of times.}
 
-\item{parameters}{Hawkes process parameters (length=6).}
+\item{parameters}{Hawkes process parameters (length=5).}
 
 \item{threads}{Number of CPU cores to be used.}
 

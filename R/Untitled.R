@@ -25,7 +25,7 @@ computeLoglikelihood <- function(locations, times, parameters,backgroundRates) {
 #'
 #' @param locations Matrix of spatial locations (nxp).
 #' @param times    Vector of times.
-#' @param params Hawkes process parameters (length=4).
+#' @param params Hawkes process parameters (length=5).
 #' @param backgroundRates Vector of observation specific background rates.
 #' @param threads Number of CPU cores to be used.
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
@@ -44,10 +44,9 @@ probability_se <- function(locations, times, params, backgroundRates,
     params2 <- list()
     params2$h     <- 1/params[1]
     params2$tau_x <- 1/params[2]
-    params2$tau_t <- 1/params[3]
-    params2$omega <- params[4]
-    params2$theta <- params[5]
-    params2$mu_0  <- params[6]
+    params2$omega <- params[3]
+    params2$theta <- params[4]
+    params2$mu_0  <- params[5]
     n <- dim(locations)[1]
     output <- rep(0,n)
     for (i in 1:n) {
@@ -97,18 +96,20 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
   times <- seq(from=1, to=locationCount, by=1)
   backgroundRates <- rexp(locationCount,100)
 
-  params <- rexp(4)
+  params <- rexp(5)
 
   engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
   engine <- hpHawkes::updateLocations(engine, locations)
   engine <- hpHawkes::setTimesData(engine, times)
   engine <- hpHawkes::setParameters(engine, params)
   engine <- hpHawkes::setBackgroundRates(engine, backgroundRates)
+
   params2 <- list()
   params2$h     <- 1/params[1]
-  params2$omega <- params[2]
-  params2$theta <- params[3]
-  params2$mu_0  <- params[4]
+  params2$tau_x     <- 1/params[2]
+  params2$omega <- params[3]
+  params2$theta <- params[4]
+  params2$mu_0  <- params[5]
 
   cat("logliks\n")
   print(hpHawkes::getLogLikelihood(engine))
@@ -116,6 +117,19 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
                              times=times,
                              parameters=params2,
                              backgroundRates = backgroundRates))
+
+  cat("sum probs se\n")
+  print(sum(hpHawkes::getProbsSelfExcite(engine)))
+
+  output <- rep(0,locationCount)
+  for (i in 1:locationCount) {
+    output[i] <- prob_se(x=locations[i,],
+                         t=times[i],
+                         params=params2,
+                         obs_x=locations, obs_t=times,
+                         backgroundRate=backgroundRates[i])
+  }
+  print(sum(output))
 }
 
 
@@ -142,7 +156,7 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
                       ncol = embeddingDimension, nrow = locationCount)
   times <- seq(from=1, to=locationCount, by=1)
 
-  params <- rexp(6)
+  params <- rexp(5)
 
   engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
   engine <- hpHawkes::updateLocations(engine, locations)
@@ -151,15 +165,13 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
   params2 <- list()
   params2$h     <- 1/params[1]
   params2$tau_x <- 1/params[2]
-  params2$tau_t <- 1/params[3]
-  params2$omega <- params[4]
-  params2$theta <- params[5]
-  params2$mu_0  <- params[6]
+  params2$omega <- params[3]
+  params2$theta <- params[4]
+  params2$mu_0  <- params[5]
 
   ptm <- proc.time()
   for(i in 1:maxIts){
     hpHawkes::getLogLikelihood(engine)
-    #hpHawkes::getGradient(engine)
   }
   proc.time() - ptm
 }
@@ -174,7 +186,7 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
 #' @param N Number of locations and size of distance matrix.
 #' @param P Dimension of locations.
 #' @param times    Vector of times.
-#' @param parameters Hawkes process parameters (length=6).
+#' @param parameters Hawkes process parameters (length=5).
 #' @param threads Number of CPU cores to be used.
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
 #' @param gpu Which GPU to use? If only 1 available, use \code{gpu=1}. Defaults to \code{0}, no GPU.
@@ -182,8 +194,8 @@ timeTest <- function(locationCount=5000, maxIts=1, threads=0, simd=0,gpu=0,singl
 #' @return MDS engine object.
 #'
 #' @export
-engineInitial <- function(locations,N,P,times,parameters=c(1,6),
-                          threads,simd,gpu,single) {
+engineInitial <- function(locations,N,P,times,parameters=c(1,5),
+                          threads,simd,gpu,single,backgroundRates) {
 
   # Build reusable object
   engine <- hpHawkes::createEngine(embeddingDimension = P,
@@ -199,6 +211,8 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 
   # Call every time precision changes
   engine <- hpHawkes::setParameters(engine, parameters = parameters)
+
+  engine <- hpHawkes::setBackgroundRates(engine,backgroundRates)
 
   return(engine)
 }
@@ -219,10 +233,9 @@ engineInitial <- function(locations,N,P,times,parameters=c(1,6),
 Potential <- function(engine,parameters,lbs,ubs) {
   logPrior <- log(truncnorm::dtruncnorm(x=parameters[1],sd=10,a=1/ubs[1],b=1/lbs[1])) +
               log(truncnorm::dtruncnorm(x=parameters[2],a=1/ubs[2],b=1/lbs[2])) +
-              log(truncnorm::dtruncnorm(x=parameters[3],a=1/ubs[3],b=1/lbs[3])) +
-              log(truncnorm::dtruncnorm(x=parameters[4],sd=10,a=1/ubs[4],b=1/lbs[4])) +
-              log(truncnorm::dtruncnorm(x=parameters[5],a=0)) +
-              log(truncnorm::dtruncnorm(x=parameters[6],a=0))
+              log(truncnorm::dtruncnorm(x=parameters[3],sd=10,a=1/ubs[3],b=1/lbs[3])) +
+              log(truncnorm::dtruncnorm(x=parameters[4],a=0)) +
+              log(truncnorm::dtruncnorm(x=parameters[5],a=0))
   logLikelihood <- hpHawkes::getLogLikelihood(engine)
 
   return(-logLikelihood-logPrior)
@@ -239,9 +252,10 @@ Potential <- function(engine,parameters,lbs,ubs) {
 #' @param locations N x P locations matrix.
 #' @param times Observation times.
 #' @param radius Standard deviations of proposal distributions.
-#' @param params Initial values of all parameters (lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal and self-excitatory and background rates, in order), default 1.
-#' @param upperbounds Vector of upper bounds on lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal, in order.
-#' @param lowerbounds Vector of lower bounds on lengthscales self-excitatory spatial, background spatial, background temporal and self-excitatory temporal, in order.
+#' @param backgroundRates N long vector of event specific background rates.
+#' @param params Initial values of all parameters (lengthscales self-excitatory spatial, background spatial, and self-excitatory temporal and self-excitatory and background rates, in order), default 1.
+#' @param upperbounds Vector of upper bounds on lengthscales self-excitatory spatial, background spatial and self-excitatory temporal, in order.
+#' @param lowerbounds Vector of lower bounds on lengthscales self-excitatory spatial, background spatial and self-excitatory temporal, in order.
 #' @param latentDimension Dimension of latent space. Integer ranging from 2 to 8.
 #' @param threads Number of CPU cores to be used.
 #' @param simd For CPU implementation: no SIMD (\code{0}), SSE (\code{1}) or AVX (\code{2}).
@@ -258,9 +272,10 @@ sampler <- function(n_iter,
                        locations=NULL,
                        times=NULL,
                        radius = 2,                 # radius for uniform proposals
-                       params=c(1,1,1,1,1,1),
-                       upperbounds=c(Inf,Inf,Inf,Inf),
-                       lowerbounds=c(0,0,0,0),
+                       params=c(1,1,1,1,1),
+                       backgroundRates,
+                       upperbounds=c(Inf,Inf,Inf),
+                       lowerbounds=c(0,0,0),
                        latentDimension=2,
                        threads=1,                     # number of CPU cores
                        simd=0,                        # simd = 0, 1, 2 for no simd, SSE, and AVX, respectively
@@ -282,12 +297,10 @@ sampler <- function(n_iter,
   if(params[1]>1/lowerbounds[1]) params[1] <- (1/lowerbounds[1]+1/upperbounds[1])/2
   if(params[2]>1/lowerbounds[2]) params[2] <- (1/lowerbounds[2]+1/upperbounds[2])/2
   if(params[3]>1/lowerbounds[3]) params[3] <- (1/lowerbounds[3]+1/upperbounds[3])/2
-  if(params[4]>1/lowerbounds[4]) params[4] <- (1/lowerbounds[4]+1/upperbounds[4])/2
 
   if(params[1]<1/upperbounds[1]) params[1] <- (1/lowerbounds[1]+1/upperbounds[1])/2
   if(params[2]<1/upperbounds[2]) params[2] <- (1/lowerbounds[2]+1/upperbounds[2])/2
   if(params[3]<1/upperbounds[3]) params[3] <- (1/lowerbounds[3]+1/upperbounds[3])/2
-  if(params[4]<1/upperbounds[4]) params[4] <- (1/lowerbounds[4]+1/upperbounds[4])/2
 
   # Set up the parameters
   NumOfIterations = n_iter
@@ -308,15 +321,16 @@ sampler <- function(n_iter,
   N <- dim(locations)[1]
 
   # Build reusable object to compute Loglikelihood (gradient)
-  engine <- engineInitial(locations,N,P,times,params,threads,simd,gpu,single)
+  engine <- engineInitial(locations,N,P,times,params,
+                          threads,simd,gpu,single,backgroundRates)
 
   engine <- hpHawkes::setParameters(engine,params)
 
   Accepted = 0;
-  Acceptances = rep(0,6) # total acceptances within adaptation run (<= SampBound)
-  SampBound = rep(5,6)   # current total samples before adapting radius
-  SampCount = rep(0,6)   # number of samples collected (adapt when = SampBound)
-  Radii  = rep(radius,6)
+  Acceptances = rep(0,5) # total acceptances within adaptation run (<= SampBound)
+  SampBound = rep(5,5)   # current total samples before adapting radius
+  SampCount = rep(0,5)   # number of samples collected (adapt when = SampBound)
+  Radii  = rep(radius,5)
   Proposed = 0;
 
   # Initialize the location
@@ -335,11 +349,11 @@ sampler <- function(n_iter,
     Proposed = Proposed + 1
 
     #propose new parameters with UNIVARIATE M-H proposal
-    index <- sample(1:6,size = 1) # random scan of 1:6 parameters
+    index <- sample(1:5,size = 1) # random scan of 1:6 parameters
 
     Former <- ProposedParams[index]
 
-    if (index<5) {
+    if (index<4) {
 
       ProposedParams[index] <- truncnorm::rtruncnorm(1,a=1/upperbounds[index],b=1/lowerbounds[index],
                                                      mean=ProposedParams[index],sd=Radii[index])

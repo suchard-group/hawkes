@@ -21,7 +21,7 @@ probability_se(
 
 \item{times}{Vector of times.}
 
-\item{params}{Hawkes process parameters (length=4).}
+\item{params}{Hawkes process parameters (length=5).}
 
 \item{backgroundRates}{Vector of observation specific background rates.}
 

@@ -546,11 +546,11 @@ public:
                     }
 
                     return xsimd::log(sumOfRates) +
-                           theta * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1) - mu0;
+                           theta * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1);
 
                 }, ParallelType());
 
-        return delta + locationCount * (embeddingDimension - 1) * log(M_1_SQRT_2PI);
+        return delta - mu0 + locationCount * (embeddingDimension - 1) * log(M_1_SQRT_2PI);
     }
 
     template <typename SimdType, int SimdSize, typename Algorithm>
