@@ -58,6 +58,7 @@ public:
           sumOfLikContribs(0.0), storedSumOfLikContribs(0.0),
 
           times(locationCount),
+          randomRates(locationCount), storedRandomRates(locationCount),
 
           likContribs(locationCount),
           storedLikContribs(locationCount),
@@ -140,6 +141,8 @@ public:
       };
 
       dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
+      dRandomRates = mm::GPUMemoryManager<RealType>(randomRates.size(), ctx);
+      dStoredRandomRates= mm::GPUMemoryManager<RealType>(storedRandomRates.size(), ctx);
 
         std::cerr << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 #endif //RBUILD
@@ -156,13 +159,6 @@ public:
         dLocationsPtr = &dLocations0;
         dStoredLocationsPtr = &dLocations1;
 
-
-        dSigmaXGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
-        dTauXGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
-        dTauTGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
-        dOmegaGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
-        dThetaGradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
-        dMu0GradContribs   = mm::GPUMemoryManager<RealType>(locationCount, ctx);
         dInnerGradsContribs = mm::GPUMemoryManager<RealType>(locationCount, ctx);
 
 		dLikContribs = mm::GPUMemoryManager<RealType>(likContribs.size(), ctx);
@@ -448,6 +444,7 @@ public:
         storedMu0 = mu0;
 
         storedLikContribs = likContribs;
+        storedRandomRates = randomRates;
 
         std::copy(begin(*locationsPtr), end(*locationsPtr),
                   begin(*storedLocationsPtr));
@@ -455,6 +452,7 @@ public:
         // COMPUTE
         boost::compute::copy(dLocationsPtr->begin(), dLocationsPtr->end(),
                              dStoredLocationsPtr->begin(), queue);
+
     }
 
     void acceptState() override {
@@ -490,6 +488,13 @@ public:
         theta = storedTheta;
         mu0 = storedMu0;
 
+        randomRates = storedRandomRates;
+        boost::compute::copy(
+                dStoredRandomRates.begin(),
+                dStoredRandomRates.end(),
+                dRandomRates.begin(), queue
+        );
+
         auto tmp1 = storedLocationsPtr;
         storedLocationsPtr = locationsPtr;
         locationsPtr = tmp1;
@@ -507,6 +512,15 @@ public:
 
         // COMPUTE
         mm::bufferedCopyToDevice(data, data + length, dTimes.begin(),
+                                 buffer, queue);
+    }
+
+    void setRandomRates(double* data, size_t length) override {
+        assert(length == randomRates.size());
+        mm::bufferedCopy(data, data + length, begin(randomRates), buffer);
+
+        // COMPUTE
+        mm::bufferedCopyToDevice(data, data + length, dRandomRates.begin(),
                                  buffer, queue);
     }
 
@@ -540,14 +554,15 @@ public:
         kernelLikContribsVector.set_arg(0, dLocations0);
         kernelLikContribsVector.set_arg(1, dTimes);
         kernelLikContribsVector.set_arg(2, dLikContribs);
-        kernelLikContribsVector.set_arg(3, static_cast<RealType>(sigmaXprec));
-        kernelLikContribsVector.set_arg(4, static_cast<RealType>(tauXprec));
-        kernelLikContribsVector.set_arg(5, static_cast<RealType>(tauTprec));
-        kernelLikContribsVector.set_arg(6, static_cast<RealType>(omega));
-        kernelLikContribsVector.set_arg(7, static_cast<RealType>(theta));
-        kernelLikContribsVector.set_arg(8, static_cast<RealType>(mu0));
-        kernelLikContribsVector.set_arg(9, boost::compute::int_(embeddingDimension));
-        kernelLikContribsVector.set_arg(10, boost::compute::uint_(locationCount));
+        kernelLikContribsVector.set_arg(3, dRandomRates);
+        kernelLikContribsVector.set_arg(4, static_cast<RealType>(sigmaXprec));
+        kernelLikContribsVector.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelLikContribsVector.set_arg(6, static_cast<RealType>(tauTprec));
+        kernelLikContribsVector.set_arg(7, static_cast<RealType>(omega));
+        kernelLikContribsVector.set_arg(8, static_cast<RealType>(theta));
+        kernelLikContribsVector.set_arg(9, static_cast<RealType>(mu0));
+        kernelLikContribsVector.set_arg(10, boost::compute::int_(embeddingDimension));
+        kernelLikContribsVector.set_arg(11, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelLikContribsVector, 0,
                 static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -786,12 +801,13 @@ public:
 			code << pdfString1Float;
 			code << safeExpStringFloat;
 		}
-        //TODO: possible speedup from smaller vector size to match embedding dimension (right now always 8)
+
 		code <<
 			" __kernel void computeLikContribs(__global const REAL_VECTOR *locations, \n" <<
 			"                                 __global const REAL *times,             \n" <<
 			"						          __global REAL *likContribs,             \n" <<
-            "                                 const REAL sigmaXprec,                  \n" <<
+			"						          __global REAL *randomRates,             \n" <<
+			"                                 const REAL sigmaXprec,                  \n" <<
             "                                 const REAL tauXprec,                    \n" <<
 			"                                 const REAL tauTprec,                    \n" <<
 			"                                 const REAL omega,                       \n" <<
@@ -833,9 +849,11 @@ public:
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL innerContrib = mu0TauXprecDTauTprec *
                                            pdf(distance * tauXprec) *
-                                           select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO))  +
+                                           select(ZERO, pdf(timDiff*tauTprec),
+                                                   (CAST)isnotequal(timDiff,ZERO))  +
                                            thetaSigmaXprecDOmega *
-                                           select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
+                                           select(ZERO, randomRates[j] * exp(-omega * timDiff),
+                                                   (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
         );
 
         code <<
@@ -854,7 +872,7 @@ public:
 
         code <<
              "     likContribs[i] = log(scratch[0]) + theta *               \n" <<
-             "       ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) -            \n" <<
+             "       randomRates[i] * ( exp(-omega*(times[locationCount-1]-times[i]))-1 ) -            \n" <<
              "       mu0 * ( cdf((times[locationCount-1]-times[i])*tauTprec)-             \n" <<
              "               cdf(-times[i]*tauTprec) )   ;                               \n" <<
              "   }                                                                   \n" <<
@@ -1480,6 +1498,8 @@ private:
     boost::compute::command_queue queue;
 
     mm::MemoryManager<RealType> times;
+    mm::MemoryManager<RealType> randomRates;
+    mm::MemoryManager<RealType> storedRandomRates;
 
     mm::MemoryManager<RealType> likContribs;
     mm::MemoryManager<RealType> storedLikContribs;
@@ -1489,16 +1509,10 @@ private:
     mm::MemoryManager<RealType> innerGradsContribs;
 
     mm::GPUMemoryManager<RealType> dTimes;
-
-	mm::GPUMemoryManager<RealType> dSigmaXGradContribs;
-    mm::GPUMemoryManager<RealType> dTauXGradContribs;
-    mm::GPUMemoryManager<RealType> dTauTGradContribs;
-    mm::GPUMemoryManager<RealType> dOmegaGradContribs;
-    mm::GPUMemoryManager<RealType> dThetaGradContribs;
-    mm::GPUMemoryManager<RealType> dMu0GradContribs;
+    mm::GPUMemoryManager<RealType> dRandomRates;
+    mm::GPUMemoryManager<RealType> dStoredRandomRates;
 
     mm::GPUMemoryManager<RealType> dInnerGradsContribs;
-    mm::GPUMemoryManager<VectorType> dGradContribs;
     mm::GPUMemoryManager<VectorType> dGradient;
 
     mm::MemoryManager<RealType> locations0;

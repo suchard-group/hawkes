@@ -211,6 +211,9 @@ public:
           probsSelfExcite(locationCount),
           probsSelfExcitePtr(&probsSelfExcite),
 
+          randomRates(locationCount),
+          randomRatesPtr(&randomRates),
+
           likContribs(locationCount),
           storedLikContribs(locationCount),
 
@@ -324,6 +327,11 @@ public:
     void setTimesData(double* data, size_t length) {
         assert(length == times.size());
         mm::bufferedCopy(data, data + length, begin(times), buffer);
+    }
+
+    void setRandomRates(double* data, size_t length) {
+        assert(length == randomRates.size());
+        mm::bufferedCopy(data, data + length, begin(randomRates), buffer);
     }
 
     void getProbsSelfExcite(double* result, size_t length) {
@@ -481,12 +489,13 @@ public:
 
             const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
+            const auto rndmRts = SimdHelper<SimdType, RealType>::get(&randomRates[j]);
 
             const auto rate =  mu0TauXprecDTauTprec *
                     mask(timDiff!=zero, adhoc::pdf_new(locDist * tauXprec) *
                      adhoc::pdf_new(timDiff * tauTprec)) +
                     sigmaXprecDThetaOmega * mask(timDiff > zero,
-                         adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
+                         rndmRts * adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
 
             sum += rate;
         }
@@ -737,7 +746,7 @@ public:
                     }
 
                     return xsimd::log(sumOfRates) +
-                           theta * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1) -
+                           theta * randomRates[i] * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1) -
                            mu0 * (adhoc::exp(math::phi_new(tauTprec * (times[locationCount - 1] - times[i]))) -
                                 adhoc::exp(math::phi_new(tauTprec * (-times[i]))));
 
@@ -952,6 +961,9 @@ private:
     double storedSumOfLikContribs;
 
     mm::MemoryManager<RealType> times;
+
+    mm::MemoryManager<RealType> randomRates;
+    mm::MemoryManager<RealType>* randomRatesPtr;
 
     mm::MemoryManager<RealType> locations0;
     mm::MemoryManager<RealType> locations1;

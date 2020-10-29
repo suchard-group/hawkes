@@ -46,6 +46,7 @@ public:
     virtual void storeState() = 0;
     virtual void restoreState() = 0;
     virtual void acceptState() = 0;
+    virtual void setRandomRates(double*, size_t)  = 0;
     virtual void setTimesData(double*, size_t)  = 0;
     virtual void setParameters(double*, size_t) = 0;
     virtual int getInternalDimension() = 0;

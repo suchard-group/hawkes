@@ -162,6 +162,12 @@ int main(int argc, char* argv[]) {
 	}
     instance->setTimesData(&times[0], locationCount);
 
+    std::vector<double> randomRates(locationCount);
+    for (int i = 0; i < locationCount; ++i) {
+        randomRates[i] = expo(prng);
+    }
+    instance->setRandomRates(&randomRates[0], locationCount);
+
     int dataDimension = internalDimension ? instance->getInternalDimension() : embeddingDimension;
 
     std::vector<double> location(dataDimension);
