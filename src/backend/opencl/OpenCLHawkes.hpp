@@ -411,14 +411,15 @@ public:
         kernelProbsSelfExcite.set_arg(0, dLocations0);
         kernelProbsSelfExcite.set_arg(1, dTimes);
         kernelProbsSelfExcite.set_arg(2, dProbsSelfExcite);
-        kernelProbsSelfExcite.set_arg(3, static_cast<RealType>(sigmaXprec));
-        kernelProbsSelfExcite.set_arg(4, static_cast<RealType>(tauXprec));
-        kernelProbsSelfExcite.set_arg(5, static_cast<RealType>(tauTprec));
-        kernelProbsSelfExcite.set_arg(6, static_cast<RealType>(omega));
-        kernelProbsSelfExcite.set_arg(7, static_cast<RealType>(theta));
-        kernelProbsSelfExcite.set_arg(8, static_cast<RealType>(mu0));
-        kernelProbsSelfExcite.set_arg(9, boost::compute::int_(embeddingDimension));
-        kernelProbsSelfExcite.set_arg(10, boost::compute::uint_(locationCount));
+        kernelProbsSelfExcite.set_arg(3, dRandomRates);
+        kernelProbsSelfExcite.set_arg(4, static_cast<RealType>(sigmaXprec));
+        kernelProbsSelfExcite.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelProbsSelfExcite.set_arg(6, static_cast<RealType>(tauTprec));
+        kernelProbsSelfExcite.set_arg(7, static_cast<RealType>(omega));
+        kernelProbsSelfExcite.set_arg(8, static_cast<RealType>(theta));
+        kernelProbsSelfExcite.set_arg(9, static_cast<RealType>(mu0));
+        kernelProbsSelfExcite.set_arg(10, boost::compute::int_(embeddingDimension));
+        kernelProbsSelfExcite.set_arg(11, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelProbsSelfExcite, 0,
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -986,6 +987,7 @@ public:
              " __kernel void computeProbsSelfExcite(__global const REAL_VECTOR *locations, \n" <<
              "                                 __global const REAL *times,             \n" <<
              "						          __global REAL *probsSelfExcite,             \n" <<
+             "                                __global REAL *randomRates,                \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
              "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL tauTprec,                    \n" <<
@@ -1035,7 +1037,8 @@ public:
 
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
                 const REAL selfexcite = thetaSigmaXprecDOmega *
-                                          select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
+                                          select(ZERO, randomRates[j] * exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) *
+                                          pdf(distance * sigmaXprec);
         );
 
         code <<

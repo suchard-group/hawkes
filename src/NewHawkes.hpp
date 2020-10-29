@@ -799,12 +799,14 @@ public:
 
             const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
+            const auto rndmRts = SimdHelper<SimdType, RealType>::get(&randomRates[j]);
 
             const auto background =  mu0TauXprecDTauTprec *
                     mask(timDiff != zero,  adhoc::pdf_new(locDist * tauXprec) * adhoc::pdf_new(timDiff * tauTprec));
 
-            const auto selfexcite = sigmaXprecDThetaOmega * mask(timDiff > zero,
-                                                                 adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
+            const auto selfexcite = sigmaXprecDThetaOmega *
+                    mask(timDiff > zero,
+                            rndmRts * adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
 
             sum[0] += background;
             sum[1] += selfexcite;
