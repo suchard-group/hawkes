@@ -17,6 +17,10 @@ getLogLikelihood <- function(engine) {
     stop("times not set")
   }
 
+  if (!engine$randomRatesInitialized) {
+    stop("random rates not set")
+  }
+
   if (is.null(engine$parameters)) {
     stop("parameters not set")
   }
@@ -48,6 +52,10 @@ getProbsSelfExcite <- function(engine) {
     stop("times not set")
   }
 
+  if (!engine$randomRatesInitialized) {
+    stop("random rates not set")
+  }
+
   if (is.null(engine$parameters)) {
     stop("parameters not set")
   }
@@ -72,6 +80,10 @@ getGradient <- function(engine) {
 
   if (!engine$timesInitialized) {
     stop("times not set")
+  }
+
+  if (!engine$randomRatesInitialized) {
+    stop("random rates not set")
   }
 
   if (is.null(engine$parameters)) {
@@ -113,6 +125,28 @@ setTimesData <- function(engine, data) {
   }
   .setTimesData(engine$engine, data)
   engine$timesInitialized <- TRUE
+  return(engine)
+}
+
+#' Deliver random rates vector to HPH engine object
+#'
+#' Helper function delivers random rates vector to HPH engine object.
+#'
+#' @param engine HPH engine object.
+#' @param data Random rates vector.
+#' @return HPH engine object.
+#'
+#' @export
+setRandomRates <- function(engine, data) {
+  data <- as.vector(data)
+  if (length(data) != engine$locationCount) {
+    stop("Invalid data size")
+  }
+  if (any(data<=0)) {
+    stop("Random rates must be positive.")
+  }
+  .setRandomRates(engine$engine, data)
+  engine$randomRatesInitialized <- TRUE
   return(engine)
 }
 

@@ -629,17 +629,19 @@ public:
         const auto zero = SimdType(RealType(0));
 
         const auto timeI = SimdType(RealType(times[i]));
+        const auto rndmRtsI = SimdType(RealType(randomRates[i]));
 
         for (int j = begin; j < end; j += SimdSize) {
 
             const auto locDist = dispatch.calculate(j);
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
+            const auto rndmRtsJ = SimdHelper<SimdType, RealType>::get(&randomRates[j]);
 
             const auto baseRate = mask(timDiff!=zero, mu0TauXprecDTauTprec *
             adhoc::pdf_new(locDist * tauXprec) * adhoc::pdf_new(timDiff * tauTprec));
-            const auto seRateNNprime = mask(timDiff > zero, sigmaXprecDThetaOmega *
+            const auto seRateNNprime = mask(timDiff > zero, rndmRtsJ * sigmaXprecDThetaOmega *
                                                                     adhoc::exp(-omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
-            const auto seRateNprimeN =  mask(timDiff < zero, sigmaXprecDThetaOmega *
+            const auto seRateNprimeN =  mask(timDiff < zero, rndmRtsI * sigmaXprecDThetaOmega *
                                                                     adhoc::exp(omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
             const auto nNprimeGradContrib = tauXprec2 * baseRate + sigmaXprec2 * seRateNNprime;
             const auto nprimeNGradContrib = (tauXprec2 * baseRate + sigmaXprec2 * seRateNprimeN);

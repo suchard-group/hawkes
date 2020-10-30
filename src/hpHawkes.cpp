@@ -100,6 +100,7 @@ Rcpp::List createEngine(int embeddingDimension, int locationCount, int tbb, int 
     Rcpp::Named("locationCount") = locationCount,
     Rcpp::Named("timesInitialized") = false,
     Rcpp::Named("locationsInitialized") = false,
+    Rcpp::Named("randomRatesInitialized") = false,
     Rcpp::Named("threads") = threads,
     Rcpp::Named("deviceNumber") = deviceNumber,
     Rcpp::Named("flags") = flags
@@ -113,6 +114,13 @@ void setTimesData(SEXP sexp,
                      std::vector<double>& data) {
   auto ptr = parsePtr(sexp);
   ptr->setTimesData(&data[0], data.size());
+}
+
+// [[Rcpp::export(.setRandomRates)]]
+void setRandomRates(SEXP sexp,
+                  std::vector<double>& data) {
+  auto ptr = parsePtr(sexp);
+  ptr->setRandomRates(&data[0], data.size());
 }
 
 // [[Rcpp::export(.setParameters)]]

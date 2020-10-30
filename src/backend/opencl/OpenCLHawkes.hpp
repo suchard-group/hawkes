@@ -349,14 +349,15 @@ public:
         kernelInnerGradsLoop.set_arg(0, dLocations0);
         kernelInnerGradsLoop.set_arg(1, dTimes);
         kernelInnerGradsLoop.set_arg(2, dInnerGradsContribs);
-        kernelInnerGradsLoop.set_arg(3, static_cast<RealType>(sigmaXprec));
-        kernelInnerGradsLoop.set_arg(4, static_cast<RealType>(tauXprec));
-        kernelInnerGradsLoop.set_arg(5, static_cast<RealType>(tauTprec));
-        kernelInnerGradsLoop.set_arg(6, static_cast<RealType>(omega));
-        kernelInnerGradsLoop.set_arg(7, static_cast<RealType>(theta));
-        kernelInnerGradsLoop.set_arg(8, static_cast<RealType>(mu0));
-        kernelInnerGradsLoop.set_arg(9, boost::compute::int_(embeddingDimension));
-        kernelInnerGradsLoop.set_arg(10, boost::compute::uint_(locationCount));
+        kernelInnerGradsLoop.set_arg(3, dRandomRates);
+        kernelInnerGradsLoop.set_arg(4, static_cast<RealType>(sigmaXprec));
+        kernelInnerGradsLoop.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelInnerGradsLoop.set_arg(6, static_cast<RealType>(tauTprec));
+        kernelInnerGradsLoop.set_arg(7, static_cast<RealType>(omega));
+        kernelInnerGradsLoop.set_arg(8, static_cast<RealType>(theta));
+        kernelInnerGradsLoop.set_arg(9, static_cast<RealType>(mu0));
+        kernelInnerGradsLoop.set_arg(10, boost::compute::int_(embeddingDimension));
+        kernelInnerGradsLoop.set_arg(11, boost::compute::uint_(locationCount));
 
         queue.enqueue_1d_range_kernel(kernelInnerGradsLoop, 0,
                                       static_cast<unsigned int>(locationCount) * TPB, TPB);
@@ -366,14 +367,15 @@ public:
         kernelGradientVector.set_arg(1, dTimes);
         kernelGradientVector.set_arg(2, dInnerGradsContribs);
         kernelGradientVector.set_arg(3, dGradient);
-        kernelGradientVector.set_arg(4, static_cast<RealType>(sigmaXprec));
-        kernelGradientVector.set_arg(5, static_cast<RealType>(tauXprec));
-        kernelGradientVector.set_arg(6, static_cast<RealType>(tauTprec));
-        kernelGradientVector.set_arg(7, static_cast<RealType>(omega));
-        kernelGradientVector.set_arg(8, static_cast<RealType>(theta));
-        kernelGradientVector.set_arg(9, static_cast<RealType>(mu0));
-        kernelGradientVector.set_arg(10, boost::compute::int_(embeddingDimension));
-        kernelGradientVector.set_arg(11, boost::compute::uint_(locationCount));
+        kernelGradientVector.set_arg(4, dRandomRates);
+        kernelGradientVector.set_arg(5, static_cast<RealType>(sigmaXprec));
+        kernelGradientVector.set_arg(6, static_cast<RealType>(tauXprec));
+        kernelGradientVector.set_arg(7, static_cast<RealType>(tauTprec));
+        kernelGradientVector.set_arg(8, static_cast<RealType>(omega));
+        kernelGradientVector.set_arg(9, static_cast<RealType>(theta));
+        kernelGradientVector.set_arg(10, static_cast<RealType>(mu0));
+        kernelGradientVector.set_arg(11, boost::compute::int_(embeddingDimension));
+        kernelGradientVector.set_arg(12, boost::compute::uint_(locationCount));
 
 
         queue.enqueue_1d_range_kernel(kernelGradientVector, 0,
@@ -807,7 +809,7 @@ public:
 			" __kernel void computeLikContribs(__global const REAL_VECTOR *locations, \n" <<
 			"                                 __global const REAL *times,             \n" <<
 			"						          __global REAL *likContribs,             \n" <<
-			"						          __global REAL *randomRates,             \n" <<
+			"						          __global const REAL *randomRates,             \n" <<
 			"                                 const REAL sigmaXprec,                  \n" <<
             "                                 const REAL tauXprec,                    \n" <<
 			"                                 const REAL tauTprec,                    \n" <<
@@ -987,7 +989,7 @@ public:
              " __kernel void computeProbsSelfExcite(__global const REAL_VECTOR *locations, \n" <<
              "                                 __global const REAL *times,             \n" <<
              "						          __global REAL *probsSelfExcite,             \n" <<
-             "                                __global REAL *randomRates,                \n" <<
+             "                                __global const REAL *randomRates,                \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
              "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL tauTprec,                    \n" <<
@@ -1176,6 +1178,7 @@ public:
              " __kernel void innerGradsLoop(__global const REAL_VECTOR *locations, \n" <<
              "                                 __global const REAL *times,             \n" <<
              "						          __global REAL *output,       \n" <<
+             "                                __global const REAL *randomRates,                \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
              "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL tauTprec,                    \n" <<
@@ -1220,7 +1223,7 @@ public:
                                           pdf(distance * tauXprec) *
                                           select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO))  +
                                           thetaSigmaXprecDOmega *
-                                          select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
+                                          select(ZERO, randomRates[j] * exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO)) * pdf(distance * sigmaXprec);
         );
 
         code <<
@@ -1351,6 +1354,7 @@ public:
              "                                 __global const REAL *times,             \n" <<
              "                                 __global const REAL *innerGradsContribs, \n" <<
              "						          __global REAL_VECTOR *output,           \n" <<
+             "                                __global const REAL *randomRates,                \n" <<
              "                                 const REAL sigmaXprec,                  \n" <<
              "                                 const REAL tauXprec,                    \n" <<
              "                                 const REAL tauTprec,                    \n" <<
@@ -1401,8 +1405,8 @@ public:
                 const REAL pdfLocDistSigmaXPrec = pdf(locDist * sigmaXprec);
                 const REAL pdfLocDistTauXPrec = pdf(locDist * tauXprec);
                 const REAL pdfTimDiffTauTPrec = select(ZERO, pdf(timDiff*tauTprec), (CAST)isnotequal(timDiff,ZERO));//pdf(timDiff * tauTprec);
-                const REAL expOmegaTimDiffNNprime = select(ZERO, exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO));
-                const REAL expOmegaTimDiffNprimeN = select(ZERO, exp(omega * timDiff), (CAST)isless(timDiff,ZERO));
+                const REAL expOmegaTimDiffNNprime = select(ZERO, randomRates[j] * exp(-omega * timDiff), (CAST)isgreater(timDiff,ZERO));
+                const REAL expOmegaTimDiffNprimeN = select(ZERO, randomRates[i] * exp(omega * timDiff), (CAST)isless(timDiff,ZERO));
 
                 const REAL baseRate = pdfLocDistTauXPrec * pdfTimDiffTauTPrec;
                 const REAL seRateNNprime = pdfLocDistSigmaXPrec * expOmegaTimDiffNNprime;

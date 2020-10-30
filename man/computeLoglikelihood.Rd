@@ -4,12 +4,20 @@
 \alias{computeLoglikelihood}
 \title{Serially computed Hawkes process log likelihood and gradient}
 \usage{
-computeLoglikelihood(locations, times, parameters, gradient = FALSE)
+computeLoglikelihood(
+  locations,
+  times,
+  randomRates,
+  parameters,
+  gradient = FALSE
+)
 }
 \arguments{
 \item{locations}{Matrix of spatial locations (nxp).}
 
-\item{times}{Vector of times.}
+\item{times}{Vector of times (length=n).}
+
+\item{randomRates}{Vector of random rates (length=n).}
 
 \item{parameters}{Hawkes process parameters (length=6).}
 

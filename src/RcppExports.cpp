@@ -42,6 +42,17 @@ BEGIN_RCPP
     return R_NilValue;
 END_RCPP
 }
+// setRandomRates
+void setRandomRates(SEXP sexp, std::vector<double>& data);
+RcppExport SEXP _hpHawkes_setRandomRates(SEXP sexpSEXP, SEXP dataSEXP) {
+BEGIN_RCPP
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type sexp(sexpSEXP);
+    Rcpp::traits::input_parameter< std::vector<double>& >::type data(dataSEXP);
+    setRandomRates(sexp, data);
+    return R_NilValue;
+END_RCPP
+}
 // setParameters
 void setParameters(SEXP sexp, std::vector<double>& parameters);
 RcppExport SEXP _hpHawkes_setParameters(SEXP sexpSEXP, SEXP parametersSEXP) {
@@ -104,6 +115,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpHawkes_rcpp_hello", (DL_FUNC) &_hpHawkes_rcpp_hello, 0},
     {"_hpHawkes_createEngine", (DL_FUNC) &_hpHawkes_createEngine, 6},
     {"_hpHawkes_setTimesData", (DL_FUNC) &_hpHawkes_setTimesData, 2},
+    {"_hpHawkes_setRandomRates", (DL_FUNC) &_hpHawkes_setRandomRates, 2},
     {"_hpHawkes_setParameters", (DL_FUNC) &_hpHawkes_setParameters, 2},
     {"_hpHawkes_getLogLikelihoodGradient", (DL_FUNC) &_hpHawkes_getLogLikelihoodGradient, 2},
     {"_hpHawkes_getProbsSelfExcite", (DL_FUNC) &_hpHawkes_getProbsSelfExcite, 2},

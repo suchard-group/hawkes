@@ -249,7 +249,7 @@ int main(int argc, char* argv[]) {
 	std::cout << "End HPH benchmark" << std::endl;
 	std::cout << "AvgLogLik = " << logLik << std::endl;
     std::cout << "AvgProbSE = " << std::accumulate(sumProbSEs.begin(), sumProbSEs.end(), 0.0) / iterations / locationCount << std::endl;
-    std::cout << "AvgGradient = " << std::accumulate(sumGradient.begin(), sumGradient.end(), 0.0) / iterations / locationCount << std::endl;
+    std::cout << "TotalGradient = " << std::accumulate(sumGradient.begin(), sumGradient.end(), 0.0)  << std::endl;
 	std::cout << timer  << " ms" << std::endl;
     std::cout << timer2 << " ms" << std::endl;
     std::cout << timer3 << " ms" << std::endl;

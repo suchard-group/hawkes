@@ -6,18 +6,19 @@
 #' Slow. Not recommended for use.
 #'
 #' @param locations Matrix of spatial locations (nxp).
-#' @param times    Vector of times.
+#' @param times    Vector of times (length=n).
+#' @param randomRates Vector of random rates (length=n).
 #' @param parameters Hawkes process parameters (length=6).
 #' @param gradient Return gradient (or log likelihood)? Defaults to FALSE.
 #' @return Hawkes process log likelihood or its gradient.
 #'
 #' @export
-computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE) {
+computeLoglikelihood <- function(locations, times, randomRates, parameters, gradient = FALSE) {
 
   wrap_func <- function (x){ # takes vector x
     return(log_lik(params=parameters,
                    obs_x=matrix(x,nrow=dim(locations)[1],ncol=dim(locations)[2]),
-                   obs_t=times))
+                   obs_t=times, randomRates=randomRates))
   }
 
   if (gradient) {
@@ -25,7 +26,8 @@ computeLoglikelihood <- function(locations, times, parameters, gradient = FALSE)
     gradLogLikelihood <- matrix(gradLogLikelihood,nrow=dim(locations)[1],ncol=dim(locations)[2])
     return(gradLogLikelihood)
   } else {
-    logLikelihood <- log_lik(params=parameters,obs_x=locations,obs_t=times)
+    logLikelihood <- log_lik(params=parameters,obs_x=locations,
+                             obs_t=times, randomRates=randomRates)
     return(logLikelihood)
   }
 }
@@ -101,16 +103,18 @@ probability_se <- function(locations, times, params,
 test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
 
   set.seed(666)
-  embeddingDimension <- 3
+  embeddingDimension <- 2
 
   locations <- matrix(rnorm(n = locationCount * embeddingDimension),
                  ncol = embeddingDimension, nrow = locationCount)
   times <- seq(from=1, to=locationCount, by=1)
+  randomRates <- rexp(locationCount)
 
   params <- rexp(6)
 
   engine <- hpHawkes::createEngine(embeddingDimension, locationCount, threads, simd, gpu,single)
   engine <- hpHawkes::updateLocations(engine, locations)
+  engine <- hpHawkes::setRandomRates(engine, randomRates)
   engine <- hpHawkes::setTimesData(engine, times)
   engine <- hpHawkes::setParameters(engine, params)
   params2 <- list()
@@ -125,14 +129,16 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
   print(hpHawkes::getLogLikelihood(engine))
   print(computeLoglikelihood(locations=locations,
                              times=times,
-                             parameters=params2))
+                             parameters=params2,
+                             randomRates = randomRates))
 
  cat("grads\n")
  hphGrad <- hpHawkes::getGradient(engine)
  print(hphGrad)
  naiveGrad <- computeLoglikelihood(locations=locations,
                                    times=times,
-                                   parameters=params2,gradient = TRUE)
+                                   parameters=params2,gradient = TRUE,
+                                   randomRates = randomRates)
  print(naiveGrad)
  cat("max absolute difference between gradients:\n",max(abs(hphGrad-naiveGrad)))
 }

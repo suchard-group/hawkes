@@ -27,6 +27,10 @@ createEngine <- function(embeddingDimension, locationCount, tbb, simd, gpu, sing
     invisible(.Call('_hpHawkes_setTimesData', PACKAGE = 'hpHawkes', sexp, data))
 }
 
+.setRandomRates <- function(sexp, data) {
+    invisible(.Call('_hpHawkes_setRandomRates', PACKAGE = 'hpHawkes', sexp, data))
+}
+
 .setParameters <- function(sexp, parameters) {
     invisible(.Call('_hpHawkes_setParameters', PACKAGE = 'hpHawkes', sexp, parameters))
 }
