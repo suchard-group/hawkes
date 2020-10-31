@@ -107,6 +107,8 @@ public:
       };
 
       dTimes = mm::GPUMemoryManager<RealType>(times.size(), ctx);
+      dRandomRates = mm::GPUMemoryManager<RealType>(randomRates.size(), ctx);
+      dStoredRandomRates= mm::GPUMemoryManager<RealType>(storedRandomRates.size(), ctx);
 
       Rcpp::Rcout << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 
@@ -519,7 +521,7 @@ public:
     }
 
     void setRandomRates(double* data, size_t length) override {
-        assert(length == randomRates.size());
+        assert(length == locationCount);
         mm::bufferedCopy(data, data + length, begin(randomRates), buffer);
 
         // COMPUTE

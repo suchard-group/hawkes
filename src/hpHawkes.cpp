@@ -117,10 +117,9 @@ void setTimesData(SEXP sexp,
 }
 
 // [[Rcpp::export(.setRandomRates)]]
-void setRandomRates(SEXP sexp,
-                  std::vector<double>& data) {
+void setRandomRates(SEXP sexp, std::vector<double>& randomRates) {
   auto ptr = parsePtr(sexp);
-  ptr->setRandomRates(&data[0], data.size());
+  ptr->setRandomRates(&randomRates[0], randomRates.size());
 }
 
 // [[Rcpp::export(.setParameters)]]

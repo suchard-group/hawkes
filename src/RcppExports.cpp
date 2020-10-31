@@ -43,13 +43,13 @@ BEGIN_RCPP
 END_RCPP
 }
 // setRandomRates
-void setRandomRates(SEXP sexp, std::vector<double>& data);
-RcppExport SEXP _hpHawkes_setRandomRates(SEXP sexpSEXP, SEXP dataSEXP) {
+void setRandomRates(SEXP sexp, std::vector<double>& randomRates);
+RcppExport SEXP _hpHawkes_setRandomRates(SEXP sexpSEXP, SEXP randomRatesSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type sexp(sexpSEXP);
-    Rcpp::traits::input_parameter< std::vector<double>& >::type data(dataSEXP);
-    setRandomRates(sexp, data);
+    Rcpp::traits::input_parameter< std::vector<double>& >::type randomRates(randomRatesSEXP);
+    setRandomRates(sexp, randomRates);
     return R_NilValue;
 END_RCPP
 }
