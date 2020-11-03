@@ -13,7 +13,7 @@
 #include <Rcpp.h>
 #endif
 
-#define DEBUG_KERNELS
+//#define DEBUG_KERNELS
 
 #define SSE
 //#undef SSE

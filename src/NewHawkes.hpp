@@ -214,6 +214,9 @@ public:
           randomRates(locationCount),
           randomRatesPtr(&randomRates),
 
+          randomRatesGradient(locationCount),
+          randomRatesGradientPtr(&randomRates),
+
           likContribs(locationCount),
           storedLikContribs(locationCount),
 
@@ -359,8 +362,9 @@ public:
 
     void getRandomRatesLogLikelihoodGradient(double* result, size_t length) {
         assert (length == locationCount);
-//        computeProbsSelfExcite<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
-//        mm::bufferedCopy(std::begin(*probsSelfExcitePtr), std::end(*probsSelfExcitePtr), result, buffer);
+        computePreGradientLoopGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+        computeRandomRatesLogLikelihoodGradientGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+        mm::bufferedCopy(std::begin(*randomRatesGradientPtr), std::end(*randomRatesGradientPtr), result, buffer);
     }
 
 
@@ -551,6 +555,64 @@ public:
 
 	    return pack;
 	}
+
+    template <typename SimdType, int SimdSize, typename Algorithm>
+    void computeRandomRatesLogLikelihoodGradientGeneric() {
+
+        const auto length = locationCount;
+        if (length != randomRatesGradientPtr->size()) {
+            randomRatesGradientPtr->resize(length);
+        }
+
+        std::fill(std::begin(*randomRatesGradientPtr), std::end(*randomRatesGradientPtr),
+                  static_cast<RealType>(0.0));
+
+        const auto sigmaXprecDThetaOmega = pow(sigmaXprec, embeddingDimension) * theta * omega;
+
+        for_each(0, locationCount, [this, sigmaXprecDThetaOmega](const int i) {
+
+            const int vectorCount = locationCount - locationCount % SimdSize;
+
+            DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+            innerRandomRatesGradientLoop<SimdType, SimdSize>(dispatch, sigmaXprecDThetaOmega,
+                    i, 0, vectorCount);
+
+            if (vectorCount < locationCount) { // Edge-cases
+                DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+                innerRandomRatesGradientLoop<RealType, 1>(dispatch, sigmaXprecDThetaOmega,
+                        i, vectorCount, locationCount);
+            }
+
+            (*randomRatesGradientPtr)[i] += theta * (adhoc::exp(-omega * (times[locationCount - 1] - times[i])) - 1);
+        }, ParallelType());
+    }
+
+    template <typename SimdType, int SimdSize, typename DispatchType>
+    void innerRandomRatesGradientLoop(const DispatchType& dispatch,
+                       const RealType sigmaXprecDThetaOmega,
+                       const int i, const int begin, const int end) {
+
+        const auto zero = SimdType(RealType(0));
+
+        const auto timeI = SimdType(RealType(times[i]));
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+            const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
+
+            const auto rate = sigmaXprecDThetaOmega * mask(timDiff < zero,
+                    adhoc::exp(omega * timDiff) * adhoc::pdf_new(locDist * sigmaXprec));
+
+            for (int k = 0; k < SimdSize; ++k) {
+                (*randomRatesGradientPtr)[i] += getScalar(rate, k) / (*preGradientPtr)[j+k];
+            }
+
+        }
+
+    }
+
+
 
     template <typename SimdType, int SimdSize, typename Algorithm>
     void computeLogLikelihoodGradientGeneric() {
@@ -974,6 +1036,9 @@ private:
 
     mm::MemoryManager<RealType> randomRates;
     mm::MemoryManager<RealType>* randomRatesPtr;
+
+    mm::MemoryManager<RealType> randomRatesGradient;
+    mm::MemoryManager<RealType>* randomRatesGradientPtr;
 
     mm::MemoryManager<RealType> locations0;
     mm::MemoryManager<RealType> locations1;
