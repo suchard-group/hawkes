@@ -357,6 +357,12 @@ public:
 		mm::bufferedCopy(std::begin(*gradientPtr), std::end(*gradientPtr), result, buffer);
     }
 
+    void getRandomRatesLogLikelihoodGradient(double* result, size_t length) {
+        assert (length == locationCount);
+//        computeProbsSelfExcite<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+//        mm::bufferedCopy(std::begin(*probsSelfExcitePtr), std::end(*probsSelfExcitePtr), result, buffer);
+    }
+
 
 #ifdef USE_SIMD
 
