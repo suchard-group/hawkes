@@ -13,17 +13,28 @@
 #' @return Hawkes process log likelihood or its gradient.
 #'
 #' @export
-computeLoglikelihood <- function(locations, times, randomRates, parameters, gradient = FALSE) {
+computeLoglikelihood <- function(locations, times, randomRates, parameters, locationsGradient = FALSE, randomRatesGradient=FALSE) {
 
-  wrap_func <- function (x){ # takes vector x
+  wrap_func1 <- function (x){ # takes vector x
     return(log_lik(params=parameters,
                    obs_x=matrix(x,nrow=dim(locations)[1],ncol=dim(locations)[2]),
                    obs_t=times, randomRates=randomRates))
   }
 
-  if (gradient) {
-    gradLogLikelihood <- numDeriv::grad(wrap_func,x=as.vector(locations))
+  wrap_func2 <- function (x){ # takes vector x
+    return(log_lik(params=parameters,
+                   obs_x=locations,
+                   obs_t=times, randomRates=x))
+  }
+
+  if (locationsGradient & randomRatesGradient) {
+    stop("One gradient at a time, please.")
+  } else if (locationsGradient) {
+    gradLogLikelihood <- numDeriv::grad(wrap_func1,x=as.vector(locations))
     gradLogLikelihood <- matrix(gradLogLikelihood,nrow=dim(locations)[1],ncol=dim(locations)[2])
+    return(gradLogLikelihood)
+  } else if (randomRatesGradient) {
+    gradLogLikelihood <- numDeriv::grad(wrap_func2,x=randomRates)
     return(gradLogLikelihood)
   } else {
     logLikelihood <- log_lik(params=parameters,obs_x=locations,
@@ -132,15 +143,25 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
                              parameters=params2,
                              randomRates = randomRates))
 
- cat("grads\n")
+ cat("locations grads\n")
  hphGrad <- hpHawkes::getGradient(engine)
  print(hphGrad)
  naiveGrad <- computeLoglikelihood(locations=locations,
                                    times=times,
-                                   parameters=params2,gradient = TRUE,
+                                   parameters=params2,locationsGradient = TRUE,
                                    randomRates = randomRates)
  print(naiveGrad)
- cat("max absolute difference between gradients:\n",max(abs(hphGrad-naiveGrad)))
+ cat("max absolute difference between locations gradients:\n",max(abs(hphGrad-naiveGrad)),"\n")
+
+ cat("random rates grads\n")
+ hphGrad <- hpHawkes::getRandomRatesGradient(engine)
+ print(hphGrad)
+ naiveGrad <- computeLoglikelihood(locations=locations,
+                                   times=times,
+                                   parameters=params2,randomRatesGradient = TRUE,
+                                   randomRates = randomRates)
+ print(naiveGrad)
+ cat("max absolute difference between random rates gradients:\n",max(abs(hphGrad-naiveGrad)),"\n")
 }
 
 

@@ -144,6 +144,14 @@ std::vector<double> getProbsSelfExcite(SEXP sexp, size_t len) {
   return result;
 }
 
+// [[Rcpp::export(.getRandomRatesLogLikelihoodGradient)]]
+std::vector<double> getRandomRatesLogLikelihoodGradient(SEXP sexp, size_t len) {
+  auto ptr = parsePtr(sexp);
+  std::vector<double> result(len);
+  ptr->getRandomRatesLogLikelihoodGradient(&result[0], len);
+  return result;
+}
+
 // [[Rcpp::export(.updateLocations)]]
 void updateLocations(SEXP sexp,
                      std::vector<double>& locations) {

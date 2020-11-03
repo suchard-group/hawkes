@@ -43,6 +43,10 @@ createEngine <- function(embeddingDimension, locationCount, tbb, simd, gpu, sing
     .Call('_hpHawkes_getProbsSelfExcite', PACKAGE = 'hpHawkes', sexp, len)
 }
 
+.getRandomRatesLogLikelihoodGradient <- function(sexp, len) {
+    .Call('_hpHawkes_getRandomRatesLogLikelihoodGradient', PACKAGE = 'hpHawkes', sexp, len)
+}
+
 .updateLocations <- function(sexp, locations) {
     invisible(.Call('_hpHawkes_updateLocations', PACKAGE = 'hpHawkes', sexp, locations))
 }

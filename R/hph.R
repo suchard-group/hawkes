@@ -64,6 +64,36 @@ getProbsSelfExcite <- function(engine) {
   return(probsSE)
 }
 
+#' Helper Hawkes process random rates gradient
+#'
+#' Takes HPH engine object and returns gradient of log likelihood wrt random rates.
+#'
+#' @param engine An HPH engine object.
+#' @return vector of log likelihood gradient wrt random rates.
+#'
+#' @export
+getRandomRatesGradient <- function(engine) {
+
+  if (!engine$locationsInitialized) {
+    stop("locations not set")
+  }
+
+  if (!engine$timesInitialized) {
+    stop("times not set")
+  }
+
+  if (!engine$randomRatesInitialized) {
+    stop("random rates not set")
+  }
+
+  if (is.null(engine$parameters)) {
+    stop("parameters not set")
+  }
+
+  randomRatesGradient <- .getRandomRatesLogLikelihoodGradient(engine$engine,engine$locationCount)
+  return(randomRatesGradient)
+}
+
 #' Helper HPH log likelihood gradient function
 #'
 #' Takes HPH engine object and returns log likelihood gradient.

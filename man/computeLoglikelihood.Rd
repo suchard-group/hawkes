@@ -9,7 +9,8 @@ computeLoglikelihood(
   times,
   randomRates,
   parameters,
-  gradient = FALSE
+  locationsGradient = FALSE,
+  randomRatesGradient = FALSE
 )
 }
 \arguments{
