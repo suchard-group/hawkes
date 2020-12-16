@@ -85,15 +85,7 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setTimesData
  * Signature: (I[D)V
  */
 JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_setRandomRates
-        (JNIEnv *, jobject, jint, jdoubleArray);
-
-/*
- * Class:     dr_inference_hawkes_NativeHPHSingleton
- * Method:    getRandomRatesGradient
- * Signature: (I[D)V
- */
-JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getRandomRatesGradient
-        (JNIEnv *, jobject, jint, jdoubleArray);
+  (JNIEnv *, jobject, jint, jdoubleArray);
 
 /*
  * Class:     dr_inference_hawkes_NativeHPHSingleton
@@ -101,6 +93,14 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getRandomRate
  * Signature: (I[D)V
  */
 JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient
+  (JNIEnv *, jobject, jint, jdoubleArray);
+
+/*
+ * Class:     dr_inference_hawkes_NativeHPHSingleton
+ * Method:    getRandomRatesGradient
+ * Signature: (I[D)V
+ */
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getRandomRatesGradient
   (JNIEnv *, jobject, jint, jdoubleArray);
 
 /*
