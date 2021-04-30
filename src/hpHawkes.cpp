@@ -152,6 +152,14 @@ std::vector<double> getRandomRatesLogLikelihoodGradient(SEXP sexp, size_t len) {
   return result;
 }
 
+// [[Rcpp::export(.getRandomRatesLogLikelihoodHessian)]]
+std::vector<double> getRandomRatesLogLikelihoodHessian(SEXP sexp, size_t len) {
+    auto ptr = parsePtr(sexp);
+    std::vector<double> result(len);
+    ptr->getRandomRatesLogLikelihoodHessian(&result[0], len);
+    return result;
+}
+
 // [[Rcpp::export(.updateLocations)]]
 void updateLocations(SEXP sexp,
                      std::vector<double>& locations) {
