@@ -196,6 +196,9 @@ int main(int argc, char* argv[]) {
     std::vector<double> randomRatesGradient(locationCount,0.0);
     auto sumRandomRatesGradient = randomRatesGradient;
 
+    std::vector<double> randomRatesHessian(locationCount,0.0);
+    auto sumRandomRatesHessian = randomRatesHessian;
+
 	std::cout << "Starting HPH benchmark" << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
@@ -203,6 +206,7 @@ int main(int argc, char* argv[]) {
     double timer2 = 0;
     double timer3 = 0;
     double timer4 = 0;
+    double timer5 = 0;
 
     for (auto itr = 0; itr < iterations; ++itr) {
 
@@ -254,6 +258,15 @@ int main(int argc, char* argv[]) {
         std::transform(sumRandomRatesGradient.begin(),sumRandomRatesGradient.end(),
                        randomRatesGradient.begin(),sumRandomRatesGradient.begin(),std::plus<double>());
 
+        auto startTime5 = std::chrono::steady_clock::now();
+
+        instance->getRandomRatesLogLikelihoodHessian(randomRatesHessian.data(), locationCount);
+
+        auto duration5 = std::chrono::steady_clock::now() - startTime5;
+        timer5 += std::chrono::duration<double, std::milli>(duration5).count();
+
+        std::transform(sumRandomRatesHessian.begin(),sumRandomRatesHessian.end(),
+                       randomRatesHessian.begin(),sumRandomRatesHessian.begin(),std::plus<double>());
 
         //sumGradient += gradient[gradientIndex];
 	}
@@ -267,17 +280,19 @@ int main(int argc, char* argv[]) {
     std::cout << "AvgProbSE = " << std::accumulate(sumProbSEs.begin(), sumProbSEs.end(), 0.0) / iterations / locationCount << std::endl;
     std::cout << "TotalLocationsGradient = " << std::accumulate(sumGradient.begin(), sumGradient.end(), 0.0)  << std::endl;
     std::cout << "TotalRandomRatesGradient = " << std::accumulate(sumRandomRatesGradient.begin(), sumRandomRatesGradient.end(), 0.0)  << std::endl;
+    std::cout << "TotalRandomRatesHessian = " << std::accumulate(sumRandomRatesHessian.begin(), sumRandomRatesHessian.end(), 0.0)  << std::endl;
     std::cout << timer  << " ms" << std::endl;
     std::cout << timer2 << " ms" << std::endl;
     std::cout << timer3 << " ms" << std::endl;
     std::cout << timer4 << " ms" << std::endl;
+    std::cout << timer5 << " ms" << std::endl;
 
     std::cout << std::chrono::duration<double, std::milli> (duration).count() << " ms "
 			  << std::endl;
 
 	std::ofstream outfile;
 	outfile.open("report.txt",std::ios_base::app);
-    outfile << deviceNumber << " " << threads << " " << simd << " " << locationCount << " " << embeddingDimension << " " << iterations << " " << timer << " " << timer2 << " " << timer3 << " " << timer4 << "\n" ;
+    outfile << deviceNumber << " " << threads << " " << simd << " " << locationCount << " " << embeddingDimension << " " << iterations << " " << timer << " " << timer2 << " " << timer3 << " " << timer4 << timer5 << "\n" ;
 	outfile.close();
 
 }

@@ -109,6 +109,11 @@ namespace adhoc {
     T pdf_new(T value) {
         return M_1_SQRT_2PI * adhoc::exp(-0.5 * value * value);
     }
+
+    template <typename T>
+    T pdf_new2(T value) {
+        return M_1_SQRT_2PI * M_1_SQRT_2PI * adhoc::exp(- value * value);
+    }
 }
 
 namespace hph {
@@ -216,6 +221,9 @@ public:
 
           randomRatesGradient(locationCount),
           randomRatesGradientPtr(&randomRates),
+
+          randomRatesHessian(locationCount),
+          randomRatesHessianPtr(&randomRates),
 
           likContribs(locationCount),
           storedLikContribs(locationCount),
@@ -365,6 +373,13 @@ public:
         computePreGradientLoopGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
         computeRandomRatesLogLikelihoodGradientGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
         mm::bufferedCopy(std::begin(*randomRatesGradientPtr), std::end(*randomRatesGradientPtr), result, buffer);
+    }
+
+    void getRandomRatesLogLikelihoodHessian(double* result, size_t length) {
+        assert (length == locationCount);
+        computePreGradientLoopGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+        computeRandomRatesLogLikelihoodHessianGeneric<typename TypeInfo::SimdType, TypeInfo::SimdSize, Generic>();
+        mm::bufferedCopy(std::begin(*randomRatesHessianPtr), std::end(*randomRatesHessianPtr), result, buffer);
     }
 
 
@@ -555,6 +570,61 @@ public:
 
 	    return pack;
 	}
+
+    template <typename SimdType, int SimdSize, typename Algorithm>
+    void computeRandomRatesLogLikelihoodHessianGeneric() {
+
+        const auto length = locationCount;
+        if (length != randomRatesHessianPtr->size()) {
+            randomRatesHessianPtr->resize(length);
+        }
+
+        std::fill(std::begin(*randomRatesHessianPtr), std::end(*randomRatesHessianPtr),
+                  static_cast<RealType>(0.0));
+
+        const auto sigmaXprecDThetaOmega = pow(sigmaXprec, embeddingDimension) * theta * omega;
+
+        for_each(0, locationCount, [this, sigmaXprecDThetaOmega](const int i) {
+
+            const int vectorCount = locationCount - locationCount % SimdSize;
+
+            DistanceDispatch<SimdType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+            innerRandomRatesHessianLoop<SimdType, SimdSize>(dispatch, sigmaXprecDThetaOmega,
+                                                             i, 0, vectorCount);
+
+            if (vectorCount < locationCount) { // Edge-cases
+                DistanceDispatch<RealType, RealType, Algorithm> dispatch(*locationsPtr, i, embeddingDimension);
+                innerRandomRatesHessianLoop<RealType, 1>(dispatch, sigmaXprecDThetaOmega,
+                                                          i, vectorCount, locationCount);
+            }
+
+            }, ParallelType());
+    }
+
+    template <typename SimdType, int SimdSize, typename DispatchType>
+    void innerRandomRatesHessianLoop(const DispatchType& dispatch,
+                                      const RealType sigmaXprecDThetaOmega,
+                                      const int i, const int begin, const int end) {
+
+        const auto zero = SimdType(RealType(0));
+
+        const auto timeI = SimdType(RealType(times[i]));
+
+        for (int j = begin; j < end; j += SimdSize) {
+
+            const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
+            const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
+
+            const auto rate = pow(sigmaXprecDThetaOmega,2) * mask(timDiff < zero,
+                                                           adhoc::exp(2*omega * timDiff) * adhoc::pdf_new2(locDist * sigmaXprec));
+
+            for (int k = 0; k < SimdSize; ++k) {
+                (*randomRatesHessianPtr)[i] -= getScalar(rate, k) / pow((*preGradientPtr)[j+k],2);
+            }
+
+        }
+
+    }
 
     template <typename SimdType, int SimdSize, typename Algorithm>
     void computeRandomRatesLogLikelihoodGradientGeneric() {
@@ -1039,6 +1109,9 @@ private:
 
     mm::MemoryManager<RealType> randomRatesGradient;
     mm::MemoryManager<RealType>* randomRatesGradientPtr;
+
+    mm::MemoryManager<RealType> randomRatesHessian;
+    mm::MemoryManager<RealType>* randomRatesHessianPtr;
 
     mm::MemoryManager<RealType> locations0;
     mm::MemoryManager<RealType> locations1;

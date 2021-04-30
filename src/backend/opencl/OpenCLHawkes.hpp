@@ -147,6 +147,8 @@ public:
       dRandomRates = mm::GPUMemoryManager<RealType>(randomRates.size(), ctx);
       dStoredRandomRates = mm::GPUMemoryManager<RealType>(storedRandomRates.size(), ctx);
       dRandomRatesGradient = mm::GPUMemoryManager<RealType>(locationCount, ctx);
+      dRandomRatesHessian = mm::GPUMemoryManager<RealType>(locationCount, ctx);
+
 
         std::cerr << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 #endif //RBUILD
@@ -446,6 +448,47 @@ public:
         queue.finish();
 
         mm::bufferedCopyFromDevice<OpenCLRealType>(dRandomRatesGradient.begin(), dRandomRatesGradient.end(),
+                                                   result, buffer, queue);
+        queue.finish();
+    }
+
+    void getRandomRatesLogLikelihoodHessian(double* result, size_t length) override {
+
+        assert(length == locationCount);
+
+        kernelInnerGradsLoop.set_arg(0, dLocations0);
+        kernelInnerGradsLoop.set_arg(1, dTimes);
+        kernelInnerGradsLoop.set_arg(2, dInnerGradsContribs);
+        kernelInnerGradsLoop.set_arg(3, dRandomRates);
+        kernelInnerGradsLoop.set_arg(4, static_cast<RealType>(sigmaXprec));
+        kernelInnerGradsLoop.set_arg(5, static_cast<RealType>(tauXprec));
+        kernelInnerGradsLoop.set_arg(6, static_cast<RealType>(tauTprec));
+        kernelInnerGradsLoop.set_arg(7, static_cast<RealType>(omega));
+        kernelInnerGradsLoop.set_arg(8, static_cast<RealType>(theta));
+        kernelInnerGradsLoop.set_arg(9, static_cast<RealType>(mu0));
+        kernelInnerGradsLoop.set_arg(10, boost::compute::int_(embeddingDimension));
+        kernelInnerGradsLoop.set_arg(11, boost::compute::uint_(locationCount));
+
+        queue.enqueue_1d_range_kernel(kernelInnerGradsLoop, 0,
+                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+        queue.finish();
+
+
+        kernelRandomRatesHessian.set_arg(0, dLocations0);
+        kernelRandomRatesHessian.set_arg(1, dTimes);
+        kernelRandomRatesHessian.set_arg(2, dRandomRatesHessian);
+        kernelRandomRatesHessian.set_arg(3, dInnerGradsContribs);
+        kernelRandomRatesHessian.set_arg(4, static_cast<RealType>(sigmaXprec));
+        kernelRandomRatesHessian.set_arg(5, static_cast<RealType>(omega));
+        kernelRandomRatesHessian.set_arg(6, static_cast<RealType>(theta));
+        kernelRandomRatesHessian.set_arg(7, boost::compute::int_(embeddingDimension));
+        kernelRandomRatesHessian.set_arg(8, boost::compute::uint_(locationCount));
+
+        queue.enqueue_1d_range_kernel(kernelRandomRatesHessian, 0,
+                                      static_cast<unsigned int>(locationCount) * TPB, TPB);
+        queue.finish();
+
+        mm::bufferedCopyFromDevice<OpenCLRealType>(dRandomRatesHessian.begin(), dRandomRatesHessian.end(),
                                                    result, buffer, queue);
         queue.finish();
     }
@@ -1696,12 +1739,192 @@ public:
 
     }
 
+    void createOpenCLRandomRatesHessianKernel() {
+
+        const char pdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double pdf(double);
+
+                static double pdf(double value) {
+                    return 0.5 * M_SQRT1_2 * M_2_SQRTPI * exp( - pow(value,2.0) * 0.5);
+                }
+        );
+
+        const char pdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float pdf(float);
+
+                static float pdf(float value) {
+
+                    const float rSqrt2f = 0.70710678118655f;
+                    const float rSqrtPif = 0.56418958354775f;
+                    return rSqrt2f * rSqrtPif * exp( - pow(value,2.0f) * 0.5f);
+                }
+        );
+
+        const char cdfString1Double[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double cdf(double);
+
+                static double cdf(double value) {
+                    return 0.5 * erfc(-value * M_SQRT1_2);
+                }
+        );
+
+        const char cdfString1Float[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float cdf(float);
+
+                static float cdf(float value) {
+
+                    const float rSqrt2f = 0.70710678118655f;
+                    return 0.5f * erfc(-value * rSqrt2f);
+                }
+        );
+
+        const char safeExpStringFloat[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static float safe_exp(float);
+
+                static float safe_exp(float value) {
+                    if (value < -103.0f) {
+                        return 0.0f;
+                    } else if (value > 88.0f) {
+                        return MAXFLOAT;
+                    } else {
+                        return exp(value);
+                    }
+                }
+        );
+
+        const char safeExpStringDouble[] = BOOST_COMPUTE_STRINGIZE_SOURCE(
+                static double safe_exp(double);
+
+                static double safe_exp(double value) {
+                    return exp(value);
+                }
+        );
+
+        std::stringstream code;
+        std::stringstream options;
+
+        options << "-DTILE_DIM=" << TILE_DIM << " -DTPB=" << TPB;
+
+        if (sizeof(RealType) == 8) { // 64-bit fp
+            code << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+            options << " -DREAL=double -DREAL_VECTOR=double" << OpenCLRealType::dim << " -DCAST=long"
+                    << " -DZERO=0.0 -DHALF=0.5 -DONE=1.0";
+            code << cdfString1Double;
+            code << pdfString1Double;
+            code << safeExpStringDouble;
+
+        } else { // 32-bit fp
+            options << " -DREAL=float -DREAL_VECTOR=float" << OpenCLRealType::dim << " -DCAST=int"
+                    << " -DZERO=0.0f -DHALF=0.5f -DONE=1.0f";
+            code << cdfString1Float;
+            code << pdfString1Float;
+            code << safeExpStringFloat;
+        }
+
+        code <<
+             " __kernel void computeRandomRatesHessian(__global const REAL_VECTOR *locations,         \n" <<
+             "                                 __global const REAL *times,             \n" <<
+             "						          __global REAL *output,           \n" <<
+             "                                 __global const REAL *innerGradsContribs, \n" <<
+             "                                 const REAL sigmaXprec,                  \n" <<
+             "                                 const REAL omega,                       \n" <<
+             "                                 const REAL theta,                       \n" <<
+             "                                 const int dimX,                         \n" <<
+             "						          const uint locationCount) {             \n";
+
+        code <<
+             "   const uint i = get_group_id(0);                                     \n" <<
+             "                                                                       \n" <<
+             "   const uint lid = get_local_id(0);                                   \n" <<
+             "   uint j = get_local_id(0);                                           \n" <<
+             "   const REAL_VECTOR vectorI = locations[i];                           \n" <<
+             "   const REAL timeI = times[i];                                        \n" <<
+             "                                                                       \n" <<
+             "   __local REAL scratch[TPB];                                 \n" <<
+             "                                                                       \n" <<
+             "   REAL             sum = ZERO;                                      \n" <<
+             "                                                                           \n" <<
+             "   const REAL thetaSigmaXprecDOmega = pow(theta * pow(sigmaXprec,dimX) * omega, 2);  \n" <<
+             "                                                                       \n" <<
+             "   while (j < locationCount) {                                         \n" << // originally j < locationCount
+             "                                                                       \n" <<
+             "     const REAL timDiff = timeI - times[j];                            \n" << // timDiffs[i * locationCount + j];
+             "     const REAL_VECTOR vectorJ = locations[j];                         \n" <<
+             "     const REAL_VECTOR difference = vectorI - vectorJ;                 \n";
+
+        if (OpenCLRealType::dim == 8) {
+            code << "     const REAL locDist = sqrt(                                \n" <<
+                 "              dot(difference.lo, difference.lo) +               \n" <<
+                 "              dot(difference.hi, difference.hi)                 \n" <<
+                 "      );                                                        \n";
+
+        } else {
+            code << "     const REAL locDist = length(difference);                  \n";
+        }
+        code << BOOST_COMPUTE_STRINGIZE_SOURCE(
+                const REAL pdfLocDistSigmaXPrec = pow(pdf(locDist * sigmaXprec),2);
+                const REAL expOmegaTimDiffNprimeN = select(ZERO,  exp(2 * omega * timDiff), (CAST)isless(timDiff,ZERO));
+
+                const REAL seRateNprimeN = thetaSigmaXprecDOmega * pdfLocDistSigmaXPrec * expOmegaTimDiffNprimeN / pow(innerGradsContribs[j],2);
+
+                sum += seRateNprimeN;
+
+                j += TPB;
+        }
+
+                scratch[lid] = sum;
+
+        );
+
+        code <<
+             "     for(int k = 1; k < TPB; k <<= 1) {                                 \n" <<
+             "       barrier(CLK_LOCAL_MEM_FENCE);                                    \n" <<
+             "       uint mask = (k << 1) - 1;                                        \n" <<
+             "       if ((lid & mask) == 0) {                                         \n" <<
+             "           scratch[lid]   += scratch[lid + k];                          \n" <<
+             "       }                                                                \n" <<
+             "   }                                                                    \n";
+
+        code <<
+             "   barrier(CLK_LOCAL_MEM_FENCE);                                       \n" <<
+             "   if (lid == 0) {                                                     \n";
+
+        code << BOOST_COMPUTE_STRINGIZE_SOURCE(
+                output[i] = - scratch[0];
+        );
+
+        code <<
+             "   }                                                                   \n" <<
+             " }                                                                     \n ";
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+        Rcpp::Rcout << "Random rates gradient kernel\n" << code.str() << std::endl;
+#else
+        std::cerr << "Random rates gradient kernel\n" << options.str() << code.str() << std::endl;
+#endif
+#endif
+
+        program = boost::compute::program::build_with_source(code.str(), ctx, options.str());
+        kernelRandomRatesHessian = boost::compute::kernel(program, "computeRandomRatesHessian");
+
+#ifdef DEBUG_KERNELS
+        #ifdef RBUILD
+        Rcpp:Rcout << "Successful build." << std::endl;
+#else
+        std::cerr << "Successful build." << std::endl;
+#endif
+#endif
+
+    }
+
 
 	void createOpenCLKernels() {
 
         createOpenCLLikContribsKernel();
 		createOpenCLGradientKernel();
 		createOpenCLRandomRatesGradientKernel();
+        createOpenCLRandomRatesHessianKernel();
         createOpenCLProbsSelfExciteKernel();
         createOpenCLInnerGradsLoopKernel();
 
@@ -1747,6 +1970,7 @@ private:
     mm::GPUMemoryManager<VectorType> dGradient;
 
     mm::GPUMemoryManager<RealType> dRandomRatesGradient;
+    mm::GPUMemoryManager<RealType> dRandomRatesHessian;
 
     mm::MemoryManager<RealType> locations0;
     mm::MemoryManager<RealType> locations1;
@@ -1787,6 +2011,7 @@ private:
     boost::compute::kernel kernelProbsSelfExcite;
     boost::compute::kernel kernelInnerGradsLoop;
     boost::compute::kernel kernelRandomRatesGradient;
+    boost::compute::kernel kernelRandomRatesHessian;
 
 #else
     boost::compute::kernel kernelLikContribs;
