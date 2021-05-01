@@ -105,6 +105,14 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getRandomRate
 
 /*
  * Class:     dr_inference_hawkes_NativeHPHSingleton
+ * Method:    getRandomRatesHessian
+ * Signature: (I[D)V
+ */
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getRandomRatesHessian
+        (JNIEnv *, jobject, jint, jdoubleArray);
+
+/*
+ * Class:     dr_inference_hawkes_NativeHPHSingleton
  * Method:    getInternalDimension
  * Signature: (I)I
  */

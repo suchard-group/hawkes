@@ -86,6 +86,17 @@ JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getRandomRate
 }
 
 extern "C"
+JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getRandomRatesHessian
+        (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
+    jsize len = env->GetArrayLength(xArray);
+    jdouble* x = env->GetDoubleArrayElements(xArray, NULL); // TODO: Try GetPrimitiveArrayCritical
+
+    instances[instance]->getRandomRatesLogLikelihoodHessian(x, len);
+
+    env->ReleaseDoubleArrayElements(xArray, x, 0); // copy values back
+}
+
+extern "C"
 JNIEXPORT void JNICALL Java_dr_inference_hawkes_NativeHPHSingleton_getLocationGradient
   (JNIEnv *env, jobject, jint instance, jdoubleArray xArray) {
 	jsize len = env->GetArrayLength(xArray);
