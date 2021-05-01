@@ -94,6 +94,36 @@ getRandomRatesGradient <- function(engine) {
   return(randomRatesGradient)
 }
 
+#' Helper Hawkes process random rates Hessian
+#'
+#' Takes HPH engine object and returns Hessian of log likelihood wrt random rates.
+#'
+#' @param engine An HPH engine object.
+#' @return vector of log likelihood hessian wrt random rates.
+#'
+#' @export
+getRandomRatesHessian <- function(engine) {
+
+  if (!engine$locationsInitialized) {
+    stop("locations not set")
+  }
+
+  if (!engine$timesInitialized) {
+    stop("times not set")
+  }
+
+  if (!engine$randomRatesInitialized) {
+    stop("random rates not set")
+  }
+
+  if (is.null(engine$parameters)) {
+    stop("parameters not set")
+  }
+
+  randomRatesHessian <- .getRandomRatesLogLikelihoodHessian(engine$engine,engine$locationCount)
+  return(randomRatesHessian)
+}
+
 #' Helper HPH log likelihood gradient function
 #'
 #' Takes HPH engine object and returns log likelihood gradient.

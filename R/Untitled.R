@@ -13,7 +13,10 @@
 #' @return Hawkes process log likelihood or its gradient.
 #'
 #' @export
-computeLoglikelihood <- function(locations, times, randomRates, parameters, locationsGradient = FALSE, randomRatesGradient=FALSE) {
+computeLoglikelihood <- function(locations, times, randomRates, parameters,
+                                 locationsGradient = FALSE,
+                                 randomRatesGradient=FALSE,
+                                 randomRatesHessian=FALSE) {
 
   wrap_func1 <- function (x){ # takes vector x
     return(log_lik(params=parameters,
@@ -27,7 +30,9 @@ computeLoglikelihood <- function(locations, times, randomRates, parameters, loca
                    obs_t=times, randomRates=x))
   }
 
-  if (locationsGradient & randomRatesGradient) {
+  if (locationsGradient & randomRatesGradient |
+      locationsGradient & randomRatesHessian |
+      randomRatesHessian & randomRatesGradient) {
     stop("One gradient at a time, please.")
   } else if (locationsGradient) {
     gradLogLikelihood <- numDeriv::grad(wrap_func1,x=as.vector(locations))
@@ -35,6 +40,9 @@ computeLoglikelihood <- function(locations, times, randomRates, parameters, loca
     return(gradLogLikelihood)
   } else if (randomRatesGradient) {
     gradLogLikelihood <- numDeriv::grad(wrap_func2,x=randomRates)
+    return(gradLogLikelihood)
+  } else if (randomRatesHessian) {
+    gradLogLikelihood <- diag(numDeriv::hessian(wrap_func2,x=randomRates))
     return(gradLogLikelihood)
   } else {
     logLikelihood <- log_lik(params=parameters,obs_x=locations,
@@ -161,7 +169,19 @@ test <- function(locationCount=10, threads=0, simd=0, gpu=0, single=0) {
                                    parameters=params2,randomRatesGradient = TRUE,
                                    randomRates = randomRates)
  print(naiveGrad)
+
+ cat("random rates Hessian\n")
+ hphHess <- hpHawkes::getRandomRatesHessian(engine)
+ print(hphHess)
+ naiveHess <- computeLoglikelihood(locations=locations,
+                                   times=times,
+                                   parameters=params2,randomRatesHessian = TRUE,
+                                   randomRates = randomRates)
+ print(naiveHess)
+
  cat("max absolute difference between random rates gradients:\n",max(abs(hphGrad-naiveGrad)),"\n")
+ cat("max absolute difference between random rates Hessians:\n",max(abs(hphHess-naiveHess)),"\n")
+
 }
 
 

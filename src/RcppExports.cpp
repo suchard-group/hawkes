@@ -100,6 +100,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// getRandomRatesLogLikelihoodHessian
+std::vector<double> getRandomRatesLogLikelihoodHessian(SEXP sexp, size_t len);
+RcppExport SEXP _hpHawkes_getRandomRatesLogLikelihoodHessian(SEXP sexpSEXP, SEXP lenSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type sexp(sexpSEXP);
+    Rcpp::traits::input_parameter< size_t >::type len(lenSEXP);
+    rcpp_result_gen = Rcpp::wrap(getRandomRatesLogLikelihoodHessian(sexp, len));
+    return rcpp_result_gen;
+END_RCPP
+}
 // updateLocations
 void updateLocations(SEXP sexp, std::vector<double>& locations);
 RcppExport SEXP _hpHawkes_updateLocations(SEXP sexpSEXP, SEXP locationsSEXP) {
@@ -132,6 +144,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpHawkes_getLogLikelihoodGradient", (DL_FUNC) &_hpHawkes_getLogLikelihoodGradient, 2},
     {"_hpHawkes_getProbsSelfExcite", (DL_FUNC) &_hpHawkes_getProbsSelfExcite, 2},
     {"_hpHawkes_getRandomRatesLogLikelihoodGradient", (DL_FUNC) &_hpHawkes_getRandomRatesLogLikelihoodGradient, 2},
+    {"_hpHawkes_getRandomRatesLogLikelihoodHessian", (DL_FUNC) &_hpHawkes_getRandomRatesLogLikelihoodHessian, 2},
     {"_hpHawkes_updateLocations", (DL_FUNC) &_hpHawkes_updateLocations, 2},
     {"_hpHawkes_getSumOfLikContribs", (DL_FUNC) &_hpHawkes_getSumOfLikContribs, 1},
     {NULL, NULL, 0}
