@@ -110,6 +110,7 @@ public:
       dRandomRates = mm::GPUMemoryManager<RealType>(randomRates.size(), ctx);
       dStoredRandomRates= mm::GPUMemoryManager<RealType>(storedRandomRates.size(), ctx);
       dRandomRatesGradient = mm::GPUMemoryManager<RealType>(locationCount, ctx);
+      dRandomRatesHessian = mm::GPUMemoryManager<RealType>(locationCount, ctx);
 
       Rcpp::Rcout << "\twith vector-dim = " << OpenCLRealType::dim << std::endl;
 
