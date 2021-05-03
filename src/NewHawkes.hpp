@@ -220,10 +220,10 @@ public:
           randomRatesPtr(&randomRates),
 
           randomRatesGradient(locationCount),
-          randomRatesGradientPtr(&randomRates),
+          randomRatesGradientPtr(&randomRatesGradient),
 
           randomRatesHessian(locationCount),
-          randomRatesHessianPtr(&randomRates),
+          randomRatesHessianPtr(&randomRatesHessian),
 
           likContribs(locationCount),
           storedLikContribs(locationCount),
@@ -615,11 +615,11 @@ public:
             const auto locDist = dispatch.calculate(j); //SimdHelper<SimdType, RealType>::get(&locDists[i * locationCount + j]);
             const auto timDiff = timeI - SimdHelper<SimdType, RealType>::get(&times[j]);
 
-            const auto rate = pow(sigmaXprecDThetaOmega,2) * mask(timDiff < zero,
-                                                           adhoc::exp(2*omega * timDiff) * adhoc::pdf_new2(locDist * sigmaXprec));
+            const auto rate = sigmaXprecDThetaOmega * sigmaXprecDThetaOmega * mask(timDiff < zero,
+                                                           adhoc::exp(2.0 * omega * timDiff) * adhoc::pdf_new2(locDist * sigmaXprec));
 
             for (int k = 0; k < SimdSize; ++k) {
-                (*randomRatesHessianPtr)[i] -= getScalar(rate, k) / pow((*preGradientPtr)[j+k],2);
+                (*randomRatesHessianPtr)[i] -= getScalar(rate, k) * pow((*preGradientPtr)[j+k],-2.0);
             }
 
         }
