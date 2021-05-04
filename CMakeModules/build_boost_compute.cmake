@@ -68,9 +68,6 @@ IF(NOT rv EQUAL 0)
 ENDIF()
 
 MESSAGE(STATUS "  patching ${archive}")
-EXECUTE_PROCESS(COMMAND cp -n ../../compute.patch .
-        WORKING_DIRECTORY ${thirdPartyDir}
-        RESULT_VARIABLE rv)
 EXECUTE_PROCESS(COMMAND patch -p0 -i compute.patch
     WORKING_DIRECTORY ${thirdPartyDir}
     RESULT_VARIABLE rv)
