@@ -1866,7 +1866,7 @@ public:
                 const REAL pdfLocDistSigmaXPrec = pow(pdf(locDist * sigmaXprec),2);
                 const REAL expOmegaTimDiffNprimeN = select(ZERO,  exp(2 * omega * timDiff), (CAST)isless(timDiff,ZERO));
 
-                const REAL seRateNprimeN = thetaSigmaXprecDOmega * pdfLocDistSigmaXPrec * expOmegaTimDiffNprimeN / pow(innerGradsContribs[j],2);
+                const REAL seRateNprimeN = thetaSigmaXprecDOmega * pdfLocDistSigmaXPrec * expOmegaTimDiffNprimeN * pown(innerGradsContribs[j],-2);
 
                 sum += seRateNprimeN;
 
