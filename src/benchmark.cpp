@@ -292,7 +292,7 @@ int main(int argc, char* argv[]) {
 
 	std::ofstream outfile;
 	outfile.open("report.txt",std::ios_base::app);
-    outfile << deviceNumber << " " << threads << " " << simd << " " << locationCount << " " << embeddingDimension << " " << iterations << " " << timer << " " << timer2 << " " << timer3 << " " << timer4 << timer5 << "\n" ;
+    outfile << deviceNumber << " " << threads << " " << simd << " " << locationCount << " " << embeddingDimension << " " << iterations << " " << timer << " " << timer2 << " " << timer3 << " " << timer4 << " " << timer5 << "\n" ;
 	outfile.close();
 
 }
