@@ -619,7 +619,7 @@ public:
                                                            adhoc::exp(2.0 * omega * timDiff) * adhoc::pdf_new2(locDist * sigmaXprec));
 
             for (int k = 0; k < SimdSize; ++k) {
-                (*randomRatesHessianPtr)[i] -= getScalar(rate, k) * pow((*preGradientPtr)[j+k],-2.0);
+                (*randomRatesHessianPtr)[i] -= getScalar(rate, k) /(*preGradientPtr)[j+k] /(*preGradientPtr)[j+k]; //* pow((*preGradientPtr)[j+k],-2.0);
             }
 
         }
