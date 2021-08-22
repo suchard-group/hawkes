@@ -1845,7 +1845,7 @@ public:
              "                                                                       \n" <<
              "   REAL             sum = ZERO;                                      \n" <<
              "                                                                           \n" <<
-             "   const REAL thetaSigmaXprecDOmega = pow(theta * pow(sigmaXprec,dimX) * omega, 2);  \n" <<
+             "   const REAL thetaSigmaXprecDOmega = pown(theta * pown(sigmaXprec,dimX) * omega, 2);  \n" <<
              "                                                                       \n" <<
              "   while (j < locationCount) {                                         \n" << // originally j < locationCount
              "                                                                       \n" <<
@@ -1863,7 +1863,7 @@ public:
             code << "     const REAL locDist = length(difference);                  \n";
         }
         code << BOOST_COMPUTE_STRINGIZE_SOURCE(
-                const REAL pdfLocDistSigmaXPrec = pow(pdf(locDist * sigmaXprec),2);
+                const REAL pdfLocDistSigmaXPrec = pown(pdf(locDist * sigmaXprec),2);
                 const REAL expOmegaTimDiffNprimeN = select(ZERO,  exp(2 * omega * timDiff), (CAST)isless(timDiff,ZERO));
 
                 const REAL seRateNprimeN = thetaSigmaXprecDOmega * pdfLocDistSigmaXPrec * expOmegaTimDiffNprimeN /innerGradsContribs[j] / innerGradsContribs[j];
