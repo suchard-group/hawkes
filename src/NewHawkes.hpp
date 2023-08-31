@@ -225,7 +225,7 @@ public:
 #ifdef USE_TBB
         if (flags & hph::Flags::TBB) {
     		if (nThreads <= 0) {
-                nThreads = tbb::task_scheduler_init::default_num_threads();
+                nThreads = tbb::this_task_arena::max_concurrency();
     		}
 
     		defaultOut << "Using " << nThreads << " threads" << std::endl;
