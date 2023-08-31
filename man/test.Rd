@@ -18,7 +18,7 @@ test(locationCount = 10, threads = 0, simd = 0, gpu = 0, single = 0)
 \item{single}{Set \code{single=1} if your GPU does not accommodate doubles.}
 }
 \value{
-Returns MDS log likelihoods (should be equal) and distance between gradients (should be 0).
+Returns MDS log likelihoods (should be equal).
 }
 \description{
 Compare outputs for serially and parallel-ly computed Hawkes process log likelihoods and gradients across

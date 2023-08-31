@@ -157,7 +157,6 @@ public:
 #ifdef USE_VECTORS
         dLocations0 = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
         dLocations1 = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
-        dGradient   = mm::GPUMemoryManager<VectorType>(locationCount, ctx);
 #else
         dLocations0 = mm::GPUMemoryManager<RealType>(locations0.size(), ctx);
 		dLocations1 = mm::GPUMemoryManager<RealType>(locations1.size(), ctx);

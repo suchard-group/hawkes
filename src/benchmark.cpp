@@ -5,7 +5,7 @@
 #include <fstream>
 
 #include <boost/program_options.hpp>
-#include <tbb/task_scheduler_init.h>
+//#include <tbb/task_scheduler_init.h>
 
 #include "AbstractHawkes.hpp"
 
@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
 	auto toss = std::bernoulli_distribution(0.25);
 	auto expo = std::exponential_distribution<double>(1);
 	
-	std::shared_ptr<tbb::task_scheduler_init> task{nullptr};
+	std::shared_ptr<tbb::task_arena> task{nullptr};
 
     int deviceNumber = -1;
     int threads = 0;
@@ -86,17 +86,17 @@ int main(int argc, char* argv[]) {
         deviceNumber = vm["gpu"].as<int>() - 1;
 	} else {
 		std::cout << "Running on CPU" << std::endl;
-		
+
 		threads = vm["tbb"].as<int>();
 		if (threads != 0) {
-			std::cout << "Using TBB with " << threads << " out of " 
-			          << tbb::task_scheduler_init::default_num_threads()
+			std::cout << "Using TBB with " << threads << " out of "
+			          << tbb::this_task_arena::max_concurrency()
 			          << " threads" << std::endl;
 			flags |= hph::Flags::TBB;
-			task = std::make_shared<tbb::task_scheduler_init>(threads);
+			task = std::make_shared<tbb::task_arena>(threads);
 		}
 	}
-	
+
 	if (vm.count("float")) {
 		std::cout << "Running in single-precision" << std::endl;
 		flags |= hph::Flags::FLOAT;

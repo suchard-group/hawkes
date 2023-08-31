@@ -22,8 +22,6 @@ computeLoglikelihood(
 \item{randomRates}{Vector of random rates (length=n).}
 
 \item{parameters}{Hawkes process parameters (length=6).}
-
-\item{gradient}{Return gradient (or log likelihood)? Defaults to FALSE.}
 }
 \value{
 Hawkes process log likelihood or its gradient.

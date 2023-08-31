@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 PROJECT(hph)
 
 OPTION(BUILD_NOSIMD "Build HPH without SIMD" OFF)
@@ -168,21 +168,21 @@ target_link_libraries(hph_jni ${TBB_LIBRARIES})
 # Build benchmark
 ##
 
-add_executable(benchmark src/benchmark.cpp)
-target_link_libraries(benchmark hph_jni)
-   set_target_properties(benchmark PROPERTIES COMPILE_FLAGS "${SIMD_FLAGS}")
-   target_link_libraries(benchmark ${TBB_LIBRARIES})
-   target_link_libraries(benchmark boost_program_options)
-
-   add_executable(benchmark-san src/benchmark.cpp)
-   set_target_properties(benchmark-san PROPERTIES COMPILE_FLAGS "-fsanitize=address")
-   set_target_properties(benchmark-san PROPERTIES LINK_FLAGS "-fsanitize=address")
-   set_target_properties(benchmark-san PROPERTIES COMPILE_FLAGS "${SSE_FLAGS}")
-   target_link_libraries(benchmark-san hph_jni)
-   target_link_libraries(benchmark-san ${TBB_LIBRARIES})
-   target_link_libraries(benchmark-san boost_program_options)
-
-add_executable(testme src/test.cpp)
+#add_executable(benchmark src/benchmark.cpp)
+#target_link_libraries(benchmark hph_jni)
+#   set_target_properties(benchmark PROPERTIES COMPILE_FLAGS "${SIMD_FLAGS}")
+#   target_link_libraries(benchmark ${TBB_LIBRARIES})
+#   target_link_libraries(benchmark boost_program_options)
+#
+#   add_executable(benchmark-san src/benchmark.cpp)
+#   set_target_properties(benchmark-san PROPERTIES COMPILE_FLAGS "-fsanitize=address")
+#   set_target_properties(benchmark-san PROPERTIES LINK_FLAGS "-fsanitize=address")
+#   set_target_properties(benchmark-san PROPERTIES COMPILE_FLAGS "${SSE_FLAGS}")
+#   target_link_libraries(benchmark-san hph_jni)
+#   target_link_libraries(benchmark-san ${TBB_LIBRARIES})
+#   target_link_libraries(benchmark-san boost_program_options)
+#
+#add_executable(testme src/test.cpp)
 
    ##
 # Packaging
